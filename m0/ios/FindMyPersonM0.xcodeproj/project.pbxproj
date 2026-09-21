@@ -1,0 +1,140 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+		0159A1B9C03470C1386D2073 /* Recorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Recorder.swift"; sourceTree = "<group>";};
+		0240F63E68F2E7F60EAF769A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate.swift"; sourceTree = "<group>";};
+		06125DCB1954C4F7EEE69894 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			}; name = Debug;};
+		0E24C8576C207B6AF2143AC5 /* CaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E1867AF0608F74033AC5DE;};
+		100AE4147C5A179CB81442A4 /* SlotGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED8629CA3A44213C3873D8D7;};
+		13EFE525E76138EDBA5DB5C0 /* CaptureLog */ = {isa = PBXGroup; children = (
+				3470B1FA468EC1904D5B743E /* LogFileWriter.swift */,
+				FD7F760C85DB9CAE574EBCE4 /* LogFormat.swift */,
+				ED8629CA3A44213C3873D8D7 /* SlotGate.swift */,
+			); path = Sources/CaptureLog; sourceTree = "<group>";};
+		19882D88C7C1CA1CFEA2A1CB /* Prefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6ABF49E72AE8AC2D32E0BD3;};
+		2029A639DD8022543C17416B /* FindMyPersonM0.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FindMyPersonM0.app"; sourceTree = BUILT_PRODUCTS_DIR;};
+		285BB1C1430063331E9F5DD0 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (
+			); runOnlyForDeploymentPostprocessing = 0;};
+		336439D423C0918A82BD69AE /* Recorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0159A1B9C03470C1386D2073;};
+		3470B1FA468EC1904D5B743E /* LogFileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LogFileWriter.swift"; sourceTree = "<group>";};
+		424153ED3CD079DB4DB459AF /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (
+			); runOnlyForDeploymentPostprocessing = 0;};
+		42AEFBAE01D2DFD981F7DA7D /* FindMyPersonM0 */ = {isa = PBXNativeTarget; buildConfigurationList = 8CF598ACC897FE8648893EB5; buildPhases = (
+				7A70D71C385290AF96BF1031 /* Sources */,
+				424153ED3CD079DB4DB459AF /* Frameworks */,
+				285BB1C1430063331E9F5DD0 /* Resources */,
+			); buildRules = (
+			); dependencies = (
+			); name = FindMyPersonM0; productName = FindMyPersonM0; productReference = 2029A639DD8022543C17416B; productType = "com.apple.product-type.application";};
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1620; LastUpgradeCheck = 1620; TargetAttributes = { 42AEFBAE01D2DFD981F7DA7D = { CreatedOnToolsVersion = 16.2; }; }; }; buildConfigurationList = AD8DC1A475C1871509FE9877; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (
+				en,
+				Base,
+			); mainGroup = FD5F4CE5D48C8299D70B6E3E; productRefGroup = F0220EF8F17ECEBD49AC2FAE; projectDirPath = ""; projectRoot = ""; targets = (
+				42AEFBAE01D2DFD981F7DA7D /* FindMyPersonM0 */,
+			);};
+		621D8F9AC96A737804DE24E9 /* ExplainerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17A30BE2BEF1C44239E1775;};
+		63E1867AF0608F74033AC5DE /* CaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CaptureController.swift"; sourceTree = "<group>";};
+		686A6D886FAEF14BCEA374BB /* StatusViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 984D91A1D04E4113A7F1DED7;};
+		770C5B730A8FBE3C009C5372 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>";};
+		7A70D71C385290AF96BF1031 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+				C315FB5D76A39BCB0450A634 /* AppDelegate.swift in Sources */,
+				0E24C8576C207B6AF2143AC5 /* CaptureController.swift in Sources */,
+				621D8F9AC96A737804DE24E9 /* ExplainerViewController.swift in Sources */,
+				19882D88C7C1CA1CFEA2A1CB /* Prefs.swift in Sources */,
+				336439D423C0918A82BD69AE /* Recorder.swift in Sources */,
+				686A6D886FAEF14BCEA374BB /* StatusViewController.swift in Sources */,
+				F5E5940358A1A7C574CC7CF5 /* LogFileWriter.swift in Sources */,
+				AFCFBFFC12BB5D897F234355 /* LogFormat.swift in Sources */,
+				100AE4147C5A179CB81442A4 /* SlotGate.swift in Sources */,
+			); runOnlyForDeploymentPostprocessing = 0;};
+		8CF598ACC897FE8648893EB5 /* Build configuration list for PBXNativeTarget "FindMyPersonM0" */ = {isa = XCConfigurationList; buildConfigurations = (
+				E07B8131BAB0D598AD460C2C /* Debug */,
+				AB3F0C1C96C3F4D3D4AB9249 /* Release */,
+			); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+		984D91A1D04E4113A7F1DED7 /* StatusViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StatusViewController.swift"; sourceTree = "<group>";};
+		AACF5BDB2BC481EB947517D5 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			}; name = Release;};
+		AB3F0C1C96C3F4D3D4AB9249 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.findmyperson.m0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+			}; name = Release;};
+		AD8DC1A475C1871509FE9877 /* Build configuration list for PBXProject "FindMyPersonM0" */ = {isa = XCConfigurationList; buildConfigurations = (
+				06125DCB1954C4F7EEE69894 /* Debug */,
+				AACF5BDB2BC481EB947517D5 /* Release */,
+			); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+		AFCFBFFC12BB5D897F234355 /* LogFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7F760C85DB9CAE574EBCE4;};
+		B6ABF49E72AE8AC2D32E0BD3 /* Prefs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Prefs.swift"; sourceTree = "<group>";};
+		C315FB5D76A39BCB0450A634 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0240F63E68F2E7F60EAF769A;};
+		E07B8131BAB0D598AD460C2C /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.findmyperson.m0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+			}; name = Debug;};
+		ED8629CA3A44213C3873D8D7 /* SlotGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SlotGate.swift"; sourceTree = "<group>";};
+		F0220EF8F17ECEBD49AC2FAE /* Products */ = {isa = PBXGroup; children = (
+				2029A639DD8022543C17416B /* FindMyPersonM0.app */,
+			); name = Products; sourceTree = "<group>";};
+		F17A30BE2BEF1C44239E1775 /* ExplainerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExplainerViewController.swift"; sourceTree = "<group>";};
+		F5E5940358A1A7C574CC7CF5 /* LogFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3470B1FA468EC1904D5B743E;};
+		FD4B53768B1618CC75DD100A /* App */ = {isa = PBXGroup; children = (
+				0240F63E68F2E7F60EAF769A /* AppDelegate.swift */,
+				63E1867AF0608F74033AC5DE /* CaptureController.swift */,
+				F17A30BE2BEF1C44239E1775 /* ExplainerViewController.swift */,
+				B6ABF49E72AE8AC2D32E0BD3 /* Prefs.swift */,
+				0159A1B9C03470C1386D2073 /* Recorder.swift */,
+				984D91A1D04E4113A7F1DED7 /* StatusViewController.swift */,
+				770C5B730A8FBE3C009C5372 /* Info.plist */,
+			); path = App; sourceTree = "<group>";};
+		FD5F4CE5D48C8299D70B6E3E /* Root */ = {isa = PBXGroup; children = (
+				FD4B53768B1618CC75DD100A /* App */,
+				13EFE525E76138EDBA5DB5C0 /* CaptureLog */,
+				F0220EF8F17ECEBD49AC2FAE /* Products */,
+			); sourceTree = "<group>";};
+		FD7F760C85DB9CAE574EBCE4 /* LogFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LogFormat.swift"; sourceTree = "<group>";};
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}
