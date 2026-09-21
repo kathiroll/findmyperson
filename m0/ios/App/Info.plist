@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundleDisplayName</key>
+	<string>FMP M0</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<!-- Without "location" here iOS suspends the app seconds after it leaves the screen, and
+	     setting allowsBackgroundLocationUpdates = true would crash the app. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<!-- iOS shows these two strings in the system permission prompts. The "Always" string is
+	     shown on the second, upgrade prompt. Both keys are required or the prompts never appear. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>M0 capture trial: while the app is open it records how often the phone gets a location fix. No coordinates are stored or sent anywhere.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>M0 capture trial: so the phone keeps getting location fixes in the background, the app needs Always access. Only fix timing and accuracy are logged, never coordinates.</string>
+</dict>
+</plist>
