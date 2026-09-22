@@ -26,9 +26,10 @@ dies. The only things that relaunch a dead app are significant-change and visit 
 "Always" permission and Background App Refresh on). `AppDelegate.didFinishLaunching` runs on every such
 launch and starts all three sources again.
 
-Settings live in `App/CaptureController.swift` (`CaptureConfig`): 100 m accuracy and 50 m distance filter.
-A phone lying still may deliver no continuous callback during a slot; that shows as a missing slot, which
-is the production behaviour we want to measure. Set the filter to `kCLDistanceFilterNone` to compare.
+Settings live in `App/CaptureController.swift` (`CaptureConfig`): 100 m accuracy and no distance filter
+(`kCLDistanceFilterNone`). The trial measures gaps the platform imposes on its own, not how far the
+phone physically moved, so a stationary phone must not manufacture an artificial gap that looks like a
+platform failure. The app still downsamples to one row per 15-minute wall-clock slot.
 
 ### Permission flow
 

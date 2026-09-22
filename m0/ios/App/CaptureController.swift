@@ -6,11 +6,11 @@ enum CaptureConfig {
     /// Continuous updates at 100 m accuracy: iOS can satisfy this from Wi-Fi and cell data without
     /// spinning up the GPS chip, which is the battery-conscious setting a production app would use.
     static let desiredAccuracy = kCLLocationAccuracyHundredMeters
-    /// Only deliver a new continuous callback after the phone moved about 50 m. Side effect worth
-    /// knowing: a phone lying still on a desk may produce no callback for a whole 15-minute slot,
-    /// which then shows up as a missing slot in the analysis. That IS the production behaviour
-    /// we want to measure. Set to kCLDistanceFilterNone to compare.
-    static let distanceFilter: CLLocationDistance = 50
+    /// No distance filter: the trial measures gaps the platform imposes on its own, not how far
+    /// the phone physically moved, so a stationary phone must not manufacture an artificial gap
+    /// that looks like a platform failure. The app still downsamples to one row per 15-minute
+    /// wall-clock slot (see SlotGate), so this does not change how much data we keep.
+    static let distanceFilter: CLLocationDistance = kCLDistanceFilterNone
 }
 
 /// Owns the three capture sources. We use THREE separate CLLocationManager objects, one per
