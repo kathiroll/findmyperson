@@ -21,15 +21,15 @@ No React Native, no third-party libraries: only androidx core, WorkManager and G
 | Notification | none | permanent ("findmyperson test: recording capture health") |
 | Per-sample source | `current` (`getCurrentLocation`, balanced accuracy, 30 s), else `last_known` (with its OLD fix time), else `none` | `updates` (one row per delivered location) |
 | Rows | exactly one per run, including runs that got nothing | one per delivered fix (batched delivery can add several rows at once) |
-| Location request | balanced power accuracy | balanced, interval 15 min, min distance 100 m, max delay 30 min |
+| Location request | balanced power accuracy | balanced, interval 15 min, max delay 30 min |
 
 Why the two are so different on Android: since Android 8 the OS computes a new location for a *background* app only a few times
 per hour, and a foreground service with a visible notification is the documented way out. WorkManager's 15 minutes is a floor, not
 a schedule: Doze and app-standby delay jobs. That gap is exactly what Mode 1 measures.
 
-Note for reading the results: Mode 2 has a 100 m minimum distance. A phone lying still on a desk may deliver no updates for a long
-time, which shows as a gap in `fgs` rows that is **not** a failure. Mode 1 samples on a timer and does not have that property. Compare
-the two while keeping that in mind (this follows the brief; change `minUpdateDistanceMeters` in `CaptureService.kt` to compare without it).
+No minimum-distance filter on Mode 2: the trial measures platform-imposed gaps (Doze, standby, throttling), not how far the phone
+physically moved, so a distance filter would confound the two, and the request asks for a fresh fix every 15 minutes even on a
+phone sitting still.
 
 Only one mode is active at a time. Switching logs `mode_changed:<wm|fgs|stopped>` then `capture_started` or `capture_stopped`.
 The choice is stored in SharedPreferences, so it survives app restarts and reboots.
@@ -150,7 +150,7 @@ Useful before starting: `adb shell dumpsys jobscheduler | grep -B2 -A12 dev.find
   adb shell dumpsys deviceidle unforce
   adb shell dumpsys battery reset
   ```
-  Expect (Mode 1): few or no `current` rows while idle, a burst or `last_known` / `none` rows after. Expect (Mode 2): `updates` rows keep arriving only if the phone moved 100 m; a foreground service is exempt from most Doze throttling but not necessarily from Doze on every vendor build. Write down what happened.
+  Expect (Mode 1): few or no `current` rows while idle, a burst or `last_known` / `none` rows after. Expect (Mode 2): `updates` rows every 15 minutes regardless of movement, since there is no distance filter; a foreground service is exempt from most Doze throttling but not necessarily from Doze on every vendor build. Write down what happened.
 - [ ] **Forced App Standby** (the app is treated as unused), each mode:
   ```
   adb shell am set-inactive dev.findmyperson.m0 true

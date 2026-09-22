@@ -54,8 +54,10 @@ class CaptureService : Service() {
 
     private fun requestUpdates() {
         val rec = Recorder(this)
+        // No minimum distance: the trial measures platform-imposed gaps (Doze, standby, throttling), not how
+        // far the phone physically moved, so a distance filter would confound the two. A fresh fix is wanted
+        // every 15 minutes even on a phone sitting still.
         val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 15 * 60_000L)
-            .setMinUpdateDistanceMeters(100f)
             .setMaxUpdateDelayMillis(30 * 60_000L)
             .build()
         val cb = object : LocationCallback() {
