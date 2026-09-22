@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Folders the FileProvider may hand out through the share sheet. Only the export folder. -->
+<paths>
+    <external-files-path name="exports_ext" path="exports/" />
+    <cache-path name="exports_cache" path="exports/" />
+</paths>
