@@ -101,6 +101,8 @@ def parse_export(path):
             text = fh.read().decode("utf-8")
     except UnicodeDecodeError:
         raise ExportError("%s: not valid UTF-8" % path)
+    if text.startswith("\ufeff"):  # real exports may carry a UTF-8 BOM before the signature line
+        text = text[1:]
     ex = Export(path)
     truncated = not text.endswith("\n")
     lines = [l.rstrip("\r") for l in text.split("\n")]
@@ -208,12 +210,61 @@ def catch_estimate(stay_min, p95):
     return min(1.0, stay_min / p95)
 
 
+def is_usable(s, cfg):
+    return s.fix_at is not None and s.acc is not None and s.acc <= cfg["usable_acc"]
+
+
+def source_gaps(samples, cfg):
+    """Per log `source`: gap stats over that source's fresh usable fixes only (same rules as the mode gaps)."""
+    seen, fresh = defaultdict(int), defaultdict(set)
+    for s in samples:
+        seen[s.source] += 1
+        if is_usable(s, cfg) and s.ran_at - s.fix_at <= cfg["stale_ms"]:
+            fresh[s.source].add(s.fix_at)
+    out = OrderedDict()
+    for src in sorted(seen):
+        fl = sorted(fresh[src])
+        gaps = [(b - a) / 60000.0 for a, b in zip(fl, fl[1:])]
+        out[src] = dict(n=seen[src], fresh=len(fl), gap=gap_stats(gaps))
+    return out
+
+
+def is_relaunch(name):
+    return name.startswith("bg_relaunch") or name == "boot_restart"
+
+
+def relaunch_recovery(samples, events, cfg):
+    """Per relaunch event: minutes since the last usable fix before it, and until the first one at or after it."""
+    fixes = sorted(s.fix_at for s in samples if is_usable(s, cfg))
+    out = []
+    for ev in sorted(events, key=lambda e: e.ran_at):
+        if not is_relaunch(ev.name):
+            continue
+        before = [f for f in fixes if f < ev.ran_at]
+        after = [f for f in fixes if f >= ev.ran_at]
+        out.append(dict(name=ev.name, at=ev.ran_at,
+                        before=(ev.ran_at - before[-1]) / 60000.0 if before else None,
+                        after=(after[0] - ev.ran_at) / 60000.0 if after else None))
+    return out
+
+
+def relaunch_summary(rl, within_min=30.0):
+    if not rl:
+        return "No bg_relaunch or boot_restart events."
+    ok = sum(1 for r in rl if r["after"] is not None and r["after"] <= within_min)
+    afters = [r["after"] for r in rl if r["after"] is not None]
+    unrec = sum(1 for r in rl if r["after"] is None)
+    worst = "worst %s min to first fix" % m1(max(afters)) if afters else "worst n/a"
+    return ("%d relaunch(es): %d recovered within %g min, %d did not (%d with no later usable fix); %s"
+            % (len(rl), ok, within_min, len(rl) - ok, unrec, worst))
+
+
 def analyse_phone(ph, cfg):
     off_ms = (0 if cfg["utc"] else ph.offset) * 60000
     day_of = lambda ts: (ts + off_ms) // DAY_MS
     samples = sorted(ph.samples, key=lambda s: s.ran_at)
     all_ts = [s.ran_at for s in samples] + [e.ran_at for e in ph.events]
-    res = {"cells": {}, "modes": {}, "days": []}
+    res = {"cells": {}, "modes": {}, "days": [], "sources": OrderedDict(), "relaunches": []}
     if not all_ts:
         return res
     t1 = max(all_ts)
@@ -261,6 +312,8 @@ def analyse_phone(ph, cfg):
         fl = sorted(fixes)
         for prev, cur in zip(fl, fl[1:]):
             cells[(mode, day_of(cur))]["gaps"].append((cur - prev) / 60000.0)
+    res["sources"] = source_gaps(samples, cfg)
+    res["relaunches"] = relaunch_recovery(samples, ph.events, cfg)
     # Battery: only spans between two consecutive samples that are both unplugged; a rise while
     # unplugged (rounding, or an unlogged charge) is skipped rather than counted as negative drain.
     for prev, cur in zip(samples, samples[1:]):
@@ -364,6 +417,17 @@ def build_report(phones, cfg):
             add("table", "Per day (gap columns in minutes; drain in %/h while unplugged)",
                 ["day", "mode", "samples", "fresh/expected", "capture", "gap med", "gap p95", "gap max",
                  "usable", "stale", "drain %/h"], rows)
+        if r["sources"]:
+            add("table", "Per source (fresh usable fixes of that source only; gap columns in minutes)",
+                ["source", "samples", "fresh", "gap med", "gap p95", "gap max"],
+                [[src, v["n"], v["fresh"], m1(v["gap"]["median"]), m1(v["gap"]["p95"]), m1(v["gap"]["max"])]
+                 for src, v in r["sources"].items()])
+        if r["relaunches"]:
+            add("table", "Relaunch recovery (usable fixes from any source, minutes)",
+                ["event", "at (phone local time)", "uncovered before", "to first fix after"],
+                [[x["name"], fmt_time(x["at"], ph.offset), m1(x["before"]), m1(x["after"])]
+                 for x in r["relaunches"]])
+        add("p", "Relaunch summary: " + relaunch_summary(r["relaunches"]))
         for mode, s in r["modes"].items():
             g = s["gap"]
             add("table", "Summary, mode %s (%d day(s))" % (mode, s["days"]), ["metric", "value"], [

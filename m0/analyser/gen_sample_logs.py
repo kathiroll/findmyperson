@@ -122,6 +122,8 @@ def iphone(rng):
             acc = rng.choice([5.0, 10.0, 30.0, 65.0, 140.0, 1000.0])
             rows.append(S(t, t - rng.randint(1, 60) * 1000, acc, src, bat, ps, "always", "ios_all"))
         t += rng.randint(8, 150) * MIN
+    rows.append(E(START + 30 * HOUR, "bg_relaunch:slc"))  # deterministic, no rng draw
+    rows.append(E(START + 55 * HOUR, "bg_relaunch:visit"))
     return "iphone-15", "iPhone 15", "18.2", rows
 
 
