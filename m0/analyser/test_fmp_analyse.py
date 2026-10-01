@@ -279,5 +279,64 @@ class FixtureTests(unittest.TestCase):
                 self.assertIn("| metric | value |", fh.read())
 
 
+class PerSourceAndRelaunchTests(Base):
+    def test_per_source_gaps_by_hand(self):
+        _, r = self.analyse([s(0, src="updates"), s(10, src="updates"), s(40, src="updates"),
+                             s(5, src="slc"), s(125, src="slc"), s(50, fix_off=None),
+                             s(60, src="visit_arrival", fix_off=300000)])
+        src = r["sources"]
+        self.assertEqual(sorted(src), ["none", "slc", "updates", "visit_arrival"])
+        self.assertEqual(src["updates"]["gap"]["max"], 30.0)
+        self.assertAlmostEqual(src["updates"]["gap"]["median"], 20.0)
+        self.assertEqual(src["slc"]["gap"]["max"], 120.0)
+        self.assertEqual(src["visit_arrival"]["fresh"], 0)  # stale only: empty row, no crash
+        self.assertIsNone(src["visit_arrival"]["gap"]["p95"])
+        self.assertEqual(src["none"]["fresh"], 0)
+
+    def test_absent_source_not_listed(self):
+        _, r = self.analyse([s(0, src="current"), s(15, src="current")])
+        self.assertEqual(list(r["sources"]), ["current"])
+
+    def test_relaunch_by_hand(self):
+        _, r = self.analyse([s(0), s(10), s(50, acc=500), s(80, src="slc"), e(40, "bg_relaunch:slc"),
+                             e(70, "boot_restart"), e(71, "watchdog_ok")])
+        a, b = r["relaunches"]
+        # fixes sit 1 s before their run time (helper default), hence the 0.02 min tolerance
+        self.assertEqual(a["name"], "bg_relaunch:slc")
+        self.assertAlmostEqual(a["before"], 30.0, delta=0.02)
+        self.assertAlmostEqual(a["after"], 40.0, delta=0.02)
+        self.assertEqual(b["name"], "boot_restart")
+        self.assertAlmostEqual(b["before"], 60.0, delta=0.02)
+        self.assertAlmostEqual(b["after"], 10.0, delta=0.02)
+
+    def test_relaunch_without_prior_or_later_fix(self):
+        _, r = self.analyse([e(5, "bg_relaunch"), s(20, fix_off=None), e(30, "boot_restart")])
+        first, second = r["relaunches"]
+        self.assertIsNone(first["before"])
+        self.assertIsNone(first["after"])
+        self.assertIsNone(second["after"])
+        self.assertIn("no later usable fix", fa.relaunch_summary(r["relaunches"]))
+
+    def test_relaunch_summary_counts(self):
+        rl = [dict(name="boot_restart", at=0, before=5.0, after=10.0),
+              dict(name="bg_relaunch", at=0, before=None, after=90.0)]
+        self.assertIn("2 relaunch(es): 1 recovered within 30 min, 1 did not", fa.relaunch_summary(rl))
+        self.assertIn("worst 90.0", fa.relaunch_summary(rl))
+
+    def test_report_has_new_tables_and_old_ones_unchanged(self):
+        rc, out, _ = self.run_main([os.path.join(FIXTURES, "iphone.csv")])
+        self.assertEqual(rc, 0)
+        for text in ("Per source", "Relaunch recovery", "Relaunch summary:", "Per day (gap columns",
+                     "proposal-level reading"):
+            self.assertIn(text, out)
+
+    def test_bom_tolerant_parse(self):
+        p = os.path.join(self.tmp.name, "bom.csv")
+        with open(p, "wb") as fh:
+            fh.write(b"\xef\xbb\xbf" + log_text([s(0)]).encode("utf-8"))
+        ph = fa.load_phones([p])["p1"]
+        self.assertEqual(len(ph.samples), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
