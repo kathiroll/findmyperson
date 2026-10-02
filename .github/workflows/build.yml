@@ -1,0 +1,117 @@
+name: Build
+
+# Android builds on every pull request (Linux runners are cheap). iOS needs a macOS runner,
+# which is the expensive part of the budget, so it only runs on main and on version tags.
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Secrets are empty on forks and for fork PRs; the job then builds an unsigned-by-us debug APK.
+      KEYSTORE_B64: ${{ secrets.FMP_ANDROID_KEYSTORE_BASE64 }}
+      FMP_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.FMP_ANDROID_KEYSTORE_PASSWORD }}
+      FMP_ANDROID_KEY_ALIAS: ${{ secrets.FMP_ANDROID_KEY_ALIAS }}
+      FMP_ANDROID_KEY_PASSWORD: ${{ secrets.FMP_ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect native project
+        id: native
+        run: |
+          if [ -x app/android/gradlew ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::app/android does not exist yet; skipping Android build"; fi
+      - if: steps.native.outputs.present == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.native.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - if: steps.native.outputs.present == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - if: steps.native.outputs.present == 'true'
+        uses: android-actions/setup-android@v3
+      - if: steps.native.outputs.present == 'true'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-cleanup: true
+      - if: steps.native.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Release build (signed)
+        if: steps.native.outputs.present == 'true' && env.KEYSTORE_B64 != ''
+        run: |
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          export FMP_ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.keystore"
+          build/build-android.sh release
+          rm -f "$RUNNER_TEMP/release.keystore"
+      - name: Debug build (no secrets available)
+        if: steps.native.outputs.present == 'true' && env.KEYSTORE_B64 == ''
+        run: build/build-android.sh debug
+      - name: Upload artifacts
+        if: steps.native.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ github.sha }}
+          path: |
+            app/android/app/build/outputs/apk/**/*.apk
+            app/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+
+  ios:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      FMP_IOS_CERT_P12_BASE64: ${{ secrets.FMP_IOS_CERT_P12_BASE64 }}
+      FMP_IOS_CERT_PASSWORD: ${{ secrets.FMP_IOS_CERT_PASSWORD }}
+      FMP_IOS_PROFILE_BASE64: ${{ secrets.FMP_IOS_PROFILE_BASE64 }}
+      FMP_IOS_TEAM_ID: ${{ secrets.FMP_IOS_TEAM_ID }}
+      FMP_IOS_BUNDLE_ID: ${{ secrets.FMP_IOS_BUNDLE_ID }}
+      FMP_IOS_PROFILE_NAME: ${{ secrets.FMP_IOS_PROFILE_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect native project
+        id: native
+        run: |
+          if ls app/ios/*.xcodeproj >/dev/null 2>&1; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::app/ios does not exist yet; skipping iOS build"; fi
+      - if: steps.native.outputs.present == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.native.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - if: steps.native.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Archive (signed)
+        if: steps.native.outputs.present == 'true' && env.FMP_IOS_CERT_P12_BASE64 != ''
+        run: |
+          build/ios-ci-signing.sh
+          build/build-ios.sh signed
+      - name: Archive (unsigned, no secrets available)
+        if: steps.native.outputs.present == 'true' && env.FMP_IOS_CERT_P12_BASE64 == ''
+        run: build/build-ios.sh unsigned
+      - name: Upload artifacts
+        if: steps.native.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ github.sha }}
+          path: |
+            app/ios/build/export/*.ipa
+            app/ios/build/*.xcarchive
+          if-no-files-found: error
