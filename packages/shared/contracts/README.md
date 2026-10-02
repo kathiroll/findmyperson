@@ -29,7 +29,7 @@ To add a vector: add the input, run the tests, and take the expected value from 
 
 ## Generated files (derived from the TypeScript source)
 
-These are copies of definitions that live in `src/`. A test compares each file with what the source produces and fails on any difference. `pnpm --filter @findmyperson/shared test -u` rewrites them; CI never does.
+These are copies of definitions that live in `src/`. A test compares each file with what the source produces and fails on any difference. `pnpm exec vitest run packages/shared -u`, run from the repo root, rewrites them; CI never does.
 
 | File                          | Generated from                                          | For                                                           |
 | ----------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |

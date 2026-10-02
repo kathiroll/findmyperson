@@ -7,7 +7,7 @@ import { format, resolveConfig } from 'prettier';
  * passes `pnpm format:check`.
  *
  * Used with vitest's toMatchFileSnapshot: the test fails when the committed file differs from
- * what the TypeScript source produces, and `pnpm test -u` rewrites the file. CI never rewrites.
+ * what the TypeScript source produces, and `pnpm exec vitest run packages/shared -u` rewrites the file. CI never rewrites.
  */
 export async function contractJson(value: unknown, contractFile: URL): Promise<string> {
   const filepath = fileURLToPath(contractFile);

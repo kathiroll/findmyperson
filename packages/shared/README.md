@@ -46,7 +46,7 @@ Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported typ
 ## Commands
 
 ```sh
-pnpm --filter @findmyperson/shared test       # unit tests, no device or network
-pnpm --filter @findmyperson/shared test -u    # also rewrite the generated files in contracts/
+pnpm exec vitest run packages/shared       # this package's unit tests; no device or network
+pnpm exec vitest run packages/shared -u    # also rewrite the generated files in contracts/
 pnpm --filter @findmyperson/shared typecheck
 ```

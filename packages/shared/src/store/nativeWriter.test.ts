@@ -8,7 +8,7 @@ const CONTRACT_FILE = '../../contracts/native-writer.json';
 
 test('contracts/native-writer.json is the committed copy of the native writer contract', async () => {
   // Kotlin and Swift read this file. If it fails, the TypeScript side changed: review what the
-  // native modules must change too, then `pnpm test -u` to rewrite the file.
+  // native modules must change too, then rewrite the file with `-u`.
   const file = new URL(CONTRACT_FILE, import.meta.url);
   await expect(await contractJson(NATIVE_WRITER_CONTRACT, file)).toMatchFileSnapshot(CONTRACT_FILE);
 });

@@ -121,7 +121,7 @@ describe('the migration list', () => {
 describe('contracts/migration-v1.sql', () => {
   test('is the committed copy of migration 1', async () => {
     // A released migration is frozen. If this fails because version 1 was edited, undo the
-    // edit and add a new migration instead. Only before first release: `pnpm test -u`.
+    // edit and add a new migration instead. Only before first release: rerun with `-u`.
     await expect(renderMigrationSql(MIGRATION_V1)).toMatchFileSnapshot(
       '../../contracts/migration-v1.sql',
     );
