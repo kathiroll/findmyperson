@@ -50,3 +50,7 @@ pnpm install
 ## CI
 
 `.github/workflows/ci.yml` runs on every pull request (and pushes to `main`) as a single job on one runner: install once with `pnpm install --frozen-lockfile` (cached by lockfile), then typecheck, lint, format check, and unit tests across all workspaces. A single job avoids paying for install several times. The expected time on a trivial PR is about 1 to 2 minutes. If this job passes locally with `pnpm check`, it should pass in CI.
+
+## Building installable apps
+
+Release and debug build scripts, signing secrets and the Android/iOS CI jobs are described in [docs/BUILDING.md](docs/BUILDING.md).

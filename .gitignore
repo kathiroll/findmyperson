@@ -29,3 +29,10 @@ app/ios/Pods/
 app/ios/build/
 .expo/
 .metro-health-check*
+
+# Build scripts live in build/ (the generic "build/" rule above is for outputs); signing material is never committed
+!/build/
+*.keystore
+*.jks
+*.p12
+*.mobileprovision

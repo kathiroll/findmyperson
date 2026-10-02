@@ -1,0 +1,20 @@
+// Gradle init script: signs the `release` build type of any Android application module from
+// environment variables, so no keystore or password ever lives in the repo or in build.gradle.
+// Used as: ./gradlew --init-script ../../build/android-signing.init.gradle assembleRelease bundleRelease
+// If FMP_ANDROID_KEYSTORE_FILE is unset, it does nothing and the release build stays unsigned.
+def keystoreFile = System.getenv('FMP_ANDROID_KEYSTORE_FILE')
+
+if (keystoreFile) {
+    allprojects {
+        pluginManager.withPlugin('com.android.application') {
+            def android = extensions.getByName('android')
+            def signing = android.signingConfigs.create('fmpRelease') {
+                storeFile file(keystoreFile)
+                storePassword System.getenv('FMP_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('FMP_ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('FMP_ANDROID_KEY_PASSWORD')
+            }
+            android.buildTypes.release.signingConfig = signing
+        }
+    }
+}

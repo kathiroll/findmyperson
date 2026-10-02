@@ -5,6 +5,8 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - No simulators or emulators; every claim about device behaviour is either verified from source/build output or listed as unverified in the PR and the relevant `m0/*/README.md`.
 - On-device store (`m0/store-proof/`): the SQLCipher parameters live only in `m0/store-proof/shared/cipher-params.json`; edit it, run `npm run gen:cipher`, never hand-edit the generated TS/Kotlin/Swift constants. op-sqlite's Node build ignores the encryption key, so Jest uses `@journeyapps/sqlcipher`; details in `m0/store-proof/README.md`.
 
+- Real-app builds: `build/*.sh` is the single path for local and CI builds (Android on every PR, iOS only on main/tags to save macOS runner cost); see `docs/BUILDING.md`. Signing comes only from env vars/CI secrets.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
