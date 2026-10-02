@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": { "type": "number", "const": 1 },
+    "key_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,31}$" },
+    "issued_at": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "shards": {
+      "type": "object",
+      "propertyNames": { "type": "string" },
+      "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+    },
+    "sig": { "type": "string", "pattern": "^ed25519:[A-Za-z0-9_-]{86}$" }
+  },
+  "required": ["v", "key_id", "issued_at", "shards", "sig"],
+  "$comment": "GENERATED from packages/shared/src/payload by jsonSchema.test.ts; do not edit by hand. Members not listed here are allowed and must be ignored by a reader. Cross-field rules and H3 cell validity are not expressible here: see the zod schema."
+}

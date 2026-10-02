@@ -1,0 +1,632 @@
+{
+  "_comment": "Golden vectors for the widen-only edit rule (classifyCriteriaEdit and isWideningEdit in packages/shared/src/payload/widening.ts). The expected results were worked out by hand from the rule, with the arithmetic in `why`; they are not output copied from the code. isWideningEdit is true exactly when kind is not 'narrowed'. See contracts/README.md.",
+  "edit_center_tolerance_m": 1,
+  "vectors": [
+    {
+      "name": "identical",
+      "why": "Nothing changed.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "unchanged"
+      }
+    },
+    {
+      "name": "window-starts-earlier",
+      "why": "The new window contains the old one.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789879400,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "widened"
+      }
+    },
+    {
+      "name": "window-ends-later",
+      "why": "The new window contains the old one.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789882400
+        }
+      },
+      "expect": {
+        "kind": "widened"
+      }
+    },
+    {
+      "name": "window-starts-one-second-later",
+      "why": "One second of the old window is dropped.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880001,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["window_from_later"]
+      }
+    },
+    {
+      "name": "window-ends-one-second-earlier",
+      "why": "One second of the old window is dropped.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881799
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["window_to_earlier"]
+      }
+    },
+    {
+      "name": "window-shrinks-at-both-ends",
+      "why": "Both ends move inward.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880060,
+          "to": 1789881740
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["window_from_later", "window_to_earlier"]
+      }
+    },
+    {
+      "name": "window-shifted-later",
+      "why": "Same length, but the start of the old window is dropped.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880600,
+          "to": 1789882400
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["window_from_later"]
+      }
+    },
+    {
+      "name": "radius-grows",
+      "why": "Same centre, larger radius.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 150,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "widened"
+      }
+    },
+    {
+      "name": "radius-shrinks-by-one-metre",
+      "why": "A smaller radius is refused even when it is inside the centre tolerance.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 99,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["radius_smaller"]
+      }
+    },
+    {
+      "name": "centre-moves-11m-radius-unchanged",
+      "why": "0.0001 degrees of latitude is 11.12 m. 11.12 + 100 is more than 100 + 1.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9717,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["center_not_covered"]
+      }
+    },
+    {
+      "name": "centre-moves-11m-radius-plus-10",
+      "why": "11.12 + 100 = 111.12, more than 110 + 1.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9717,
+          "lon": 77.5946
+        },
+        "radius_m": 110,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["center_not_covered"]
+      }
+    },
+    {
+      "name": "centre-moves-11m-radius-plus-11",
+      "why": "11.12 + 100 = 111.12, not more than 111 + 1. The new disc covers the old one.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9717,
+          "lon": 77.5946
+        },
+        "radius_m": 111,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "widened"
+      }
+    },
+    {
+      "name": "centre-moves-half-a-metre",
+      "why": "0.000005 degrees of latitude is 0.56 m, inside the 1 m tolerance.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.971605,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "widened"
+      }
+    },
+    {
+      "name": "centre-moves-two-metres",
+      "why": "0.00002 degrees of latitude is 2.22 m, outside the 1 m tolerance.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.97162,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["center_not_covered"]
+      }
+    },
+    {
+      "name": "centre-moves-1112m-radius-covers",
+      "why": "0.01 degrees of latitude is 1111.95 m. 1111.95 + 100 = 1211.95, not more than 1212 + 1.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9816,
+          "lon": 77.5946
+        },
+        "radius_m": 1212,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "widened"
+      }
+    },
+    {
+      "name": "centre-moves-1112m-radius-short",
+      "why": "1211.95 is more than 1210 + 1.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9816,
+          "lon": 77.5946
+        },
+        "radius_m": 1210,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["center_not_covered"]
+      }
+    },
+    {
+      "name": "longitude-move-at-60n-covered",
+      "why": "0.001 degrees of longitude at 60 N is 55.60 m, not more than 55 + 1.",
+      "previous": {
+        "center": {
+          "lat": 60,
+          "lon": 10
+        },
+        "radius_m": 0,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 60,
+          "lon": 10.001
+        },
+        "radius_m": 55,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "widened"
+      }
+    },
+    {
+      "name": "longitude-move-at-60n-not-covered",
+      "why": "55.60 m is more than 54 + 1.",
+      "previous": {
+        "center": {
+          "lat": 60,
+          "lon": 10
+        },
+        "radius_m": 0,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 60,
+          "lon": 10.001
+        },
+        "radius_m": 54,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["center_not_covered"]
+      }
+    },
+    {
+      "name": "zero-radius-half-metre-move",
+      "why": "A report with radius 0 can absorb a sub-metre pin correction.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 0,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.971605,
+          "lon": 77.5946
+        },
+        "radius_m": 0,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "expect": {
+        "kind": "widened"
+      }
+    },
+    {
+      "name": "wider-radius-does-not-excuse-a-shorter-window",
+      "why": "Each criterion is judged on its own.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 500,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881799
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": ["window_to_earlier"]
+      }
+    },
+    {
+      "name": "everything-narrowed",
+      "why": "All four violations, reported in a fixed order.",
+      "previous": {
+        "center": {
+          "lat": 12.9716,
+          "lon": 77.5946
+        },
+        "radius_m": 100,
+        "window": {
+          "from": 1789880000,
+          "to": 1789881800
+        }
+      },
+      "next": {
+        "center": {
+          "lat": 12.9816,
+          "lon": 77.5946
+        },
+        "radius_m": 50,
+        "window": {
+          "from": 1789880060,
+          "to": 1789881740
+        }
+      },
+      "expect": {
+        "kind": "narrowed",
+        "violations": [
+          "window_from_later",
+          "window_to_earlier",
+          "radius_smaller",
+          "center_not_covered"
+        ]
+      }
+    }
+  ]
+}

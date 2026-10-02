@@ -1,0 +1,460 @@
+{
+  "_comment": "Golden vectors for the geometry and geo-sharding math. TypeScript, Kotlin and Swift must all reproduce them. Cell ids must match exactly; distances must match within distance_tolerance_m. See contracts/README.md.",
+  "earth_radius_m": 6371008.8,
+  "distance_tolerance_m": 0.001,
+  "points": [
+    {
+      "name": "bengaluru",
+      "lat": 12.9716,
+      "lon": 77.5946,
+      "h3_r7": "8760145b4ffffff",
+      "h3_r5": "8560145bfffffff",
+      "h3_r3": "836014fffffffff",
+      "h3_r5_containing": "8560145bfffffff"
+    },
+    {
+      "name": "mumbai",
+      "lat": 19.076,
+      "lon": 72.8777,
+      "h3_r7": "87608b0b6ffffff",
+      "h3_r5": "85608b0bfffffff",
+      "h3_r3": "83608bfffffffff",
+      "h3_r5_containing": "85608b57fffffff"
+    },
+    {
+      "name": "delhi",
+      "lat": 28.6139,
+      "lon": 77.209,
+      "h3_r7": "873da1146ffffff",
+      "h3_r5": "853da117fffffff",
+      "h3_r3": "833da1fffffffff",
+      "h3_r5_containing": "853da117fffffff"
+    },
+    {
+      "name": "mexico-city",
+      "lat": 19.4326,
+      "lon": -99.1332,
+      "h3_r7": "874995b84ffffff",
+      "h3_r5": "854995bbfffffff",
+      "h3_r3": "834995fffffffff",
+      "h3_r5_containing": "854995bbfffffff"
+    },
+    {
+      "name": "lagos",
+      "lat": 6.5244,
+      "lon": 3.3792,
+      "h3_r7": "87589c984ffffff",
+      "h3_r5": "85589c9bfffffff",
+      "h3_r3": "83589cfffffffff",
+      "h3_r5_containing": "85589c9bfffffff"
+    },
+    {
+      "name": "sao-paulo",
+      "lat": -23.5505,
+      "lon": -46.6333,
+      "h3_r7": "87a8100c0ffffff",
+      "h3_r5": "85a8100ffffffff",
+      "h3_r3": "83a810fffffffff",
+      "h3_r5_containing": "85a8100ffffffff"
+    },
+    {
+      "name": "manila",
+      "lat": 14.5995,
+      "lon": 120.9842,
+      "h3_r7": "87694ec04ffffff",
+      "h3_r5": "85694ec3fffffff",
+      "h3_r3": "83694efffffffff",
+      "h3_r5_containing": "85694ec3fffffff"
+    },
+    {
+      "name": "johannesburg",
+      "lat": -26.2041,
+      "lon": 28.0473,
+      "h3_r7": "87bcc352cffffff",
+      "h3_r5": "85bcc353fffffff",
+      "h3_r3": "83bcc3fffffffff",
+      "h3_r5_containing": "85bcc353fffffff"
+    },
+    {
+      "name": "nairobi",
+      "lat": -1.2921,
+      "lon": 36.8219,
+      "h3_r7": "877a6e42cffffff",
+      "h3_r5": "857a6e43fffffff",
+      "h3_r3": "837a6efffffffff",
+      "h3_r5_containing": "857a6e43fffffff"
+    },
+    {
+      "name": "h3-docs-example",
+      "lat": 37.3615593,
+      "lon": -122.0553238,
+      "h3_r7": "87283472bffffff",
+      "h3_r5": "85283473fffffff",
+      "h3_r3": "832834fffffffff",
+      "h3_r5_containing": "85283473fffffff"
+    },
+    {
+      "name": "null-island",
+      "lat": 0,
+      "lon": 0,
+      "h3_r7": "87754e64dffffff",
+      "h3_r5": "85754e67fffffff",
+      "h3_r3": "83754efffffffff",
+      "h3_r5_containing": "85754e67fffffff"
+    },
+    {
+      "name": "antimeridian-east",
+      "lat": -17.7134,
+      "lon": 179.9999,
+      "h3_r7": "879b43d54ffffff",
+      "h3_r5": "859b43d7fffffff",
+      "h3_r3": "839b43fffffffff",
+      "h3_r5_containing": "859b43d7fffffff"
+    },
+    {
+      "name": "antimeridian-west",
+      "lat": -17.7134,
+      "lon": -179.9999,
+      "h3_r7": "879b43d54ffffff",
+      "h3_r5": "859b43d7fffffff",
+      "h3_r3": "839b43fffffffff",
+      "h3_r5_containing": "859b43d7fffffff"
+    },
+    {
+      "name": "tromso-high-latitude",
+      "lat": 69.6492,
+      "lon": 18.9553,
+      "h3_r7": "8708ed358ffffff",
+      "h3_r5": "8508ed37fffffff",
+      "h3_r3": "8308edfffffffff",
+      "h3_r5_containing": "8508ed37fffffff"
+    },
+    {
+      "name": "near-south-pole",
+      "lat": -89.9,
+      "lon": 45,
+      "h3_r7": "87f2938a8ffffff",
+      "h3_r5": "85f2938bfffffff",
+      "h3_r3": "83f293fffffffff",
+      "h3_r5_containing": "85f2938bfffffff"
+    },
+    {
+      "name": "north-pole",
+      "lat": 90,
+      "lon": 0,
+      "h3_r7": "870326233ffffff",
+      "h3_r5": "85032623fffffff",
+      "h3_r3": "830326fffffffff",
+      "h3_r5_containing": "85032623fffffff"
+    },
+    {
+      "name": "shard-edge-parent-differs",
+      "lat": 12.909,
+      "lon": 77.53,
+      "h3_r7": "876014512ffffff",
+      "h3_r5": "85601453fffffff",
+      "h3_r3": "836014fffffffff",
+      "h3_r5_containing": "8560145bfffffff"
+    }
+  ],
+  "distances": [
+    {
+      "name": "same-point",
+      "from": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "to": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "meters": 0
+    },
+    {
+      "name": "one-degree-of-latitude",
+      "from": {
+        "lat": 0,
+        "lon": 0
+      },
+      "to": {
+        "lat": 1,
+        "lon": 0
+      },
+      "meters": 111195.0802335329
+    },
+    {
+      "name": "one-degree-of-longitude-at-equator",
+      "from": {
+        "lat": 0,
+        "lon": 0
+      },
+      "to": {
+        "lat": 0,
+        "lon": 1
+      },
+      "meters": 111195.0802335329
+    },
+    {
+      "name": "one-degree-of-longitude-at-60n",
+      "from": {
+        "lat": 60,
+        "lon": 10
+      },
+      "to": {
+        "lat": 60,
+        "lon": 11
+      },
+      "meters": 55597.01086489692
+    },
+    {
+      "name": "about-11-m-north",
+      "from": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "to": {
+        "lat": 12.9717,
+        "lon": 77.5946
+      },
+      "meters": 11.11950802328894
+    },
+    {
+      "name": "just-inside-150-m",
+      "from": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "to": {
+        "lat": 12.97294,
+        "lon": 77.5946
+      },
+      "meters": 149.0014075128852
+    },
+    {
+      "name": "just-outside-150-m",
+      "from": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "to": {
+        "lat": 12.97296,
+        "lon": 77.5946
+      },
+      "meters": 151.22530911768447
+    },
+    {
+      "name": "about-100-m-east",
+      "from": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "to": {
+        "lat": 12.9716,
+        "lon": 77.59552
+      },
+      "meters": 99.68893930663968
+    },
+    {
+      "name": "across-the-antimeridian",
+      "from": {
+        "lat": -17.7134,
+        "lon": 179.9999
+      },
+      "to": {
+        "lat": -17.7134,
+        "lon": -179.9999
+      },
+      "meters": 21.184672072717305
+    },
+    {
+      "name": "bengaluru-to-mumbai",
+      "from": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "to": {
+        "lat": 19.076,
+        "lon": 72.8777
+      },
+      "meters": 845319.5532594323
+    },
+    {
+      "name": "delhi-to-mexico-city",
+      "from": {
+        "lat": 28.6139,
+        "lon": 77.209
+      },
+      "to": {
+        "lat": 19.4326,
+        "lon": -99.1332
+      },
+      "meters": 14658147.274495525
+    },
+    {
+      "name": "southern-hemisphere",
+      "from": {
+        "lat": -23.5505,
+        "lon": -46.6333
+      },
+      "to": {
+        "lat": -26.2041,
+        "lon": 28.0473
+      },
+      "meters": 7429262.559209358
+    },
+    {
+      "name": "pole-to-equator",
+      "from": {
+        "lat": 90,
+        "lon": 0
+      },
+      "to": {
+        "lat": 0,
+        "lon": 0
+      },
+      "meters": 10007557.22101796
+    },
+    {
+      "name": "high-latitude-short",
+      "from": {
+        "lat": 69.6492,
+        "lon": 18.9553
+      },
+      "to": {
+        "lat": 69.6501,
+        "lon": 18.9571
+      },
+      "meters": 121.90121860780265
+    }
+  ],
+  "rings": [
+    {
+      "cell": "8560145bfffffff",
+      "ring": [
+        "85601443fffffff",
+        "8560144bfffffff",
+        "85601453fffffff",
+        "8560145bfffffff",
+        "85601697fffffff",
+        "85618927fffffff",
+        "8561892ffffffff"
+      ]
+    },
+    {
+      "cell": "859b43d7fffffff",
+      "ring": [
+        "859b406ffffffff",
+        "859b438bfffffff",
+        "859b439bfffffff",
+        "859b43c3fffffff",
+        "859b43c7fffffff",
+        "859b43d3fffffff",
+        "859b43d7fffffff"
+      ]
+    },
+    {
+      "cell": "85080003fffffff",
+      "ring": [
+        "85080003fffffff",
+        "8508000bfffffff",
+        "8508000ffffffff",
+        "85080013fffffff",
+        "85080017fffffff",
+        "8508001bfffffff"
+      ]
+    }
+  ],
+  "search_areas": [
+    {
+      "name": "bengaluru",
+      "center": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "radius_m": 0,
+      "cells": ["8760145b4ffffff"]
+    },
+    {
+      "name": "bengaluru",
+      "center": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "radius_m": 500,
+      "cells": ["8760145b4ffffff", "87618925affffff", "87618925bffffff"]
+    },
+    {
+      "name": "bengaluru",
+      "center": {
+        "lat": 12.9716,
+        "lon": 77.5946
+      },
+      "radius_m": 5000,
+      "cells": [
+        "8760145a0ffffff",
+        "8760145a2ffffff",
+        "8760145a4ffffff",
+        "8760145a6ffffff",
+        "8760145b0ffffff",
+        "8760145b1ffffff",
+        "8760145b2ffffff",
+        "8760145b3ffffff",
+        "8760145b4ffffff",
+        "8760145b5ffffff",
+        "8760145b6ffffff",
+        "876189251ffffff",
+        "876189253ffffff",
+        "876189258ffffff",
+        "876189259ffffff",
+        "87618925affffff",
+        "87618925bffffff",
+        "87618925cffffff",
+        "87618925dffffff",
+        "87618925effffff",
+        "8761892cdffffff",
+        "8761892e8ffffff",
+        "8761892e9ffffff",
+        "8761892ebffffff",
+        "8761892ecffffff",
+        "8761892edffffff"
+      ]
+    },
+    {
+      "name": "shard-edge",
+      "center": {
+        "lat": 12.909,
+        "lon": 77.53
+      },
+      "radius_m": 0,
+      "cells": ["876014512ffffff", "876014516ffffff", "8760145a5ffffff"]
+    },
+    {
+      "name": "antimeridian",
+      "center": {
+        "lat": -17.7134,
+        "lon": 179.9999
+      },
+      "radius_m": 2000,
+      "cells": [
+        "879b43d09ffffff",
+        "879b43d0dffffff",
+        "879b43d50ffffff",
+        "879b43d54ffffff",
+        "879b43d55ffffff",
+        "879b43d56ffffff",
+        "879b43d70ffffff",
+        "879b43d72ffffff",
+        "879b43d73ffffff"
+      ]
+    },
+    {
+      "name": "tromso",
+      "center": {
+        "lat": 69.6492,
+        "lon": 18.9553
+      },
+      "radius_m": 1000,
+      "cells": ["8708ed358ffffff", "8708ed35cffffff", "8708ed35dffffff", "8708ed35effffff"]
+    }
+  ]
+}
