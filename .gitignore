@@ -10,3 +10,22 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Node / workspace tooling
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.pnpm-store/
+.eslintcache
+npm-debug.log*
+pnpm-debug.log*
+
+# React Native (generated native projects and tooling caches)
+app/android/build/
+app/android/.gradle/
+app/ios/Pods/
+app/ios/build/
+.expo/
+.metro-health-check*
