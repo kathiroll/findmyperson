@@ -1,0 +1,30 @@
+{
+  "name": "findmyperson",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Workspace root for findmyperson. m0/ is a separate, already-shipped trial and is not part of the workspace.",
+  "license": "MIT",
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.9.9",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^4.0.0"
+  }
+}

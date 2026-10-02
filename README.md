@@ -14,7 +14,11 @@ This project is early and under active research and design. See open questions a
 
 ## Status
 
-Pre-implementation. No app code yet.
+Pre-implementation. The workspace shell (tooling, CI, empty packages) is in place; no app code yet. The M0 research trial apps live under [m0/](m0/).
+
+## Working on the code
+
+The real build is a pnpm workspace: `app/`, `packages/shared/`, `packages/native-location-capture/`, `server/`. Quick start: `corepack enable && pnpm install && pnpm check`. Layout, tooling choices and CI are explained in [WORKSPACE.md](WORKSPACE.md).
 
 ## License
 
