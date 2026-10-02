@@ -1,0 +1,16 @@
+{
+  "_comment": "SQLCipher parameters of the on-device store for the real build. Mirrors the cipher fields of m0/store-proof/shared/cipher-params.json (PR #7), which proved these values open the same file from Kotlin, Swift and op-sqlite. packages/shared/src/store/cipher.test.ts fails if the two files disagree. Native code generates its constants from this file; nothing else may hard-code these values.",
+  "sqlcipherMajor": 4,
+  "cipherCompatibility": 4,
+  "pageSizeBytes": 4096,
+  "kdfIterations": 256000,
+  "kdfAlgorithm": "PBKDF2_HMAC_SHA512",
+  "hmacAlgorithm": "HMAC_SHA512",
+  "keyFormat": "raw-hex-literal",
+  "keyBytes": 32,
+  "journalMode": "wal",
+  "keyVector": {
+    "hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "literal": "x'000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'"
+  }
+}

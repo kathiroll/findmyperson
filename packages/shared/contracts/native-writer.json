@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "readSchemaVersionSql": "PRAGMA user_version",
+  "storeFileName": "findmyperson.db",
+  "insertLocationSampleSql": "INSERT INTO location_sample (ts_utc, lat, lon, accuracy_m, source, h3_r7, h3_r5) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "sampleSources": ["fgs", "wm", "continuous", "slc", "visit", "region", "manual", "fetch-wake"],
+  "insertVisitStaySql": "INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'visit')",
+  "closeVisitStaySql": "UPDATE stay SET end_ts = ?, closed = 1 WHERE source = 'visit' AND closed = 0 AND start_ts = ?"
+}
