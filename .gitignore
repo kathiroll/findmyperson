@@ -25,6 +25,7 @@ pnpm-debug.log*
 # React Native (generated native projects and tooling caches)
 app/android/build/
 app/android/.gradle/
+packages/*/android/.gradle/
 app/ios/Pods/
 app/ios/build/
 .expo/
