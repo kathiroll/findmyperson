@@ -49,6 +49,8 @@ On the machine M0 was built on, `xcodebuild` could not start (Xcode's CoreSimula
 xcrun --sdk iphoneos swiftc -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" -target arm64-apple-ios15.0 -swift-version 5 -parse-as-library -typecheck -module-name FindMyPerson app/ios/FindMyPerson/*.swift
 ```
 
+The iOS capture module has this fallback as a script of its own, which also compiles its C, Objective-C and Objective-C++ sources: `sh packages/native-location-capture/ios/scripts/check-ios.sh` (see that package's `ios/README.md`).
+
 Adjust the source path and `-target` to the project. This catches Swift errors only; it does not cover CocoaPods, linking, resources or signing. Those are verified by the `ios` CI job on `main`, so treat a green iOS job as the real proof when your Mac cannot run `xcodebuild`.
 
 ## Forks: build unsigned debug artifacts with no secrets

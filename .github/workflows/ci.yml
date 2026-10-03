@@ -52,3 +52,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests, lint, library build
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug --console=plain
+
+  ios-capture-core:
+    # The iOS capture module keeps its state machine in plain Swift (no Core Location, no UIKit)
+    # so that it can be tested here, on a Linux runner, on every pull request. What needs a Mac
+    # (real SQLCipher, compiling for iOS) runs in build.yml on main.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: SQLite development files
+        run: test -e /usr/include/sqlite3.h || (sudo apt-get update && sudo apt-get install -y libsqlite3-dev)
+      - name: Swift tests
+        working-directory: packages/native-location-capture/ios
+        run: swift test

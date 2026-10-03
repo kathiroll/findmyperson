@@ -2,9 +2,10 @@
 
 The one interface for background location capture. The Android module (Kotlin), the iOS module (Swift and ObjC++) and an in-memory fake all implement it, so the two platforms cannot drift apart without a test failing.
 
-This package holds the interface, the codegen setup that turns it into native code, the fake, and the native implementations. "For the native tasks" below says exactly what each platform implements and which files are its own.
+This package holds the interface, the codegen setup that turns it into native code, the fake, and the two native implementations. "For the native tasks" below says exactly what each platform implements and which files are its own.
 
 - **Android:** `android/`, Kotlin. Start at [`android/README.md`](android/README.md).
+- **iOS:** `ios/`, Swift and ObjC++. Start at [`ios/README.md`](ios/README.md).
 
 ## Map
 
@@ -18,6 +19,7 @@ This package holds the interface, the codegen setup that turns it into native co
 | `contracts/android/NativeLocationCaptureSpec.java` | Generated: the abstract class the Kotlin module extends                                               |
 | `contracts/ios/NativeLocationCaptureSpec.h`        | Generated: the protocol and base class the iOS module uses                                            |
 | `contracts/schema.json`                            | Generated: the parsed spec, with the exact strings of every union                                     |
+| `ios/`, `FMPLocationCapture.podspec`               | The iOS module: Swift state machine, Core Location adapters, the Turbo Module shim, its XCTest suite  |
 
 ## Importing
 
@@ -154,7 +156,7 @@ One reading of the plan is settled here because the two platforms must agree on 
 
 Verified here, on a Mac, with no phone: the spec parses with React Native 0.87.1's codegen for both platforms; the official entry point (`react-native/scripts/generate-codegen-artifacts.js`) driven by this `codegenConfig` produces the same iOS header as the committed copy, and the same Java class apart from its package name (that script uses a fixed package; the Gradle plugin applies `javaPackageName`, as it did for `m0/store-proof`); the fake passes its tests.
 
-Not verified: any behaviour on a device. What each native implementation has and has not verified is in its own README (`android/README.md`).
+Not verified: any native build of this package inside an app, on either platform, and any behaviour on a device. What was checked for each native module, and what was not, is listed in its own README (`android/README.md`, `ios/README.md`).
 
 ## Commands
 
@@ -162,6 +164,7 @@ Not verified: any behaviour on a device. What each native implementation has and
 pnpm exec vitest run packages/native-location-capture       # unit tests; no device
 pnpm exec vitest run packages/native-location-capture -u    # also rewrite contracts/
 pnpm --filter @findmyperson/native-location-capture typecheck
+(cd packages/native-location-capture/ios && swift test)     # the iOS module; more in ios/README.md
 ```
 
 The Kotlin tests are a Gradle build of their own; the commands are in `android/README.md`.
