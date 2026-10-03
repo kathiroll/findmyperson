@@ -9,6 +9,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - App UI: build screens from `app/src/design-system/` (`import { … } from '../design-system'`); tokens live only in its `theme.ts`, extracted from the Design-canvas v2 mockups (the artifact outranks any older design notes). Component tests run against stubs, not real react-native; `app/assets/fonts/README.md` covers the bundled fonts.
 
 - Real-app builds: `build/*.sh` is the single path for local and CI builds (Android on every PR, iOS only on main/tags to save macOS runner cost); see `docs/BUILDING.md`. Signing comes only from env vars/CI secrets.
+- Android capture module: `packages/native-location-capture/android` is a Gradle build of its own (`./gradlew testDebugUnitTest lintDebug assembleDebug` there, after `source build/env.sh`; the `android-module` CI job). Decisions live in `core/` (plain Kotlin, tested on the JVM against fakes of the OS), Android calls in `platform/`; keep it that way. `store/` is a stand-in until the encrypted-store task lands. Start at its README.
 
 ## Maintaining this file
 

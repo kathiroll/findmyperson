@@ -2,7 +2,9 @@
 
 The one interface for background location capture. The Android module (Kotlin), the iOS module (Swift and ObjC++) and an in-memory fake all implement it, so the two platforms cannot drift apart without a test failing.
 
-This package holds the interface, the codegen setup that turns it into native code, and the fake. **It holds no native code yet.** The Android and iOS implementations are two later tasks; "For the native tasks" below says exactly what each one implements and which files are its own.
+This package holds the interface, the codegen setup that turns it into native code, the fake, and the native implementations. "For the native tasks" below says exactly what each platform implements and which files are its own.
+
+- **Android:** `android/`, Kotlin. Start at [`android/README.md`](android/README.md).
 
 ## Map
 
@@ -152,7 +154,7 @@ One reading of the plan is settled here because the two platforms must agree on 
 
 Verified here, on a Mac, with no phone: the spec parses with React Native 0.87.1's codegen for both platforms; the official entry point (`react-native/scripts/generate-codegen-artifacts.js`) driven by this `codegenConfig` produces the same iOS header as the committed copy, and the same Java class apart from its package name (that script uses a fixed package; the Gradle plugin applies `javaPackageName`, as it did for `m0/store-proof`); the fake passes its tests.
 
-Not verified: any native build of this package, on either platform, and any behaviour on a device. There is no native code here to build.
+Not verified: any behaviour on a device. What each native implementation has and has not verified is in its own README (`android/README.md`).
 
 ## Commands
 
@@ -161,3 +163,5 @@ pnpm exec vitest run packages/native-location-capture       # unit tests; no dev
 pnpm exec vitest run packages/native-location-capture -u    # also rewrite contracts/
 pnpm --filter @findmyperson/native-location-capture typecheck
 ```
+
+The Kotlin tests are a Gradle build of their own; the commands are in `android/README.md`.

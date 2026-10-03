@@ -1,0 +1,7 @@
+# Build output and local machine files must never be committed.
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The notification channel of capture mode fgs, as the user sees it in the system's
+      notification settings. The notification's own title and body are not here: the app passes
+      them to start() (notificationTitle, notificationBody). The app may override and translate
+      these two by defining the same names.
+    -->
+    <string name="fmp_capture_channel_name">Location history</string>
+    <string name="fmp_capture_channel_description">Shown while this phone records its own location history in the most reliable mode. The history stays on this phone.</string>
+</resources>
