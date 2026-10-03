@@ -82,6 +82,7 @@ test('the runtime export surface is deliberate', () => {
       "ResponseListResponseSchema",
       "ResponseSubmitRequestSchema",
       "ResponseSubmitResponseSchema",
+      "ReviewStateSchema",
       "SAMPLE_SOURCES",
       "SCHEMA_VERSION",
       "SHARD_INDEX_PATH",
