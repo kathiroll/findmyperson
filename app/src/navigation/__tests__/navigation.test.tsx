@@ -25,7 +25,13 @@ async function mount(initialUrl: string | null = null) {
   const ref = { current: null as Ref | null };
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(<AppNavigator navigationRef={ref} capture={createFakeLocationCapture()} />);
+    renderer = create(
+      <AppNavigator
+        navigationRef={ref}
+        capture={createFakeLocationCapture()}
+        dataStore={{ deleteAll: async () => ({ emptyStoreConfirmed: true }) }}
+      />,
+    );
   });
   return { ref, renderer };
 }
@@ -59,7 +65,7 @@ describe('navigation shell', () => {
   test('starts on onboarding, which continues to the Home tab', async () => {
     const { ref, renderer } = await mount();
     expect(screens(renderer)).toEqual(['screen-Onboarding']);
-    await press(renderer.root, 'Continue');
+    await press(renderer.root, 'Not now');
     expect(screens(renderer)).toEqual(['screen-Home']);
     expect(currentRoute(ref)?.name).toBe('Home');
   });
@@ -88,7 +94,7 @@ describe('navigation shell', () => {
 
   test('the tab bar has exactly Home, History and Settings and switches between them', async () => {
     const { renderer } = await mount();
-    await press(renderer.root, 'Continue');
+    await press(renderer.root, 'Not now');
     const tabs = renderer.root.findAll(
       (n) => (n.type as unknown) === 'Pressable' && n.props.accessibilityRole === 'tab',
     );
@@ -101,7 +107,7 @@ describe('navigation shell', () => {
 
   test('flows from Home reach the report form, capture health, live report and bystander', async () => {
     const { ref, renderer } = await mount();
-    await press(renderer.root, 'Continue');
+    await press(renderer.root, 'Not now');
 
     await press(renderer.root, 'Report a missing person');
     expect(screens(renderer)).toEqual(['screen-ReportForm']);
