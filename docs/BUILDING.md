@@ -13,7 +13,7 @@ Plain-language guide to getting an installable Android or iOS build of the real 
 
 Definition: `.github/workflows/build.yml`. Built files are attached to the run as artifacts. The existing `ci.yml` (typecheck, lint, tests) is unchanged.
 
-Two more checks in the same workflow need no app project and run today. `store-android` (every pull request) runs the Kotlin unit tests of `packages/encrypted-store`. The `ios` job first runs that package's Swift host check on the Mac, on `main` only.
+Two more checks in the same workflow need no app project and run today. `store-android` (every pull request) runs the Kotlin unit tests of `packages/encrypted-store`. The `ios-capture-module` job also runs that package's Swift host check on the Mac, on `main` only.
 
 `build/build-android.sh` ends by checking the manifest Gradle merged: if it would let Android back up or transfer the app's data, the build fails. See "Backup exclusion" in `packages/encrypted-store/README.md`.
 

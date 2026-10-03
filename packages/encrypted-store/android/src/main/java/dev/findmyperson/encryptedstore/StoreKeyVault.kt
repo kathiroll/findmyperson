@@ -3,6 +3,7 @@ package dev.findmyperson.encryptedstore
 import java.io.File
 import java.io.FileOutputStream
 import java.security.SecureRandom
+import kotlin.io.encoding.Base64
 
 /**
  * The store key on Android: 32 random bytes, wrapped by [KeyWrapper] and kept in one file in
@@ -12,6 +13,11 @@ import java.security.SecureRandom
  * and shared preferences are part of what Android backs up, so the blob is a plain file beside
  * the database instead: wrapped by the Keystore key either way, and outside backups by where it
  * is. m0/store-proof made the same substitution.
+ *
+ * FILE FORMAT: ASCII text, base64(iv) ":" base64(ciphertext), where the plaintext is the key
+ * as 64 hex characters. This is the format the capture module's own copy of this logic writes
+ * (KeystoreStoreKey in packages/native-location-capture/android), under the same file name and
+ * the same Keystore alias, so both read one key until that copy is replaced by this class.
  *
  * Survives app restart and reboot: the file and the Keystore key are both persistent.
  */
@@ -30,19 +36,19 @@ class StoreKeyVault(
     @Synchronized
     fun getOrCreateKeyHex(): String {
         if (keyFile.exists()) {
-            val key = try {
-                wrapper.unwrap(keyFile.readBytes())
+            return try {
+                val parts = keyFile.readText(Charsets.US_ASCII).trim().split(":")
+                require(parts.size == 2) { "the key file is not iv:ciphertext" }
+                val wrapped = WrappedKey(Base64.Default.decode(parts[0]), Base64.Default.decode(parts[1]))
+                StoreKeys.requireKeyHex(String(wrapper.unwrap(wrapped), Charsets.US_ASCII))
             } catch (e: Exception) {
                 throw StoreException(StoreException.KEY_UNAVAILABLE, "the stored key cannot be unwrapped: ${e.message}", e)
             }
-            if (key.size != StoreContract.KEY_BYTES) {
-                throw StoreException(StoreException.KEY_UNAVAILABLE, "the stored key is ${key.size} bytes, expected ${StoreContract.KEY_BYTES}")
-            }
-            return StoreKeys.toHex(key)
         }
-        val key = StoreKeys.randomKey(random)
-        writeAtomically(wrapper.wrap(key))
-        return StoreKeys.toHex(key)
+        val keyHex = StoreKeys.toHex(StoreKeys.randomKey(random))
+        val wrapped = wrapper.wrap(keyHex.toByteArray(Charsets.US_ASCII))
+        writeAtomically(Base64.Default.encode(wrapped.iv) + ":" + Base64.Default.encode(wrapped.ciphertext))
+        return keyHex
     }
 
     /** Deletes the wrapped key and the key that wrapped it. The next [getOrCreateKeyHex] makes both anew. */
@@ -59,11 +65,11 @@ class StoreKeyVault(
     }
 
     /** Write, sync, then rename: a crash leaves either no key file or a whole one, never half. */
-    private fun writeAtomically(bytes: ByteArray) {
+    private fun writeAtomically(text: String) {
         keyFile.parentFile?.mkdirs()
         val temporary = File(keyFile.path + ".tmp")
         FileOutputStream(temporary).use { out ->
-            out.write(bytes)
+            out.write(text.toByteArray(Charsets.US_ASCII))
             out.fd.sync()
         }
         if (!temporary.renameTo(keyFile)) {

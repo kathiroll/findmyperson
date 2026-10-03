@@ -110,7 +110,7 @@ func selftest(scratch: String, migrationSql: String) throws {
     // The location.
     let applicationSupport = scratch + "/Library/Application Support"
     let location = StoreLocation(applicationSupport: URL(fileURLWithPath: applicationSupport, isDirectory: true))
-    expect(location.directory.path == applicationSupport + "/fmp-store", "the store directory is <Application Support>/fmp-store")
+    expect(location.directory.path == applicationSupport + "/findmyperson-store", "the store directory is <Application Support>/findmyperson-store")
     expect(location.databaseFiles.map { $0.lastPathComponent } == ["findmyperson.db", "findmyperson.db-wal", "findmyperson.db-shm"], "the database files are the store file, its -wal and its -shm")
     expect(location.databaseFiles.allSatisfy { $0.deletingLastPathComponent().path == location.directory.path }, "every store file is inside the store directory")
     expectThrows("a directory that does not exist yet", .backupNotExcluded) { try location.requireExcludedFromBackup() }

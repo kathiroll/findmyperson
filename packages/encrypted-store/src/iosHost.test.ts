@@ -12,7 +12,7 @@ import {
 } from '@findmyperson/shared';
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { deleteAllData } from './deleteAllData';
-import { STORE_DIRECTORY_NAME, STORE_FILE_SUFFIXES } from './location';
+import { IOS_STORE_DIRECTORY_NAME, STORE_FILE_SUFFIXES } from './location';
 import { openStore, type EncryptedStore, type OpenStoreOptions } from './openStore';
 import { createTestVault, nodeSqlcipherDriver, type TestVault } from './testing';
 
@@ -71,7 +71,7 @@ describe.skipIf(process.platform !== 'darwin')('the Swift store on real SQLCiphe
 
   beforeEach(async () => {
     applicationSupport = mkdtempSync(join(tmpdir(), 'fmp-ios-'));
-    vault = createTestVault(join(applicationSupport, STORE_DIRECTORY_NAME));
+    vault = createTestVault(join(applicationSupport, IOS_STORE_DIRECTORY_NAME));
     options = { vault, driver: nodeSqlcipherDriver() };
     await vault.getOrCreateStoreKeyHex();
   });

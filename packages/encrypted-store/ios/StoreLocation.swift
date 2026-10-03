@@ -1,6 +1,6 @@
 import Foundation
 
-/// Where the store lives on iOS (plan 4.5): `<Application Support>/fmp-store`, a directory
+/// Where the store lives on iOS (plan 4.5): `<Application Support>/findmyperson-store`, a directory
 /// that holds nothing but the store and is excluded from backup.
 ///
 /// iOS backs up the whole app container to iCloud and to a computer, except Library/Caches,

@@ -21,7 +21,6 @@ public enum StoreContract {
     public static let busyTimeoutMs = 5000
     public static let keyVectorHex = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
     public static let keyVectorLiteral = "x'000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'"
-    public static let storeDirectoryName = "fmp-store"
     public static let storeFileName = "findmyperson.db"
     public static let storeFileSuffixes: [String] = [
         "",
@@ -43,6 +42,7 @@ public enum StoreContract {
     ]
     public static let insertVisitStaySql = "INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'visit')"
     public static let closeVisitStaySql = "UPDATE stay SET end_ts = ?, closed = 1 WHERE source = 'visit' AND closed = 0 AND start_ts = ?"
+    public static let storeDirectoryName = "findmyperson-store"
     public static let keychainService = "dev.findmyperson.store"
     public static let keychainAccount = "store-key-v1"
 }

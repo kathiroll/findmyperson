@@ -36,11 +36,29 @@ class StoreKeyVaultTest {
     @Test
     fun theKeyIsNotOnDiskInTheClear() {
         val key = vault().getOrCreateKeyHex()
-        val onDisk = keyFile().readBytes()
-        assertFalse(String(onDisk, Charsets.ISO_8859_1).contains(key))
-        val raw = key.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-        assertFalse(String(onDisk, Charsets.ISO_8859_1).contains(String(raw, Charsets.ISO_8859_1)))
+        val onDisk = keyFile().readText(Charsets.US_ASCII)
+        assertFalse(onDisk.contains(key))
         assertFalse(File(keyFile().path + ".tmp").exists())
+    }
+
+    @Test
+    fun theFileIsTheFormatTheCaptureModuleReadsAndWrites() {
+        // base64(iv) ":" base64(ciphertext) of the hex key, in store-key.wrapped: what
+        // KeystoreStoreKey in packages/native-location-capture/android writes.
+        val key = vault().getOrCreateKeyHex()
+        assertEquals("store-key.wrapped", keyFile().name)
+        val parts = keyFile().readText(Charsets.US_ASCII).split(":")
+        assertEquals(2, parts.size)
+        val decoder = java.util.Base64.getDecoder()
+        val plain = wrapper.unwrap(WrappedKey(decoder.decode(parts[0]), decoder.decode(parts[1])))
+        assertEquals(key, String(plain, Charsets.US_ASCII))
+
+        // And the reverse: a file written that way by the other implementation is read here.
+        val foreign = "ab".repeat(32)
+        val wrapped = wrapper.wrap(foreign.toByteArray(Charsets.US_ASCII))
+        val encoder = java.util.Base64.getEncoder()
+        keyFile().writeText(encoder.encodeToString(wrapped.iv) + ":" + encoder.encodeToString(wrapped.ciphertext) + "\n")
+        assertEquals(foreign, vault().getOrCreateKeyHex())
     }
 
     @Test
@@ -58,9 +76,18 @@ class StoreKeyVaultTest {
     @Test
     fun aDamagedKeyFileIsReported() {
         vault().getOrCreateKeyHex()
-        keyFile().writeBytes(byteArrayOf(12, 1, 2, 3))
-        assertEquals(StoreException.KEY_UNAVAILABLE, expectThrows<StoreException> { vault().getOrCreateKeyHex() }.code)
-        keyFile().writeBytes(ByteArray(0))
+        for (damaged in listOf("", "not base64 at all", "AAAA", "AAAA:BBBB:CCCC", "AAAAAAAAAAAAAAAA:AAAA")) {
+            keyFile().writeText(damaged)
+            assertEquals(damaged, StoreException.KEY_UNAVAILABLE, expectThrows<StoreException> { vault().getOrCreateKeyHex() }.code)
+        }
+    }
+
+    @Test
+    fun aStoredValueThatIsNotAKeyIsReported() {
+        val wrapped = wrapper.wrap("not a key".toByteArray(Charsets.US_ASCII))
+        val encoder = java.util.Base64.getEncoder()
+        keyFile().parentFile.mkdirs()
+        keyFile().writeText(encoder.encodeToString(wrapped.iv) + ":" + encoder.encodeToString(wrapped.ciphertext))
         assertEquals(StoreException.KEY_UNAVAILABLE, expectThrows<StoreException> { vault().getOrCreateKeyHex() }.code)
     }
 
@@ -68,7 +95,7 @@ class StoreKeyVaultTest {
     fun destroyRotatesTheKeyAndTheKeyThatWrappedIt() {
         val vault = vault()
         val old = vault.getOrCreateKeyHex()
-        val oldBlob = keyFile().readBytes()
+        val oldBlob = wrapper.wrap(old.toByteArray(Charsets.US_ASCII))
 
         vault.destroy()
         assertFalse(keyFile().exists())

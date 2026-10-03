@@ -24,23 +24,18 @@ import javax.crypto.spec.GCMParameterSpec
  */
 class KeystoreKeyWrapper(private val alias: String = StoreContract.KEYSTORE_ALIAS) : KeyWrapper {
 
-    override fun wrap(plain: ByteArray): ByteArray {
+    override fun wrap(plain: ByteArray): WrappedKey {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key(create = true)) }
         val ciphertext = cipher.doFinal(plain)
-        val iv = cipher.iv
-        // One length byte, the IV the Keystore chose, then ciphertext and tag.
-        return byteArrayOf(iv.size.toByte()) + iv + ciphertext
+        // The Keystore chooses the IV; it is stored beside the ciphertext.
+        return WrappedKey(cipher.iv, ciphertext)
     }
 
-    override fun unwrap(wrapped: ByteArray): ByteArray {
-        require(wrapped.isNotEmpty()) { "wrapped key is empty" }
-        val ivLength = wrapped[0].toInt()
-        require(ivLength in 1 until wrapped.size) { "wrapped key is malformed" }
-        val iv = wrapped.copyOfRange(1, 1 + ivLength)
+    override fun unwrap(wrapped: WrappedKey): ByteArray {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
-            init(Cipher.DECRYPT_MODE, key(create = false), GCMParameterSpec(TAG_BITS, iv))
+            init(Cipher.DECRYPT_MODE, key(create = false), GCMParameterSpec(TAG_BITS, wrapped.iv))
         }
-        return cipher.doFinal(wrapped, 1 + ivLength, wrapped.size - 1 - ivLength)
+        return cipher.doFinal(wrapped.ciphertext)
     }
 
     override fun destroy() {

@@ -10,9 +10,10 @@ test('the runtime export surface is deliberate', () => {
   // Other tasks reference these names exactly. Adding one is fine: update the list. Renaming or
   // removing one breaks every importer. Types are not listed; README.md names them.
   expect(Object.keys(store).sort()).toEqual([
+    'ANDROID_STORE_DIRECTORY_NAME',
+    'IOS_STORE_DIRECTORY_NAME',
     'NATIVE_MODULE_NAME',
     'STORE_BUSY_TIMEOUT_MS',
-    'STORE_DIRECTORY_NAME',
     'STORE_ERROR_CODES',
     'STORE_FILE_SUFFIXES',
     'StoreError',

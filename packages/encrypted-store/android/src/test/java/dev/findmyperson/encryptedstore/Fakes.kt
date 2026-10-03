@@ -18,20 +18,19 @@ class SoftwareKeyWrapper : KeyWrapper {
 
     private fun newKey(): SecretKey = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
 
-    override fun wrap(plain: ByteArray): ByteArray {
+    override fun wrap(plain: ByteArray): WrappedKey {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
             init(Cipher.ENCRYPT_MODE, key ?: newKey().also { key = it })
         }
         val ciphertext = cipher.doFinal(plain)
-        return byteArrayOf(cipher.iv.size.toByte()) + cipher.iv + ciphertext
+        return WrappedKey(cipher.iv, ciphertext)
     }
 
-    override fun unwrap(wrapped: ByteArray): ByteArray {
-        val ivLength = wrapped[0].toInt()
+    override fun unwrap(wrapped: WrappedKey): ByteArray {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
-            init(Cipher.DECRYPT_MODE, checkNotNull(key) { "no wrapping key" }, GCMParameterSpec(128, wrapped, 1, ivLength))
+            init(Cipher.DECRYPT_MODE, checkNotNull(key) { "no wrapping key" }, GCMParameterSpec(128, wrapped.iv))
         }
-        return cipher.doFinal(wrapped, 1 + ivLength, wrapped.size - 1 - ivLength)
+        return cipher.doFinal(wrapped.ciphertext)
     }
 
     override fun destroy() {

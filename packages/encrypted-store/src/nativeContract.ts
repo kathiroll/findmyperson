@@ -8,9 +8,10 @@ import {
 import {
   ANDROID_KEY_FILE_NAME,
   ANDROID_KEYSTORE_ALIAS,
+  ANDROID_STORE_DIRECTORY_NAME,
   IOS_KEYCHAIN_ACCOUNT,
   IOS_KEYCHAIN_SERVICE,
-  STORE_DIRECTORY_NAME,
+  IOS_STORE_DIRECTORY_NAME,
   STORE_FILE_SUFFIXES,
 } from './location';
 import { STORE_BUSY_TIMEOUT_MS } from './openStore';
@@ -41,7 +42,6 @@ export function nativeConstants(): Array<[name: string, value: Value]> {
     ['BUSY_TIMEOUT_MS', STORE_BUSY_TIMEOUT_MS],
     ['KEY_VECTOR_HEX', CIPHER_KEY_VECTOR.hex],
     ['KEY_VECTOR_LITERAL', CIPHER_KEY_VECTOR.literal],
-    ['STORE_DIRECTORY_NAME', STORE_DIRECTORY_NAME],
     ['STORE_FILE_NAME', writer.storeFileName],
     ['STORE_FILE_SUFFIXES', STORE_FILE_SUFFIXES],
     ['SCHEMA_VERSION', writer.schemaVersion],
@@ -54,11 +54,13 @@ export function nativeConstants(): Array<[name: string, value: Value]> {
 }
 
 const ANDROID_ONLY: Array<[string, Value]> = [
+  ['STORE_DIRECTORY_NAME', ANDROID_STORE_DIRECTORY_NAME],
   ['KEY_FILE_NAME', ANDROID_KEY_FILE_NAME],
   ['KEYSTORE_ALIAS', ANDROID_KEYSTORE_ALIAS],
 ];
 
 const IOS_ONLY: Array<[string, Value]> = [
+  ['STORE_DIRECTORY_NAME', IOS_STORE_DIRECTORY_NAME],
   ['KEYCHAIN_SERVICE', IOS_KEYCHAIN_SERVICE],
   ['KEYCHAIN_ACCOUNT', IOS_KEYCHAIN_ACCOUNT],
 ];

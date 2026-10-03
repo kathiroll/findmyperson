@@ -52,9 +52,17 @@ test('both languages get the same constants under the same names', () => {
   const shared = nativeConstants().map(([name]) => name.replaceAll('_', '').toLowerCase());
   expect(kotlinNames.slice(0, shared.length)).toEqual(shared);
   expect(swiftNames.slice(0, shared.length)).toEqual(shared);
-  // The rest is where each platform keeps the key, which the other has no use for.
-  expect(kotlinNames.slice(shared.length)).toEqual(['keyfilename', 'keystorealias']);
-  expect(swiftNames.slice(shared.length)).toEqual(['keychainservice', 'keychainaccount']);
+  // The rest is where each platform keeps the store and its key.
+  expect(kotlinNames.slice(shared.length)).toEqual([
+    'storedirectoryname',
+    'keyfilename',
+    'keystorealias',
+  ]);
+  expect(swiftNames.slice(shared.length)).toEqual([
+    'storedirectoryname',
+    'keychainservice',
+    'keychainaccount',
+  ]);
 });
 
 test('no generated string would be read as a template by Kotlin or Swift', () => {

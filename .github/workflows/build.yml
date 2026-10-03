@@ -112,6 +112,12 @@ jobs:
         run: sh packages/native-location-capture/ios/scripts/test-sqlcipher.sh
       - name: Compile for iOS
         run: sh packages/native-location-capture/ios/scripts/check-ios.sh
+      # The iOS half of packages/encrypted-store: its real Swift compiled and run on this Mac
+      # against SQLCipher (backup exclusion read back from the file system, key rotation, the
+      # schema-version gate, one file shared with the TypeScript store). The Linux CI job has
+      # to skip these tests, so this is where they run.
+      - name: Encrypted store, Swift host check
+        run: pnpm exec vitest run packages/encrypted-store
 
   ios:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
@@ -126,22 +132,19 @@ jobs:
       FMP_IOS_PROFILE_NAME: ${{ secrets.FMP_IOS_PROFILE_NAME }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # The iOS half of packages/encrypted-store, compiled from its real Swift and run on this
-      # Mac against SQLCipher (backup exclusion read back from the file system, key rotation,
-      # the schema-version gate, one file shared with the TypeScript store). The Linux CI job
-      # has to skip these tests, so this is where they run. Needs no app project.
-      - name: Store Swift host check
-        run: pnpm exec vitest run packages/encrypted-store
       - name: Detect native project
         id: native
         run: |
           if ls app/ios/*.xcodeproj >/dev/null 2>&1; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::app/ios does not exist yet; skipping iOS build"; fi
+      - if: steps.native.outputs.present == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.native.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - if: steps.native.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
       - name: Archive (signed)
         if: steps.native.outputs.present == 'true' && env.FMP_IOS_CERT_P12_BASE64 != ''
         run: |

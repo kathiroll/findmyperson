@@ -23,7 +23,6 @@ object StoreContract {
     const val BUSY_TIMEOUT_MS = 5000
     const val KEY_VECTOR_HEX = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
     const val KEY_VECTOR_LITERAL = "x'000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'"
-    const val STORE_DIRECTORY_NAME = "fmp-store"
     const val STORE_FILE_NAME = "findmyperson.db"
     val STORE_FILE_SUFFIXES: List<String> = listOf(
         "",
@@ -45,6 +44,7 @@ object StoreContract {
     )
     const val INSERT_VISIT_STAY_SQL = "INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'visit')"
     const val CLOSE_VISIT_STAY_SQL = "UPDATE stay SET end_ts = ?, closed = 1 WHERE source = 'visit' AND closed = 0 AND start_ts = ?"
-    const val KEY_FILE_NAME = "store-key.v1"
+    const val STORE_DIRECTORY_NAME = "fmp-store"
+    const val KEY_FILE_NAME = "store-key.wrapped"
     const val KEYSTORE_ALIAS = "fmp_store_wrap_v1"
 }

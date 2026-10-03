@@ -20,7 +20,7 @@ It has three halves that must agree, and tests that fail when they stop agreeing
 | `@findmyperson/encrypted-store/native`  | `NativeEncryptedStore` (the real native module) and `opSqliteDriver`      | yes                |
 | `@findmyperson/encrypted-store/testing` | `createTestVault`, `nodeSqlcipherDriver`: a real SQLCipher store for Node | no                 |
 
-Runtime exports of the root: `openStore`, `deleteAllData`, `StoreError`, `STORE_ERROR_CODES`, `STORE_BUSY_TIMEOUT_MS`, `STORE_DIRECTORY_NAME`, `STORE_FILE_SUFFIXES`, `NATIVE_MODULE_NAME`, `packageName`.
+Runtime exports of the root: `openStore`, `deleteAllData`, `StoreError`, `STORE_ERROR_CODES`, `STORE_BUSY_TIMEOUT_MS`, `ANDROID_STORE_DIRECTORY_NAME`, `IOS_STORE_DIRECTORY_NAME`, `STORE_FILE_SUFFIXES`, `NATIVE_MODULE_NAME`, `packageName`.
 
 Types of the root: `EncryptedStore`, `OpenStoreOptions`, `StoreVault`, `StoreMaintenance`, `StoreDriver`, `StoreDriverOptions`, `StoreConnection`, `StoreErrorCode`.
 
@@ -78,7 +78,35 @@ Failures are `StoreException` (Kotlin) and `StoreError` (Swift) with a `code`: `
 
 To depend on it: on Android add `implementation project(':findmyperson_encrypted-store')` (the name React Native's autolinking gives the project) and use package `dev.findmyperson.encryptedstore`; on iOS add `s.dependency "FindMyPersonEncryptedStore"` to the podspec and `import FindMyPersonEncryptedStore`.
 
-`getOrCreateStoreKeyHex` and `getStoreDirectory` exist on both the capture module and this package's own small Turbo Native Module (`NativeEncryptedStore`). Both answer from the class above, so they cannot disagree. This package has its own module because the app needs the key, the directory and the delete even if capture is never started.
+`getOrCreateStoreKeyHex` and `getStoreDirectory` exist on both the capture module and this package's own small Turbo Native Module (`NativeEncryptedStore`). This package has its own module because the app needs the key, the directory and the delete even if capture is never started.
+
+### The capture modules still carry their own copy
+
+Both capture modules in `packages/native-location-capture` were merged while this package was being written, each with a stand-in for it: its own key code, directory and SQLCipher open (`android/.../store/`, and `KeychainKeySource`, `StoreLocation` and `SQLiteCaptureStore` on iOS). Their READMEs say so and name the seam. Replacing those stand-ins with the class above is the remaining step, and it belongs to those modules:
+
+| Their seam                                                                       | Becomes                                                                             |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Android `SampleStore.check()` / `insert(sample)`                                 | `EncryptedStore.get(context).check()` / `insertLocationSample(...)`                 |
+| Android `KeystoreStoreKey`, `StoreLocation`                                      | `keyHex()`, `directory()`                                                           |
+| iOS `CaptureStore.check` / `insertSample` / `insertVisitStay` / `closeVisitStay` | the methods of the same names on `EncryptedStore.shared`                            |
+| iOS `StoreKeySource`, `StoreLocation.prepare()`                                  | `keyHex()`, `directory()`                                                           |
+| The status ledger kept because "the store contract has no read"                  | can stay, or be replaced by `readScalar("SELECT max(ts_utc) FROM location_sample")` |
+
+Until that is done the two implementations run side by side, so this package uses exactly the names and formats the stand-ins use: the same Keychain item, the same Android Keystore alias, key file name and key file format, and the same directory on each platform (`src/location.ts`). Both therefore find one key and one file. What the stand-ins lack is what is new here: the backup guard at open, the fail-closed check of the exclusion flag on iOS, and any part in "Delete all my data". On Android the stand-in opens the file for each write and re-reads the key file, so it follows a delete by itself. On iOS it keeps its connection open, so after a delete it goes on writing to the removed file until the app restarts. The swap has to land before a Settings screen offers the delete.
+
+## Open decision: two SQLite libraries in one Android process
+
+On Android the TypeScript side reads and writes the file through op-sqlite's SQLCipher (inside `libop-sqlite.so`) and the Kotlin writer through Zetetic's (`libsqlcipher.so`). That is the M0 design, and M0 listed whether the two coexist as a device check. The Android capture task raised it again for this package to decide. It is not decided here, because every fix changes the architecture and none can be tested without a phone.
+
+The problem is specific and real. SQLite protects a database with POSIX file locks, which belong to the process, not to the library copy. Two copies in one process do not see each other's locks, so they do not exclude each other, and when one closes its handle the operating system drops the other's locks too (sqlite.org, "How To Corrupt An SQLite Database File", section 2.2.1). While the app is open and capture stores a fix, both copies can believe they hold the write lock. Each write is a few milliseconds and happens about four times an hour, so the window is small, but the outcome when it is hit is lost writes or a damaged WAL. iOS is not affected: there is one SQLCipher in the app and Swift binds to it.
+
+This package narrows the window (the Kotlin store keeps one connection open instead of opening and closing per write, so a close seldom happens) and does not remove it. The options, for whoever decides:
+
+1. **One library.** The Kotlin writer calls the SQLCipher inside `libop-sqlite.so` through a small JNI shim, as Swift does through `FMPSqlcipher.c`. Removes the problem and the second 4 MB library. Needs the NDK, depends on op-sqlite exporting the `sqlite3_*` symbols, and must be proved on a device.
+2. **Two processes.** Run capture's worker and service in their own process (`android:process`). File locks work between processes. Changes how the capture module talks to JavaScript.
+3. **Take turns.** A lock in this package that both sides hold around every use, with TypeScript opening the store per unit of work instead of keeping it open. No new native code, but it changes `openStore` into a scoped call and every reader with it.
+
+Recommended: option 1, tried first on a phone as its own spike, because it also makes Android match iOS.
 
 ## What happens on open
 
@@ -126,16 +154,16 @@ Both platforms back app data up to the vendor's cloud by default. That would tak
 2. `android/src/main/AndroidManifest.xml` declares `android:allowBackup="false"` and two rule files that exclude every domain from cloud backup and from device transfer. `allowBackup="false"` alone does not stop a device-to-device transfer on Android 12 and later; the rule files do. These attributes merge into the app's manifest. If the app or another library declares a different value, the merge fails and the build stops.
 3. `StorePaths.requireBackupDisabled` refuses to open the store on a phone whose installed app allows backup.
 
-**iOS.** The store is in `<Application Support>/fmp-store`, and that directory carries `isExcludedFromBackup`. iOS has no durable directory that is outside backups by location alone: `Library/Caches` and `tmp` are, but the system may empty them when storage runs low, and the history must not vanish that way. Excluding the directory covers the `-wal` and `-shm` files SQLite recreates and the database file that "Delete all my data" recreates. The flag is set and then read back on every open; a store whose directory is not excluded is not opened (`BACKUP_NOT_EXCLUDED`).
+**iOS.** The store is in `<Application Support>/findmyperson-store`, and that directory carries `isExcludedFromBackup`. iOS has no durable directory that is outside backups by location alone: `Library/Caches` and `tmp` are, but the system may empty them when storage runs low, and the history must not vanish that way. Excluding the directory covers the `-wal` and `-shm` files SQLite recreates and the database file that "Delete all my data" recreates. The flag is set and then read back on every open; a store whose directory is not excluded is not opened (`BACKUP_NOT_EXCLUDED`).
 
 **What enforces it:**
 
-| Check                                                             | Runs                                           | Fails when                                                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/policy.test.ts`                                              | every pull request (`pnpm test`)               | any manifest in the repo sets `allowBackup` to anything but `"false"`, removes it, or the rule files stop excluding a domain; the Android path stops being the no-backup directory; the iOS path, exclusion flag, file protection or Keychain class changes |
-| `scripts/check-merged-manifest.ts`, from `build/build-android.sh` | every Android build, once `app/android` exists | the manifest Gradle actually merged allows backup. This is the one that sees third-party libraries                                                                                                                                                          |
-| `StorePathsTest`, `EncryptedStoreTest`                            | every pull request (`store-android` job)       | a store file is outside the no-backup directory; a store opens in an app that allows backup                                                                                                                                                                 |
-| `ios/HostCheck` through `src/iosHost.test.ts`                     | `pnpm test` on a Mac; the `ios` job on `main`  | the real Swift code leaves the directory without the exclusion flag, read back from the file system                                                                                                                                                         |
+| Check                                                             | Runs                                                 | Fails when                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/policy.test.ts`                                              | every pull request (`pnpm test`)                     | any manifest in the repo sets `allowBackup` to anything but `"false"`, removes it, or the rule files stop excluding a domain; the Android path stops being the no-backup directory; the iOS path, exclusion flag, file protection or Keychain class changes |
+| `scripts/check-merged-manifest.ts`, from `build/build-android.sh` | every Android build, once `app/android` exists       | the manifest Gradle actually merged allows backup. This is the one that sees third-party libraries                                                                                                                                                          |
+| `StorePathsTest`, `EncryptedStoreTest`                            | every pull request (`store-android` job)             | a store file is outside the no-backup directory; a store opens in an app that allows backup                                                                                                                                                                 |
+| `ios/HostCheck` through `src/iosHost.test.ts`                     | `pnpm test` on a Mac; `ios-capture-module` on `main` | the real Swift code leaves the directory without the exclusion flag, read back from the file system                                                                                                                                                         |
 
 `src/backupPolicy.ts` is the rule itself; the first two checks share it.
 
@@ -176,7 +204,7 @@ There is no phone, simulator or emulator in this work, and `app/android` and `ap
 - **Where op-sqlite finds its SQLCipher flag in this monorepo.** The flag is set in both `app/package.json` and the root `package.json` because its Android and iOS builds look in different places. If it is missed, `openStore` fails with `NOT_SQLCIPHER`.
 - **`scripts/check-merged-manifest.ts` on an app build.** It was run on the manifests the Android Gradle Plugin produced for this library and on fixtures, not on an app's merged manifest.
 
-Verified here, on a Mac: 87 TypeScript tests (open, mismatch matrix, migrations and delete-all on real SQLCipher; the policy checks; codegen), 33 Kotlin JVM tests, and the Swift store's self-test and cross-language tests against SQLCipher 4.19.0 built from op-sqlite's source.
+Verified here, on a Mac: 87 TypeScript tests (open, mismatch matrix, migrations and delete-all on real SQLCipher; the policy checks; codegen), 35 Kotlin JVM tests, and the Swift store's self-test and cross-language tests against SQLCipher 4.19.0 built from op-sqlite's source.
 
 ## Commands
 

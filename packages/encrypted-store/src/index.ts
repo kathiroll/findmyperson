@@ -22,7 +22,11 @@ export const NATIVE_MODULE_NAME = 'NativeEncryptedStore';
 export { deleteAllData } from './deleteAllData';
 export type { StoreConnection, StoreDriver, StoreDriverOptions } from './driver';
 export { STORE_ERROR_CODES, StoreError, type StoreErrorCode } from './errors';
-export { STORE_DIRECTORY_NAME, STORE_FILE_SUFFIXES } from './location';
+export {
+  ANDROID_STORE_DIRECTORY_NAME,
+  IOS_STORE_DIRECTORY_NAME,
+  STORE_FILE_SUFFIXES,
+} from './location';
 export {
   openStore,
   STORE_BUSY_TIMEOUT_MS,
