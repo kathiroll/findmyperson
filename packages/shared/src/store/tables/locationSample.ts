@@ -1,5 +1,5 @@
 import { sampleCells, type H3Cell } from '../../geo/h3';
-import { num, placeholders, text, type SqlExecutor, type SqlRow } from '../driver';
+import { num, numOrNull, placeholders, text, type SqlExecutor, type SqlRow } from '../driver';
 
 /**
  * `location_sample`: raw periodic fixes.
@@ -130,6 +130,16 @@ export async function listSamplesAfterId(
     afterId,
   ]);
   return rows.map(fromRow);
+}
+
+/**
+ * The highest sample id in the table, or null when it is empty. The id is a rowid, so after the
+ * table has been emptied new samples start again from 1; a reader holding a cursor above this
+ * value must start over.
+ */
+export async function getLatestSampleId(db: SqlExecutor): Promise<number | null> {
+  const rows = await db.execute('SELECT max(id) AS id FROM location_sample');
+  return numOrNull(rows[0] ?? {}, 'id');
 }
 
 /** The distinct res-5 shard cells of samples taken at or after sinceTs, sorted. */

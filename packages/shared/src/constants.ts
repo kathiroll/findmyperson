@@ -32,6 +32,14 @@ export const OUTBOUND_RESPONSE_TERMINAL_RETENTION_SEC = 7 * SECONDS_PER_DAY;
 export const STAY_RADIUS_M = 150;
 export const STAY_MIN_DURATION_SEC = 15 * 60;
 
+/**
+ * PROVISIONAL (stay derivation). Two derived stays at the same place whose gap is at most this
+ * are one stay. It is the matching window on purpose: the matcher already accepts any moment
+ * within MATCH_WINDOW_SEC of a stay, so joining two stays across a gap this short claims nothing
+ * it would not have accepted anyway. See stay/extract.ts.
+ */
+export const STAY_MERGE_GAP_SEC = MATCH_WINDOW_SEC;
+
 /** PLAN 4.6: resolution of the `h3_r7` columns and of the `cells` pre-filter in a query. */
 export const H3_RES_MATCH = 7;
 /** PLAN 7.2: resolution of the shard bundles a device fetches. */
