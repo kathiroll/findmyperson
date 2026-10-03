@@ -226,7 +226,17 @@ importers:
         version: 19.2.3(react@19.2.3)
 
   packages/native-location-capture:
+    dependencies:
+      '@findmyperson/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
+      '@react-native/codegen':
+        specifier: 0.87.1
+        version: 0.87.1(@babel/core@7.29.7(supports-color@8.1.1))
+      '@types/node':
+        specifier: ^24.19.0
+        version: 24.19.0
       '@types/react':
         specifier: ^19.1.1
         version: 19.3.0

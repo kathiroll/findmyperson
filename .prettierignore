@@ -7,3 +7,5 @@ m0
 app/android
 app/ios
 .claude
+CLAUDE.md
+packages/native-location-capture/contracts
