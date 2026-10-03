@@ -1,0 +1,573 @@
+{
+  "libraryName": "NativeLocationCaptureSpec",
+  "modules": {
+    "NativeLocationCapture": {
+      "type": "NativeModule",
+      "aliasMap": {
+        "CaptureConfig": {
+          "type": "ObjectTypeAnnotation",
+          "properties": [
+            {
+              "name": "minIntervalSec",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "NumberTypeAnnotation"
+              }
+            },
+            {
+              "name": "minDistanceM",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "NumberTypeAnnotation"
+              }
+            },
+            {
+              "name": "accuracy",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "UnionTypeAnnotation",
+                "types": [
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "balanced"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "high"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "useForegroundService",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "BooleanTypeAnnotation"
+              }
+            },
+            {
+              "name": "notificationTitle",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "StringTypeAnnotation"
+              }
+            },
+            {
+              "name": "notificationBody",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "StringTypeAnnotation"
+              }
+            }
+          ]
+        },
+        "CaptureStatus": {
+          "type": "ObjectTypeAnnotation",
+          "properties": [
+            {
+              "name": "running",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "BooleanTypeAnnotation"
+              }
+            },
+            {
+              "name": "mode",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "UnionTypeAnnotation",
+                "types": [
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "wm"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "fgs"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "ios"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "stopped"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "tier",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "UnionTypeAnnotation",
+                "types": [
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "periodic_work"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "foreground_service"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "background_updates"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "throttled"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "stopped"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "permission",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "UnionTypeAnnotation",
+                "types": [
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "undetermined"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "denied"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "foreground_only"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "always"
+                  },
+                  {
+                    "type": "StringLiteralTypeAnnotation",
+                    "value": "restricted"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "health",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "ArrayTypeAnnotation",
+                "elementType": {
+                  "type": "UnionTypeAnnotation",
+                  "types": [
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "background_permission_missing"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "precise_location_off"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "location_services_off"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "service_not_running"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "store_unusable"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "background_refresh_off"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "low_power_mode"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "battery_optimisation_active"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "hibernation_not_exempt"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "oem_restriction_suspected"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "lastSampleTsUtc",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "NullableTypeAnnotation",
+                "typeAnnotation": {
+                  "type": "NumberTypeAnnotation"
+                }
+              }
+            },
+            {
+              "name": "samplesLast24h",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "NumberTypeAnnotation"
+              }
+            },
+            {
+              "name": "expectedLast24h",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "NumberTypeAnnotation"
+              }
+            }
+          ]
+        },
+        "DiagnosticEntry": {
+          "type": "ObjectTypeAnnotation",
+          "properties": [
+            {
+              "name": "tsUtc",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "NumberTypeAnnotation"
+              }
+            },
+            {
+              "name": "event",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "StringTypeAnnotation"
+              }
+            },
+            {
+              "name": "detail",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "StringTypeAnnotation"
+              }
+            }
+          ]
+        },
+        "SampleWrittenEvent": {
+          "type": "ObjectTypeAnnotation",
+          "properties": [
+            {
+              "name": "tsUtc",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "NumberTypeAnnotation"
+              }
+            },
+            {
+              "name": "accuracyM",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "NumberTypeAnnotation"
+              }
+            },
+            {
+              "name": "source",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "StringTypeAnnotation"
+              }
+            }
+          ]
+        }
+      },
+      "enumMap": {},
+      "spec": {
+        "eventEmitters": [
+          {
+            "name": "onSampleWritten",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "EventEmitterTypeAnnotation",
+              "typeAnnotation": {
+                "type": "TypeAliasTypeAnnotation",
+                "name": "SampleWrittenEvent"
+              }
+            }
+          },
+          {
+            "name": "onStatusChanged",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "EventEmitterTypeAnnotation",
+              "typeAnnotation": {
+                "type": "TypeAliasTypeAnnotation",
+                "name": "CaptureStatus"
+              }
+            }
+          }
+        ],
+        "methods": [
+          {
+            "name": "getOrCreateStoreKeyHex",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "StringTypeAnnotation"
+                }
+              },
+              "params": []
+            }
+          },
+          {
+            "name": "getStoreDirectory",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "StringTypeAnnotation"
+                }
+              },
+              "params": []
+            }
+          },
+          {
+            "name": "initStore",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "VoidTypeAnnotation"
+                }
+              },
+              "params": []
+            }
+          },
+          {
+            "name": "start",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "VoidTypeAnnotation"
+                }
+              },
+              "params": [
+                {
+                  "name": "config",
+                  "optional": false,
+                  "typeAnnotation": {
+                    "type": "TypeAliasTypeAnnotation",
+                    "name": "CaptureConfig"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "stop",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "VoidTypeAnnotation"
+                }
+              },
+              "params": []
+            }
+          },
+          {
+            "name": "getStatus",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "TypeAliasTypeAnnotation",
+                  "name": "CaptureStatus"
+                }
+              },
+              "params": []
+            }
+          },
+          {
+            "name": "requestPermission",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "UnionTypeAnnotation",
+                  "types": [
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "undetermined"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "denied"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "foreground_only"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "always"
+                    },
+                    {
+                      "type": "StringLiteralTypeAnnotation",
+                      "value": "restricted"
+                    }
+                  ]
+                }
+              },
+              "params": [
+                {
+                  "name": "step",
+                  "optional": false,
+                  "typeAnnotation": {
+                    "type": "UnionTypeAnnotation",
+                    "types": [
+                      {
+                        "type": "StringLiteralTypeAnnotation",
+                        "value": "foreground"
+                      },
+                      {
+                        "type": "StringLiteralTypeAnnotation",
+                        "value": "background"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "openSystemSettings",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "BooleanTypeAnnotation"
+                }
+              },
+              "params": [
+                {
+                  "name": "target",
+                  "optional": false,
+                  "typeAnnotation": {
+                    "type": "UnionTypeAnnotation",
+                    "types": [
+                      {
+                        "type": "StringLiteralTypeAnnotation",
+                        "value": "app"
+                      },
+                      {
+                        "type": "StringLiteralTypeAnnotation",
+                        "value": "battery"
+                      },
+                      {
+                        "type": "StringLiteralTypeAnnotation",
+                        "value": "hibernation"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "getDiagnostics",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "ArrayTypeAnnotation",
+                  "elementType": {
+                    "type": "TypeAliasTypeAnnotation",
+                    "name": "DiagnosticEntry"
+                  }
+                }
+              },
+              "params": [
+                {
+                  "name": "sinceTsUtc",
+                  "optional": false,
+                  "typeAnnotation": {
+                    "type": "NumberTypeAnnotation"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "debugInjectSample",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "VoidTypeAnnotation"
+                }
+              },
+              "params": [
+                {
+                  "name": "lat",
+                  "optional": false,
+                  "typeAnnotation": {
+                    "type": "NumberTypeAnnotation"
+                  }
+                },
+                {
+                  "name": "lon",
+                  "optional": false,
+                  "typeAnnotation": {
+                    "type": "NumberTypeAnnotation"
+                  }
+                },
+                {
+                  "name": "tsUtc",
+                  "optional": false,
+                  "typeAnnotation": {
+                    "type": "NumberTypeAnnotation"
+                  }
+                },
+                {
+                  "name": "accuracyM",
+                  "optional": false,
+                  "typeAnnotation": {
+                    "type": "NumberTypeAnnotation"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "moduleName": "NativeLocationCapture"
+    }
+  }
+}
