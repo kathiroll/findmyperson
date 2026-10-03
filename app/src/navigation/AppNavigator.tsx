@@ -7,6 +7,7 @@ import type { LocationCapture } from '@findmyperson/native-location-capture';
 import { useMemo } from 'react';
 import { colors, fontFamilies } from '../design-system';
 import { CaptureProvider, loadNativeCapture } from '../permissions';
+import { DataStoreProvider, type DataStore } from '../store';
 import { linking, type RootStackParamList, type TabParamList } from './routes';
 import {
   BystanderScreen,
@@ -14,10 +15,10 @@ import {
   HistoryScreen,
   HomeScreen,
   LiveReportScreen,
-  OnboardingScreen,
+  OnboardingRoute,
   PermissionFlowRoute,
   ReportFormScreen,
-  SettingsScreen,
+  SettingsRoute,
 } from './screens';
 import { TabIcon } from './TabIcon';
 
@@ -38,7 +39,7 @@ function MainTabs() {
     >
       <Tabs.Screen name="Home" component={HomeScreen} />
       <Tabs.Screen name="History" component={HistoryScreen} />
-      <Tabs.Screen name="Settings" component={SettingsScreen} />
+      <Tabs.Screen name="Settings" component={SettingsRoute} />
     </Tabs.Navigator>
   );
 }
@@ -49,6 +50,8 @@ export type AppNavigatorProps = {
   navigationRef?: Ref<NavigationContainerRef<RootStackParamList>>;
   /** The capture module. Production leaves it out and gets the real native module. */
   capture?: LocationCapture;
+  /** What Settings may do to the on-device store. Production leaves it out and gets the real one. */
+  dataStore?: DataStore;
 };
 
 /** The whole app shell: root stack, bottom tabs and deep-link handling. */
@@ -56,33 +59,36 @@ export function AppNavigator({
   initialRouteName = 'Onboarding',
   navigationRef,
   capture,
+  dataStore,
 }: AppNavigatorProps) {
   const module = useMemo(() => capture ?? loadNativeCapture(), [capture]);
   return (
     <CaptureProvider capture={module}>
-      <SafeAreaProvider>
-        <NavigationContainer {...(navigationRef ? { ref: navigationRef } : {})} linking={linking}>
-          <Stack.Navigator
-            initialRouteName={initialRouteName}
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-            }}
-          >
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            <Stack.Screen name="Main" component={MainTabs} />
-            <Stack.Screen name="CaptureHealth" component={CaptureHealthScreen} />
-            <Stack.Screen name="PermissionFlow" component={PermissionFlowRoute} />
-            <Stack.Screen name="ReportForm" component={ReportFormScreen} />
-            <Stack.Screen name="LiveReport" component={LiveReportScreen} />
-            <Stack.Screen
-              name="Bystander"
-              component={BystanderScreen}
-              options={{ presentation: 'modal' }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SafeAreaProvider>
+      <DataStoreProvider {...(dataStore ? { dataStore } : {})}>
+        <SafeAreaProvider>
+          <NavigationContainer {...(navigationRef ? { ref: navigationRef } : {})} linking={linking}>
+            <Stack.Navigator
+              initialRouteName={initialRouteName}
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+              }}
+            >
+              <Stack.Screen name="Onboarding" component={OnboardingRoute} />
+              <Stack.Screen name="Main" component={MainTabs} />
+              <Stack.Screen name="CaptureHealth" component={CaptureHealthScreen} />
+              <Stack.Screen name="PermissionFlow" component={PermissionFlowRoute} />
+              <Stack.Screen name="ReportForm" component={ReportFormScreen} />
+              <Stack.Screen name="LiveReport" component={LiveReportScreen} />
+              <Stack.Screen
+                name="Bystander"
+                component={BystanderScreen}
+                options={{ presentation: 'modal' }}
+              />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </SafeAreaProvider>
+      </DataStoreProvider>
     </CaptureProvider>
   );
 }

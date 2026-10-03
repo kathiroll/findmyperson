@@ -1,8 +1,11 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useCallback } from 'react';
 import { Button } from '../design-system';
+import { OnboardingScreen } from '../onboarding';
 import { PermissionFlowScreen } from '../permissions';
+import { SettingsScreen } from '../settings';
 import { PlaceholderScreen } from './PlaceholderScreen';
 import type { RootStackParamList, TabParamList } from './routes';
 
@@ -15,21 +18,18 @@ type TabProps<R extends keyof TabParamList> = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
-export function OnboardingScreen({ navigation }: RootProps<'Onboarding'>) {
+export function OnboardingRoute({ navigation }: RootProps<'Onboarding'>) {
+  const subscribeFocus = useCallback(
+    (onFocus: () => void) => navigation.addListener('focus', onFocus),
+    [navigation],
+  );
+  const onDone = useCallback(() => navigation.replace('Main'), [navigation]);
   return (
-    <PlaceholderScreen
-      testID="screen-Onboarding"
-      header={{ variant: 'brand' }}
-      title="Thank you for installing"
-      description="Onboarding: thank-you, how it works and privacy, permissions."
-    >
-      <Button
-        label="Location permission"
-        variant="tint"
-        onPress={() => navigation.navigate('PermissionFlow')}
-      />
-      <Button label="Continue" onPress={() => navigation.replace('Main')} trailingIcon="arrow" />
-    </PlaceholderScreen>
+    <OnboardingScreen
+      onEnable={() => navigation.navigate('PermissionFlow')}
+      onDone={onDone}
+      subscribeFocus={subscribeFocus}
+    />
   );
 }
 
@@ -76,25 +76,12 @@ export function HistoryScreen() {
   );
 }
 
-export function SettingsScreen({ navigation }: TabProps<'Settings'>) {
+export function SettingsRoute({ navigation }: TabProps<'Settings'>) {
   return (
-    <PlaceholderScreen
-      testID="screen-Settings"
-      header={{ variant: 'brand' }}
-      title="Settings"
-      description="Settings: permissions, notifications, data on this phone. Not in the v2 mockups yet."
-    >
-      <Button
-        label="Capture health"
-        variant="tint"
-        onPress={() => navigation.navigate('CaptureHealth')}
-      />
-      <Button
-        label="Location permission"
-        variant="tint"
-        onPress={() => navigation.navigate('PermissionFlow')}
-      />
-    </PlaceholderScreen>
+    <SettingsScreen
+      onOpenCaptureHealth={() => navigation.navigate('CaptureHealth')}
+      onOpenPermissionFlow={() => navigation.navigate('PermissionFlow')}
+    />
   );
 }
 

@@ -6,7 +6,7 @@ React Navigation 7 (native-stack + bottom-tabs). `routes.ts` is the single defin
 | -------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
 | `Onboarding`                           | root stack (initial)         | app start                                                                        |
 | `Main` → `Home`, `History`, `Settings` | bottom tabs                  | after onboarding                                                                 |
-| `CaptureHealth`                        | root stack                   | Home, Settings                                                                   |
+| `CaptureHealth`                        | root stack                   | Home, Settings (`SettingsScreen.onOpenCaptureHealth` is the diagnostics seam)    |
 | `PermissionFlow`                       | root stack                   | Onboarding, Settings, CaptureHealth (placeholders), `findmyperson://permissions` |
 | `ReportForm`                           | root stack                   | Home                                                                             |
 | `LiveReport`                           | root stack `{reportId}`      | Home, `findmyperson://report/<id>`                                               |
