@@ -20,7 +20,8 @@ jobs:
   # The Android half of packages/encrypted-store, built by itself: its JVM unit tests (key
   # vault, no-backup paths, schema-version gate, delete-all) and a compile of its Turbo Native
   # Module against the published React Native library. Needs no app project and no node_modules,
-  # so it runs on every pull request.
+  # so it runs on every pull request. The runner image ships the Android SDK, as for the
+  # android-module job in ci.yml.
   store-android:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -30,7 +31,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.4.1 # the version React Native 0.87's wrapper uses
