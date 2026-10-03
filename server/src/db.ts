@@ -73,6 +73,21 @@ CREATE TABLE IF NOT EXISTS idempotency (
   created_at   INTEGER NOT NULL,
   PRIMARY KEY (device_id, key)
 );
+CREATE TABLE IF NOT EXISTS shard_generations (
+  shard        TEXT PRIMARY KEY,
+  generation   INTEGER NOT NULL CHECK (generation >= 1),
+  content_hash TEXT NOT NULL,
+  query_count  INTEGER NOT NULL,
+  issued_at    INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS shard_index_state (
+  id         INTEGER PRIMARY KEY CHECK (id = 1),
+  index_hash TEXT NOT NULL,
+  issued_at  INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS shard_cdn_pending (
+  path TEXT PRIMARY KEY
+);
 `;
 
 export interface ReportRow {
@@ -112,6 +127,26 @@ export interface IdempotencyRow {
   body_json: string | null;
 }
 
+/**
+ * The shard compiler's memory of one shard (shards/compiler.ts). A row is never deleted, so a
+ * shard that empties and later fills again continues its numbering instead of restarting at 1.
+ */
+export interface ShardGenerationRow {
+  shard: string;
+  /** The newest generation ever assigned to this shard. */
+  generation: number;
+  /** Hash of that generation's queries, or of the empty list once the shard has emptied. */
+  content_hash: string;
+  query_count: number;
+  /** The bundle's `issued_at`, kept so a rewrite of the same generation is byte-identical. */
+  issued_at: number;
+}
+
+export interface ShardIndexStateRow {
+  index_hash: string;
+  issued_at: number;
+}
+
 type Row = Record<string, unknown>;
 
 function toReport(r: Row): ReportRow {
@@ -146,6 +181,9 @@ export class ServerDb {
   constructor(path: string = ':memory:') {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL');
+    // The shard compiler can run as a second process on the same file (shards/cli.ts); wait for
+    // its short write transactions instead of failing with SQLITE_BUSY.
+    this.db.exec('PRAGMA busy_timeout = 5000');
     this.db.exec(SCHEMA);
   }
 
@@ -360,5 +398,64 @@ export class ServerDb {
 
   forgetIdempotency(deviceId: string, key: string): void {
     this.db.prepare('DELETE FROM idempotency WHERE device_id = ? AND key = ?').run(deviceId, key);
+  }
+
+  // --- shard compiler state (shards/compiler.ts is the only caller) --------------------------
+
+  listShardGenerations(): ShardGenerationRow[] {
+    return this.db
+      .prepare('SELECT * FROM shard_generations ORDER BY shard')
+      .all() as unknown as ShardGenerationRow[];
+  }
+
+  putShardGeneration(row: ShardGenerationRow): void {
+    this.db
+      .prepare(
+        `INSERT INTO shard_generations (shard, generation, content_hash, query_count, issued_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (shard) DO UPDATE SET generation = excluded.generation,
+           content_hash = excluded.content_hash, query_count = excluded.query_count,
+           issued_at = excluded.issued_at`,
+      )
+      .run(row.shard, row.generation, row.content_hash, row.query_count, row.issued_at);
+  }
+
+  getShardIndexState(): ShardIndexStateRow | null {
+    const row = this.db
+      .prepare('SELECT index_hash, issued_at FROM shard_index_state WHERE id = 1')
+      .get();
+    return row === undefined ? null : (row as unknown as ShardIndexStateRow);
+  }
+
+  putShardIndexState(state: ShardIndexStateRow): void {
+    this.db
+      .prepare(
+        `INSERT INTO shard_index_state (id, index_hash, issued_at) VALUES (1, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET index_hash = excluded.index_hash,
+           issued_at = excluded.issued_at`,
+      )
+      .run(state.index_hash, state.issued_at);
+  }
+
+  /** CDN paths whose invalidation has not been confirmed yet. Survives a failed or killed run. */
+  listPendingCdnPaths(): string[] {
+    return this.db
+      .prepare('SELECT path FROM shard_cdn_pending ORDER BY path')
+      .all()
+      .map((row) => row.path as string);
+  }
+
+  addPendingCdnPaths(paths: readonly string[]): void {
+    const insert = this.db.prepare('INSERT OR IGNORE INTO shard_cdn_pending (path) VALUES (?)');
+    for (const path of paths) {
+      insert.run(path);
+    }
+  }
+
+  clearPendingCdnPaths(paths: readonly string[]): void {
+    const remove = this.db.prepare('DELETE FROM shard_cdn_pending WHERE path = ?');
+    for (const path of paths) {
+      remove.run(path);
+    }
   }
 }
