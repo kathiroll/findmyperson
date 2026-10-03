@@ -1,0 +1,86 @@
+// The Android half of @findmyperson/encrypted-store: the store key (Android Keystore), the
+// no-backup directory, and the writer the capture module uses.
+//
+// Built two ways:
+//   - inside the app, as a subproject React Native's autolinking includes. The app's root
+//     project supplies the Android Gradle Plugin, Kotlin and the SDK versions, and
+//     src/reactnative (the Turbo Native Module) is compiled in;
+//   - by itself, for the JVM unit tests: `gradle -p packages/encrypted-store/android
+//     testDebugUnitTest`. Then the versions below apply and src/reactnative is left out, since
+//     React Native's Gradle plugin and its codegen are not there;
+//   - by itself with -PfmpCompileReactGlue, which also compiles src/reactnative against the
+//     published React Native library and the committed copy of the codegen output in
+//     ../contracts/android. That is a compile check of the Turbo Native Module without an app.
+buildscript {
+    ext.standalone = project == rootProject
+    if (ext.standalone) {
+        repositories {
+            google()
+            mavenCentral()
+        }
+        dependencies {
+            // The versions React Native 0.87.1 builds with (its gradle/libs.versions.toml).
+            classpath("com.android.tools.build:gradle:9.2.1")
+            classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.0")
+        }
+    }
+}
+
+def standalone = project == rootProject
+def compileReactGlue = standalone && project.hasProperty("fmpCompileReactGlue")
+def fromApp = { name, fallback -> rootProject.ext.has(name) ? rootProject.ext.get(name) : fallback }
+
+apply plugin: "com.android.library"
+apply plugin: "org.jetbrains.kotlin.android"
+if (!standalone) {
+    apply plugin: "com.facebook.react"
+}
+
+android {
+    namespace "dev.findmyperson.encryptedstore"
+    compileSdk fromApp("compileSdkVersion", 35)
+
+    defaultConfig {
+        minSdkVersion fromApp("minSdkVersion", 24)
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            if (!standalone || compileReactGlue) {
+                java.srcDirs += "src/reactnative/java"
+            }
+            if (compileReactGlue) {
+                java.srcDirs += "../contracts/android"
+            }
+        }
+    }
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+dependencies {
+    // SQLCIPHER VERSION. Must equal the SQLCipher release op-sqlite vendors
+    // (CIPHER_VERSION_NUMBER in its cpp/sqlcipher/sqlite3.c), so the Kotlin writer and the
+    // TypeScript reader agree on the file format. src/policy.test.ts compares the two; bump
+    // op-sqlite and this line together.
+    implementation("net.zetetic:sqlcipher-android:4.19.0")
+    implementation("androidx.sqlite:sqlite:2.7.0")
+
+    if (!standalone) {
+        // The version of react-native is set by the React Native Gradle Plugin.
+        implementation("com.facebook.react:react-android")
+    }
+    if (compileReactGlue) {
+        // The react-native version in ../package.json; src/policy.test.ts compares the two.
+        compileOnly("com.facebook.react:react-android:0.87.1")
+    }
+
+    testImplementation("junit:junit:4.13.2")
+}

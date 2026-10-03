@@ -11,3 +11,4 @@ CLAUDE.md
 packages/native-location-capture/contracts
 packages/native-location-capture/ios/.build
 packages/native-location-capture/ios/Sources/CH3
+packages/encrypted-store/contracts

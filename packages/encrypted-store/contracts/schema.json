@@ -1,0 +1,58 @@
+{
+  "libraryName": "NativeEncryptedStoreSpec",
+  "modules": {
+    "NativeEncryptedStore": {
+      "type": "NativeModule",
+      "aliasMap": {},
+      "enumMap": {},
+      "spec": {
+        "eventEmitters": [],
+        "methods": [
+          {
+            "name": "getOrCreateStoreKeyHex",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "StringTypeAnnotation"
+                }
+              },
+              "params": []
+            }
+          },
+          {
+            "name": "getStoreDirectory",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "StringTypeAnnotation"
+                }
+              },
+              "params": []
+            }
+          },
+          {
+            "name": "deleteAllData",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "VoidTypeAnnotation"
+                }
+              },
+              "params": []
+            }
+          }
+        ]
+      },
+      "moduleName": "NativeEncryptedStore"
+    }
+  }
+}

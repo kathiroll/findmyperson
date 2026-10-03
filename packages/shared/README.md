@@ -29,6 +29,7 @@ It is pure TypeScript with no I/O, no clock and no randomness of its own, so the
 - **The widen-only rule is a coverage test.** An edit is allowed when the new search disc covers the old one and the new window contains the old one. A per-edit distance allowance was rejected because it can be spent again on every edit. The reasoning is at the top of `src/payload/widening.ts`.
 - **A shard is the parent of a res-7 cell,** not the res-5 cell containing the point. See `shardCellOf` in `src/geo/h3.ts`.
 - **The schema version is `PRAGMA user_version`.** TypeScript owns migrations; the native modules only check the version and run the statements in `contracts/native-writer.json`.
+- **This package opens nothing.** The store section defines the schema, the migrations and the queries over a `SqlDatabase`. `@findmyperson/encrypted-store` supplies that database on a phone: the key, the backup-excluded file, the cipher checks and the native writer.
 - **Seams, not policy.** Device identity, reporter verification and rate limiting are open captain decisions. This package fixes the interface each one plugs into (`DeviceIdentity`, the `phone_verification` field, the `rate_limited` error) and implements none of them.
 
 ## Exported types

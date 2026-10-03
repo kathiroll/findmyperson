@@ -17,6 +17,27 @@ permissions:
   contents: read
 
 jobs:
+  # The Android half of packages/encrypted-store, built by itself: its JVM unit tests (key
+  # vault, no-backup paths, schema-version gate, delete-all) and a compile of its Turbo Native
+  # Module against the published React Native library. Needs no app project and no node_modules,
+  # so it runs on every pull request. The runner image ships the Android SDK, as for the
+  # android-module job in ci.yml.
+  store-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.4.1 # the version React Native 0.87's wrapper uses
+          gradle-home-cache-cleanup: true
+      - name: Store library unit tests and Turbo module compile check
+        run: gradle -p packages/encrypted-store/android -PfmpCompileReactGlue testDebugUnitTest
+
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -91,6 +112,12 @@ jobs:
         run: sh packages/native-location-capture/ios/scripts/test-sqlcipher.sh
       - name: Compile for iOS
         run: sh packages/native-location-capture/ios/scripts/check-ios.sh
+      # The iOS half of packages/encrypted-store: its real Swift compiled and run on this Mac
+      # against SQLCipher (backup exclusion read back from the file system, key rotation, the
+      # schema-version gate, one file shared with the TypeScript store). The Linux CI job has
+      # to skip these tests, so this is where they run.
+      - name: Encrypted store, Swift host check
+        run: pnpm exec vitest run packages/encrypted-store
 
   ios:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'

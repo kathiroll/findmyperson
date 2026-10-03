@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  BACKUP EXCLUSION (architecture plan 4.5). These attributes merge into the app's manifest.
+
+  android:allowBackup="false" turns Auto Backup to Google Drive off. On Android 12 and later
+  it does not stop a device-to-device transfer, so the two rule files exclude every domain from
+  both cloud backup and device transfer: android:dataExtractionRules is read on Android 12+,
+  android:fullBackupContent on Android 11 and earlier.
+
+  If the app, or any library it depends on, declares a different value for one of these, the
+  manifest merge fails and the build stops. Do not answer that with tools:replace on a value
+  other than these; src/policy.test.ts and build/check-android-backup.mjs fail if anyone does.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/fmp_store_data_extraction_rules"
+        android:fullBackupContent="@xml/fmp_store_backup_rules" />
+</manifest>

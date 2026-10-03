@@ -18,9 +18,16 @@ fi
 source "$repo_root/build/env.sh"
 cd "$project"
 
+# Fails the build if the manifest Gradle merged lets Android back up or transfer app data
+# (location history must never leave the phone; packages/encrypted-store/README.md).
+check_backup_excluded() {
+  node "$repo_root/packages/encrypted-store/scripts/check-merged-manifest.ts" "$project/app/build/intermediates"
+}
+
 case "$variant" in
   debug)
     ./gradlew assembleDebug
+    check_backup_excluded
     echo "APK: app/android/app/build/outputs/apk/debug/app-debug.apk"
     ;;
   release)
@@ -30,6 +37,7 @@ case "$variant" in
       exit 2
     fi
     ./gradlew --init-script "$repo_root/build/android-signing.init.gradle" assembleRelease bundleRelease
+    check_backup_excluded
     echo "APK: app/android/app/build/outputs/apk/release/"
     echo "AAB: app/android/app/build/outputs/bundle/release/app-release.aab"
     ;;
