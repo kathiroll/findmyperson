@@ -3,6 +3,7 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback } from 'react';
 import { Button } from '../design-system';
+import { CaptureHealthDiagnostics, CaptureHealthStatus } from '../capture-health';
 import { OnboardingScreen } from '../onboarding';
 import { PermissionFlowScreen } from '../permissions';
 import { SettingsScreen } from '../settings';
@@ -41,6 +42,10 @@ export function HomeScreen({ navigation }: TabProps<'Home'>) {
       title="Home"
       description="Home: capture-health status, report entry point, live report card."
     >
+      <CaptureHealthStatus
+        onOpenPermissionFlow={() => navigation.navigate('PermissionFlow')}
+        onOpenDiagnostics={() => navigation.navigate('CaptureHealth')}
+      />
       <Button
         label="Report a missing person"
         icon="plus"
@@ -87,18 +92,10 @@ export function SettingsRoute({ navigation }: TabProps<'Settings'>) {
 
 export function CaptureHealthScreen({ navigation }: RootProps<'CaptureHealth'>) {
   return (
-    <PlaceholderScreen
-      testID="screen-CaptureHealth"
-      header={{ variant: 'back', title: 'Capture health', onBackPress: navigation.goBack }}
-      title="Capture health"
-      description="Capture health: what is wrong with background location and the one button that fixes it."
-    >
-      <Button
-        label="Location permission"
-        variant="tint"
-        onPress={() => navigation.navigate('PermissionFlow')}
-      />
-    </PlaceholderScreen>
+    <CaptureHealthDiagnostics
+      onBack={navigation.goBack}
+      onOpenPermissionFlow={() => navigation.navigate('PermissionFlow')}
+    />
   );
 }
 
