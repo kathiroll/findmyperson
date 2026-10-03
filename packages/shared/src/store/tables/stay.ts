@@ -6,8 +6,9 @@ import { num, placeholders, text, type SqlExecutor, type SqlRow } from '../drive
  *
  * This table has two writers, told apart by `source`:
  *
- *   'derived'  TypeScript stay-point extraction over `location_sample`. It inserts, extends and
- *              closes its own rows, and it alone removes duplicates between the two sources.
+ *   'derived'  TypeScript stay-point extraction over `location_sample` (deriveStays in
+ *              stay/derive.ts). It inserts, extends and closes its own rows, and it alone removes
+ *              duplicates between the two sources.
  *   'visit'    the iOS capture module, from CLVisit. It only ever touches 'visit' rows, with the
  *              two statements below, and never a 'derived' row.
  *

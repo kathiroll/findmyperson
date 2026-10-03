@@ -9,7 +9,10 @@ import { text, type SqlExecutor } from '../driver';
  * NOT kept here: it is `PRAGMA user_version` (store/migrations.ts).
  */
 export const KV_KEYS = {
-  /** Stay derivation: id of the last `location_sample` row it has consumed. */
+  /**
+   * Stay derivation: id of the last `location_sample` row it has finished with. The samples of
+   * a dwell still too short to be a stay come after it and are read again (stay/derive.ts).
+   */
   stayDerivationLastSampleId: 'stay_derivation.last_sample_id',
   /** Retention purge: when it last ran, Unix seconds. */
   purgeLastRunAt: 'purge.last_run_at',

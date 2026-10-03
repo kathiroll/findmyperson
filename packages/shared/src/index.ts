@@ -56,3 +56,8 @@ export * from './store/tables/outboundResponse';
 export * from './store/tables/ownReport';
 export * from './store/tables/receivedResponse';
 export * from './store/tables/kv';
+
+// Stay derivation: the writer of 'derived' rows in `stay`.
+export type { StaySample } from './stay/cluster';
+export { extractStays, type CoveringStay } from './stay/extract';
+export { deriveStays, type StayDerivationResult } from './stay/derive';

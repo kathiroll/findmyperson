@@ -53,7 +53,7 @@ export const TABLE_OWNERSHIP: Readonly<Record<StoreTable, readonly WritePath[]>>
     {
       owner: 'C2.4 stay derivation',
       writes:
-        "insert, extend, close and de-duplicate rows with source 'derived' (insertStay, updateDerivedStay, deleteDerivedStay)",
+        "insert, extend, close and de-duplicate rows with source 'derived', all inside deriveStays (insertStay, updateDerivedStay, deleteDerivedStay)",
     },
     {
       owner: 'C2.2 iOS native module',

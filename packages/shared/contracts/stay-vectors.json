@@ -1,0 +1,501 @@
+{
+  "_comment": "Golden vectors for stay derivation (src/stay). Each is a list of fixes in stored order, the stay rows another writer has put in the table, and the 'derived' rows that must result. extractStays must return exactly `expect`; deriveStays must leave exactly those rows in the store, whether it sees the fixes in one run or stops and starts again from the store after each count in `restart_after`, and whether the visit rows are written before the fixes or after them. Integers and `closed` must match exactly; lat and lon within coordinate_tolerance_deg; radius_m within radius_tolerance_m. See contracts/README.md.",
+  "stay_radius_m": 150,
+  "stay_min_duration_sec": 900,
+  "stay_merge_gap_sec": 1800,
+  "coordinate_tolerance_deg": 1e-9,
+  "radius_tolerance_m": 0.001,
+  "vectors": [
+    {
+      "name": "a clean single stay",
+      "why": "Four fixes at home over 45 minutes, a fix at the office on either side. The stay runs from the first home fix to the last. The home fixes are 0, +2e-4, -2e-4 and 0 degrees of latitude from home, so the centroid is home; the third is 3e-4 degrees (33.3585 m) from the centroid of the first two, which is the radius.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9718, "lon": 77.5946 },
+        { "ts_utc": 1791002700, "lat": 12.9714, "lon": 77.5946 },
+        { "ts_utc": 1791003600, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791004500, "lat": 12.9816, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [],
+      "expect": [
+        {
+          "start_ts": 1791000900,
+          "end_ts": 1791003600,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 33.3585,
+          "sample_count": 4,
+          "closed": true
+        }
+      ]
+    },
+    {
+      "name": "a stay still in progress is open",
+      "why": "Three fixes at home and nothing after. The stay is written as soon as it spans 15 minutes and stays open, with end_ts at the last fix.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9716, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791001800,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 3,
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "a dwell shorter than fifteen minutes is not a stay",
+      "why": "Ten minutes at home, then ten at the office. Neither spans 15 minutes.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001500, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002100, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791002700, "lat": 12.9816, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [],
+      "expect": []
+    },
+    {
+      "name": "a broken short dwell gives up only its first fix",
+      "why": "Rule 4. The fix at 0 min is 100 m north of home and the fix at 12 min is 122 m south: together with the home fix at 5 min they are not one dwell. Dropping only the first leaves home, south, south, which spans 15 minutes (5 to 20). Starting over from the fix that broke the dwell would have found only 8 minutes.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9725, "lon": 77.5946 },
+        { "ts_utc": 1791000300, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000720, "lat": 12.9705, "lon": 77.5946 },
+        { "ts_utc": 1791001200, "lat": 12.9705, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [],
+      "expect": [
+        {
+          "start_ts": 1791000300,
+          "end_ts": 1791001200,
+          "lat": 12.9708666667,
+          "lon": 77.5946,
+          "radius_m": 122.3146,
+          "sample_count": 3,
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "a stay that spans app restarts",
+      "why": "The process dies after the second fix (stay just opened), after the fourth, and again after a fifth fix that comes two hours later. Each run must continue the same row from the store: one stay, 0 to 165 min, five fixes, closed by the office fix.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002700, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791009900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791010800, "lat": 12.9816, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [2, 4, 5],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791009900,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 5,
+          "closed": true
+        }
+      ]
+    },
+    {
+      "name": "a restart before the dwell is a stay",
+      "why": "The process dies after every fix. The first restarts happen while the dwell is too short to have a row, so it is rebuilt from the fixes after the cursor.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000600, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001200, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9816, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [1, 2, 3],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791001200,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 3,
+          "closed": true
+        }
+      ]
+    },
+    {
+      "name": "adjacent stays at the same place merge",
+      "why": "Rule 5. Three fixes at home, then a fix 167 m north, which is beyond the radius and closes the stay, then fixes 111 m north. The second dwell (45 to 60 min, centroid 139 m from home) is the same place and begins 15 minutes after the first ended, so it continues the first row: 0 to 75 min, six fixes. The radius is the distance between the two centroids when they merged, 12.5e-4 degrees = 138.9939 m.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002700, "lat": 12.9731, "lon": 77.5946 },
+        { "ts_utc": 1791003600, "lat": 12.9726, "lon": 77.5946 },
+        { "ts_utc": 1791004500, "lat": 12.9726, "lon": 77.5946 },
+        { "ts_utc": 1791005400, "lat": 12.9816, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [3, 4, 5],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791004500,
+          "lat": 12.9721833333,
+          "lon": 77.5946,
+          "radius_m": 138.9939,
+          "sample_count": 6,
+          "closed": true
+        }
+      ]
+    },
+    {
+      "name": "one wild fix does not split a stay",
+      "why": "Rule 5. A single fix at the office between home fixes closes the stay; the dwell that follows begins exactly STAY_MERGE_GAP_SEC after it ended and rejoins it. The wild fix is not counted.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002700, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791003600, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791004500, "lat": 12.9716, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [4, 5],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791004500,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 5,
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "the same place after a stay elsewhere is a second stay",
+      "why": "Home, 15 minutes at the office, home again 45 minutes after leaving: more than the merge gap, so three rows.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002700, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791003600, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791004500, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791005400, "lat": 12.9716, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791001800,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 3,
+          "closed": true
+        },
+        {
+          "start_ts": 1791002700,
+          "end_ts": 1791003600,
+          "lat": 12.9816,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 2,
+          "closed": true
+        },
+        {
+          "start_ts": 1791004500,
+          "end_ts": 1791005400,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 2,
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "a stay elsewhere inside the merge gap keeps two stays apart",
+      "why": "Home, then the office from 35 to 50 min, then home again at 55: only 25 minutes after the first home stay ended, inside the merge gap. But the office stay lies between them, so the device left and came back: three rows, and no home row claiming the time spent at the office.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002100, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791003000, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791003300, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791004200, "lat": 12.9716, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [5, 6],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791001800,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 3,
+          "closed": true
+        },
+        {
+          "start_ts": 1791002100,
+          "end_ts": 1791003000,
+          "lat": 12.9816,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 2,
+          "closed": true
+        },
+        {
+          "start_ts": 1791003300,
+          "end_ts": 1791004200,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 2,
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "overlapping stays merge when the clock is set back",
+      "why": "Fixes are taken in stored order. After the office fix the clock is set back, so the next home fixes are timed 20 and 40 min: a dwell that overlaps the closed stay 0 to 30 at the same place. It is merged into it, not written as a second row.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001800, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002700, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791001200, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002400, "lat": 12.9716, "lon": 77.5946 }
+      ],
+      "visits": [],
+      "restart_after": [4, 5],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791002400,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 5,
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "a visit row and fixes for the same window give no derived stay",
+      "why": "Rule 6, the no-duplication case. iOS wrote a closed visit at home for 0 to 60 min. Every home fix is inside it, so nothing is derived.",
+      "samples": [
+        { "ts_utc": 1790999100, "lat": 12.9816, "lon": 77.5946 },
+        { "ts_utc": 1791000300, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001200, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002100, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791003000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791003900, "lat": 12.9816, "lon": 77.5946 }
+      ],
+      "visits": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791003600,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 65,
+          "closed": true
+        }
+      ],
+      "restart_after": [3],
+      "expect": []
+    },
+    {
+      "name": "fixes after the visit's departure are derived",
+      "why": "The visit covers 0 to 30 min but the fixes stay at home until 65 min. The fixes at 5 and 20 are the visit's; 35, 50 and 65 are a derived stay that begins after the departure and does not overlap the visit.",
+      "samples": [
+        { "ts_utc": 1791000300, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001200, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002100, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791003000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791003900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791004800, "lat": 12.9816, "lon": 77.5946 }
+      ],
+      "visits": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791001800,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 65,
+          "closed": true
+        }
+      ],
+      "restart_after": [2, 4],
+      "expect": [
+        {
+          "start_ts": 1791002100,
+          "end_ts": 1791003900,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 3,
+          "closed": true
+        }
+      ]
+    },
+    {
+      "name": "fixes before the visit's arrival are derived",
+      "why": "The fixes begin 20 minutes before the arrival iOS reports. The stay built from them is closed by the first fix inside the visit, at its last fix before the arrival.",
+      "samples": [
+        { "ts_utc": 1790998800, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1790999700, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000600, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001500, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791004200, "lat": 12.9816, "lon": 77.5946 }
+      ],
+      "visits": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791003600,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 65,
+          "closed": true
+        }
+      ],
+      "restart_after": [2],
+      "expect": [
+        {
+          "start_ts": 1790998800,
+          "end_ts": 1790999700,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 2,
+          "closed": true
+        }
+      ]
+    },
+    {
+      "name": "an open visit row covers nothing",
+      "why": "The visit row has an arrival and no departure (closed = 0, end_ts = start_ts). It says a visit began, not how long it lasted, so the stay is derived from the fixes.",
+      "samples": [
+        { "ts_utc": 1791000300, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001200, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002100, "lat": 12.9716, "lon": 77.5946 }
+      ],
+      "visits": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791000000,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 65,
+          "closed": false
+        }
+      ],
+      "restart_after": [],
+      "expect": [
+        {
+          "start_ts": 1791000300,
+          "end_ts": 1791002100,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 3,
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "a visit somewhere else hides nothing",
+      "why": "The visit is at the office, 1.1 km away, over the same window. It is a different place, so the home stay is derived.",
+      "samples": [
+        { "ts_utc": 1791000300, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001200, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002100, "lat": 12.9716, "lon": 77.5946 }
+      ],
+      "visits": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791003600,
+          "lat": 12.9816,
+          "lon": 77.5946,
+          "radius_m": 65,
+          "closed": true
+        }
+      ],
+      "restart_after": [],
+      "expect": [
+        {
+          "start_ts": 1791000300,
+          "end_ts": 1791002100,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 3,
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "a merge does not bridge a visit",
+      "why": "Home stays 0 to 15 and 35 to 50 are 20 minutes apart, inside the merge gap, but a visit at home covers 20 to 25 between them. Merged they would overlap it, so they stay two rows. The fix at 22 min is the visit's.",
+      "samples": [
+        { "ts_utc": 1791000000, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791000900, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791001320, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791002100, "lat": 12.9716, "lon": 77.5946 },
+        { "ts_utc": 1791003000, "lat": 12.9716, "lon": 77.5946 }
+      ],
+      "visits": [
+        {
+          "start_ts": 1791001200,
+          "end_ts": 1791001500,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 65,
+          "closed": true
+        }
+      ],
+      "restart_after": [3],
+      "expect": [
+        {
+          "start_ts": 1791000000,
+          "end_ts": 1791000900,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 2,
+          "closed": true
+        },
+        {
+          "start_ts": 1791002100,
+          "end_ts": 1791003000,
+          "lat": 12.9716,
+          "lon": 77.5946,
+          "radius_m": 0.0,
+          "sample_count": 2,
+          "closed": false
+        }
+      ]
+    }
+  ]
+}
