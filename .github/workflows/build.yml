@@ -17,6 +17,27 @@ permissions:
   contents: read
 
 jobs:
+  # The Android half of packages/encrypted-store, built by itself: its JVM unit tests (key
+  # vault, no-backup paths, schema-version gate, delete-all) and a compile of its Turbo Native
+  # Module against the published React Native library. Needs no app project and no node_modules,
+  # so it runs on every pull request.
+  store-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.4.1 # the version React Native 0.87's wrapper uses
+          gradle-home-cache-cleanup: true
+      - name: Store library unit tests and Turbo module compile check
+        run: gradle -p packages/encrypted-store/android -PfmpCompileReactGlue testDebugUnitTest
+
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -105,19 +126,22 @@ jobs:
       FMP_IOS_PROFILE_NAME: ${{ secrets.FMP_IOS_PROFILE_NAME }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The iOS half of packages/encrypted-store, compiled from its real Swift and run on this
+      # Mac against SQLCipher (backup exclusion read back from the file system, key rotation,
+      # the schema-version gate, one file shared with the TypeScript store). The Linux CI job
+      # has to skip these tests, so this is where they run. Needs no app project.
+      - name: Store Swift host check
+        run: pnpm exec vitest run packages/encrypted-store
       - name: Detect native project
         id: native
         run: |
           if ls app/ios/*.xcodeproj >/dev/null 2>&1; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::app/ios does not exist yet; skipping iOS build"; fi
-      - if: steps.native.outputs.present == 'true'
-        uses: pnpm/action-setup@v4
-      - if: steps.native.outputs.present == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: steps.native.outputs.present == 'true'
-        run: pnpm install --frozen-lockfile
       - name: Archive (signed)
         if: steps.native.outputs.present == 'true' && env.FMP_IOS_CERT_P12_BASE64 != ''
         run: |

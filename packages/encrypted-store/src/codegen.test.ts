@@ -107,7 +107,7 @@ test('the module is the three native methods of the store and nothing else', () 
   expect(methods).toEqual(['getOrCreateStoreKeyHex', 'getStoreDirectory', 'deleteAllData']);
   // Nothing takes an argument: JavaScript never names a path or supplies a key.
   for (const method of moduleSchema.spec.methods) {
-    expect((method.typeAnnotation as { params: unknown[] }).params).toEqual([]);
+    expect((method.typeAnnotation as unknown as { params: unknown[] }).params).toEqual([]);
   }
   expect(moduleSchema.spec.eventEmitters).toEqual([]);
 });

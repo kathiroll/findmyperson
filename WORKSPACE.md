@@ -13,11 +13,12 @@ A monorepo workspace is one git repository holding several packages that can dep
 | `app/`                              | React Native app (New Architecture, TypeScript). Native projects are added later      |
 | `packages/shared/`                  | Payload schemas (zod) and pure logic such as H3 sharding math. Used by app and server |
 | `packages/native-location-capture/` | Turbo Native Module package for background location capture                           |
+| `packages/encrypted-store/`         | The on-device encrypted store: open, migrate, key, backup exclusion, native writer    |
 | `server/`                           | Backend                                                                               |
 | `docs/`                             | Documentation for the real build                                                      |
 | `m0/`                               | Finished M0 trial apps. Not part of the workspace, never touched by tooling           |
 
-Package names are `@findmyperson/app`, `@findmyperson/shared`, `@findmyperson/native-location-capture` and `@findmyperson/server`. To depend on one, add `"@findmyperson/shared": "workspace:*"` to the dependencies.
+Package names are `@findmyperson/app`, `@findmyperson/shared`, `@findmyperson/native-location-capture`, `@findmyperson/encrypted-store` and `@findmyperson/server`. To depend on one, add `"@findmyperson/shared": "workspace:*"` to the dependencies.
 
 ## Tooling
 
