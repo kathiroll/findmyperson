@@ -73,3 +73,17 @@ export type ViewProps = Record<string, unknown>;
 export type TextProps = Record<string, unknown>;
 export type TextInputProps = Record<string, any>;
 export type ImageSourcePropType = unknown;
+
+// Surface used by @react-navigation/native; Linking.initialUrl is set per test.
+export const Linking = {
+  initialUrl: null as string | null,
+  getInitialURL: () => Promise.resolve(Linking.initialUrl),
+  addEventListener: () => ({ remove: () => undefined }),
+};
+export const Platform = { OS: 'android', select: (spec: any) => spec.android ?? spec.default };
+export const BackHandler = {
+  addEventListener: () => ({ remove: () => undefined }),
+  removeEventListener: () => undefined,
+};
+export const I18nManager = { isRTL: false, getConstants: () => ({ isRTL: false }) };
+export const Dimensions = { get: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }) };
