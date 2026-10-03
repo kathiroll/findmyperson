@@ -32,10 +32,11 @@ export type StoreVault = Pick<
 export const STORE_BUSY_TIMEOUT_MS = 5000;
 
 /**
- * THE RETENTION HOOK POINT (plan 4.7). The purge and the weekly VACUUM are task C2.5, not this
- * package: that task writes one function of this type and passes it as `maintenance` at the
- * app's single openStore call. The app then calls `store.runMaintenance(now)` on every
- * foreground. `nowTs` is Unix seconds, supplied by the caller so the hook stays testable.
+ * THE RETENTION HOOK POINT (plan 4.7). The purge and the weekly VACUUM are not this package:
+ * `createRetentionMaintenance()` of @findmyperson/shared returns the function of this type, and
+ * the app passes it as `maintenance` at its openStore call. The app then calls
+ * `store.runMaintenance(now)` on every foreground and on every capture wake that runs
+ * JavaScript. `nowTs` is Unix seconds, supplied by the caller so the hook stays testable.
  */
 export type StoreMaintenance = (db: SqlDatabase, nowTs: number) => Promise<void>;
 

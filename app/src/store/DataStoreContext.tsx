@@ -4,6 +4,7 @@ import {
   type EncryptedStore,
   type OpenStoreOptions,
 } from '@findmyperson/encrypted-store';
+import { createRetentionMaintenance } from '@findmyperson/shared';
 import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
 
 /** What the app lets a screen do to the on-device store. Screens never see the store itself. */
@@ -44,13 +45,21 @@ export function createDataStore(
 /**
  * The real store options, looked up on first use: importing the native entry throws wherever
  * native code is not linked (unit tests, the app before the native projects exist).
+ *
+ * Every store the app opens carries the retention maintenance, so `store.runMaintenance(now)`
+ * derives stays and purges what is past retention. Nothing here reports whether the phone is
+ * charging, so the weekly VACUUM waits until a `deviceConditions` source is passed in.
  */
 export function loadNativeStoreOptions(): OpenStoreOptions {
   const native = require('@findmyperson/encrypted-store/native') as {
     NativeEncryptedStore: OpenStoreOptions['vault'];
     opSqliteDriver: OpenStoreOptions['driver'];
   };
-  return { vault: native.NativeEncryptedStore, driver: native.opSqliteDriver };
+  return {
+    vault: native.NativeEncryptedStore,
+    driver: native.opSqliteDriver,
+    maintenance: createRetentionMaintenance(),
+  };
 }
 
 export function DataStoreProvider({

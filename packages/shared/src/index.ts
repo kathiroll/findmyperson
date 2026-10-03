@@ -61,3 +61,15 @@ export * from './store/tables/kv';
 export type { StaySample } from './stay/cluster';
 export { extractStays, type CoveringStay } from './stay/extract';
 export { deriveStays, type StayDerivationResult } from './stay/derive';
+
+// Retention: the purge, the weekly VACUUM and the store's maintenance hook.
+export { purgeExpired, type PurgeResult } from './retention/purge';
+export {
+  createRetentionMaintenance,
+  runRetention,
+  vacuumIfDue,
+  type DeviceConditions,
+  type RetentionOptions,
+  type RetentionRun,
+  type VacuumOutcome,
+} from './retention/maintenance';

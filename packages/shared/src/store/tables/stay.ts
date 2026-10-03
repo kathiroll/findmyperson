@@ -194,3 +194,21 @@ export async function deleteStaysEndedBefore(db: SqlExecutor, cutoffTs: number):
   const rows = await db.execute('DELETE FROM stay WHERE end_ts < ? RETURNING id', [cutoffTs]);
   return rows.length;
 }
+
+/**
+ * Retention purge: a stay still running across the cutoff keeps its row, but the part before the
+ * cutoff is history past retention, and the fixes it was built from are deleted. Its start is
+ * moved up to the cutoff, so no row claims a time the store no longer holds. Run it after
+ * deleteStaysEndedBefore with the same cutoff. Returns how many rows were shortened.
+ *
+ * It applies to both sources. An open 'visit' row is never shortened: its end_ts is its arrival
+ * time, so it is either wholly inside retention or already deleted, and CLOSE_VISIT_STAY_SQL
+ * still finds it by the arrival time it was written with.
+ */
+export async function trimStaysStartedBefore(db: SqlExecutor, cutoffTs: number): Promise<number> {
+  const rows = await db.execute(
+    'UPDATE stay SET start_ts = ? WHERE start_ts < ? AND end_ts >= ? RETURNING id',
+    [cutoffTs, cutoffTs, cutoffTs],
+  );
+  return rows.length;
+}

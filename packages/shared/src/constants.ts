@@ -28,6 +28,9 @@ export const REPORT_TTL_SEC = RETENTION_SEC;
 /** PLAN 4.7: sent or failed outbound responses are purged after this. */
 export const OUTBOUND_RESPONSE_TERMINAL_RETENTION_SEC = 7 * SECONDS_PER_DAY;
 
+/** PLAN 4.7: the store file is compacted (VACUUM) at most this often. */
+export const VACUUM_INTERVAL_SEC = 7 * SECONDS_PER_DAY;
+
 /** PLAN 5.4: consecutive samples within this radius for at least the duration form a stay. */
 export const STAY_RADIUS_M = 150;
 export const STAY_MIN_DURATION_SEC = 15 * 60;
