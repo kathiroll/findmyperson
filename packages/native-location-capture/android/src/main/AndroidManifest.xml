@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Merged into the app's manifest. ManifestAndSettingsTest (src/test) pins what must not change by accident.
+  Nothing here sets android:allowBackup; that is the app's manifest, and plan task C2.3 owns the
+  test that it is false. This module keeps its own files in noBackupFilesDir regardless.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Foreground location. Fine gives precise fixes; coarse alone is "approximate" (Android 12+ lets the user pick). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- "Allow all the time". On Android 11+ it can only be granted from the system settings page. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Mode fgs: a foreground service of type location. Android 14+ refuses it without the type-specific permission. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Restart the selected mode after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!--
+      Deliberately absent:
+        POST_NOTIFICATIONS  belongs to whatever owns notifications (the match notification needs it
+                            too). Without it the mode fgs notification is hidden on Android 13+ and
+                            the service still runs.
+        REQUEST_IGNORE_BATTERY_OPTIMIZATIONS  Google Play restricts apps that request it. The module
+                            opens the settings list instead and the user makes the change.
+    -->
+
+    <!-- Needed by PackageManagerCompat.getUnusedAppRestrictionsStatus on Android 11+ (package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.AUTO_REVOKE_PERMISSIONS" />
+        </intent>
+    </queries>
+
+    <application>
+        <service
+            android:name=".platform.CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <receiver
+            android:name=".platform.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- An update replaces the app and stops its service; this brings the selected mode back. -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

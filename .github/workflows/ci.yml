@@ -34,6 +34,25 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+  # The Kotlin capture module is a Gradle build of its own (packages/native-location-capture/android).
+  # It needs no pnpm install: it reads the contract files straight from the repo. The runner image
+  # ships the Android SDK.
+  android-module:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: packages/native-location-capture/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests, lint, library build
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --console=plain
+
   ios-capture-core:
     # The iOS capture module keeps its state machine in plain Swift (no Core Location, no UIKit)
     # so that it can be tested here, on a Linux runner, on every pull request. What needs a Mac
