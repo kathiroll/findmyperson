@@ -45,11 +45,24 @@ export type ReportSubmitRequest = z.infer<typeof ReportSubmitRequestSchema>;
 export const ReportStatusSchema = z.enum(['active', 'ended', 'expired']);
 export type ReportStatus = z.infer<typeof ReportStatusSchema>;
 
+/**
+ * The manual-review gate (plan addendum 2026-10-03). Every report is born `pending`: held, never
+ * broadcast. Only the operator's explicit release makes it `released`, the one state the shard
+ * compiler may read. `rejected` is final and is never broadcast. Nothing automatic changes it.
+ *
+ * While the review state is not `released`, `status` is a placeholder (`active`) and must not be
+ * read as "being broadcast"; clients check `review_state` first. Optional only so reports from a
+ * server that predates the gate still parse; the server always sends it.
+ */
+export const ReviewStateSchema = z.enum(['pending', 'released', 'rejected']);
+export type ReviewState = z.infer<typeof ReviewStateSchema>;
+
 /** A report as its reporter sees it. */
 export const ReportSchema = z.object({
   query_id: QueryIdSchema,
   revision: z.number().int().min(1),
   status: ReportStatusSchema,
+  review_state: ReviewStateSchema.optional(),
   created_at: UnixSecondsSchema,
   updated_at: UnixSecondsSchema,
   expires_at: UnixSecondsSchema,
