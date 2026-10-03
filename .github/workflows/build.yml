@@ -72,6 +72,26 @@ jobs:
             app/android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
 
+  # The iOS capture module, checked as far as a Mac without a phone can: its tests against real
+  # SQLCipher, and every source compiled for arm64 iOS. Same trigger as the iOS build below, for
+  # the same reason (macOS runner cost). The module's plain tests run on Linux in ci.yml.
+  ios-capture-module:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Tests against real SQLCipher
+        run: sh packages/native-location-capture/ios/scripts/test-sqlcipher.sh
+      - name: Compile for iOS
+        run: sh packages/native-location-capture/ios/scripts/check-ios.sh
+
   ios:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: macos-15
