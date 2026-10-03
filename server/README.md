@@ -25,7 +25,7 @@ Every report is `pending` on submit. Nothing pending is ever broadcast; only the
 - A shard with no reports is absent from the index and has no bundle. A superseded or emptied bundle is deleted on publish, so a 404 on a bundle means "read the index again".
 - **Generations** go up only when a shard's queries changed, never because a pass ran, and are never reused: the numbering lives in the `shard_generations` table, which must not be reset while devices hold caches. A signing-key switch re-signs everything, so it moves every shard up once.
 - **Keys** (`src/shards/keys.ts`): Ed25519, several at once, each with `sign_from` and `verify_until`, so a new key can be announced, take over, and overlap with the old one. The rotation steps are at the top of that file.
-- **Run it**: the server runs a pass every `FMP_SHARD_INTERVAL_SEC` (default 60) when `FMP_SHARD_OUT_DIR` is set; `src/shards/cli.ts compile` runs one pass and `cli.ts keygen <key_id>` makes a key. The environment is listed in `src/shards/worker.ts`. Run one compiler per store.
+- **Run it**: the server runs a pass every `FMP_SHARD_INTERVAL_SEC` (default 60) when `FMP_SHARD_OUT_DIR` is set; `dist/cli.js compile` (from `src/shards/cli.ts`) runs one pass and `dist/cli.js keygen <key_id>` makes a key. The environment is listed in `src/shards/worker.ts`. Run one compiler per store.
 - **Not built: the bucket and CDN adapters.** No provider has been chosen. Publishing goes through two interfaces in `src/shards/storage.ts`; what exists is a store over a directory and a CDN stub that logs the paths it was asked to purge and purges nothing.
 
 **Bundle size, synthetic 100-report shard** (measured and asserted in `src/shards/bundleSize.test.ts`):
@@ -49,7 +49,16 @@ The photo is nearly all of it, compression only undoes its base64 expansion, and
 - A widening edit on an already-released report stays released (no re-review), so a poster could widen after the call.
 - `ReportSchema.review_state` is additive and optional; while it is not `released`, `status` is a placeholder. The app's `own_report` table and `applyServerReport` do not know `review_state` yet.
 - Push to the reporter on a new response is not built (separate task).
-- The run command below does not work under plain Node: the sources import each other without file extensions and use constructor parameter properties, which Node's type stripping does not handle. The tests run through Vitest, which does. The server and `src/shards/cli.ts` were run by hand with `--experimental-transform-types` and a resolver hook; a runner or a build step is still to be chosen.
 - The plan names h3's `polygonToCells` + `compactCells` for the shard cover. The compiler uses `searchAreaCells` and `shardKeysForCells` from `@findmyperson/shared` instead, because `polygonToCells` is not a cover and devices derive shards the shared way.
 
-Run: `FMP_OPERATOR_DEVICE_IDS=<id> node src/main.ts`.
+## Running it
+
+The sources import each other, and `@findmyperson/shared`, without file extensions and the shared package ships as TypeScript, so plain `node src/main.ts` cannot load them (Node's type stripping does not resolve those imports). `build.mjs` bundles the two entries with esbuild into `dist/` (git-ignored); `node` runs that with no flags. `fastify` and `zod` stay external, so run from a checkout with `pnpm install` done.
+
+```
+pnpm --filter @findmyperson/server build
+FMP_OPERATOR_DEVICE_IDS=<id> node server/dist/main.js        # or: pnpm --filter @findmyperson/server start
+node server/dist/cli.js compile | keygen <key_id>
+```
+
+`src/entrypoints.test.ts` builds and runs both entries under plain `node`, so a regression fails `pnpm test`.

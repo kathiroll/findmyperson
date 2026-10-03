@@ -9,8 +9,8 @@ import { shardOptionsFromEnv } from './worker';
  * Command line for the shard compiler, for a one-off pass or a cron job. The server process
  * runs the same compiler on a timer (main.ts), so this is not needed alongside it.
  *
- *   node src/shards/cli.ts compile          one pass; prints the result as JSON
- *   node src/shards/cli.ts keygen <key_id>  prints a new signing key as JSON
+ *   node dist/cli.js compile          one pass; prints the result as JSON
+ *   node dist/cli.js keygen <key_id>  prints a new signing key as JSON
  *
  * `compile` reads the environment described in worker.ts, plus FMP_DB_PATH. The output of
  * `keygen` contains the private seed: store it as a secret and pin only `public_key` in the app.

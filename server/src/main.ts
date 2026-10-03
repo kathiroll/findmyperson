@@ -4,7 +4,7 @@ import { createDeviceAllowListOperatorPolicy } from './operator';
 import { shardOptionsFromEnv, startShardWorker, type ShardWorker } from './shards/worker';
 
 /**
- * Process entry: `node --experimental-strip-types src/main.ts`. Configuration is environment only:
+ * Process entry: `node dist/main.js` (built by build.mjs). Configuration is environment only:
  *   FMP_DB_PATH               SQLite file (default ./findmyperson.db)
  *   FMP_PORT                  default 8080
  *   FMP_OPERATOR_DEVICE_IDS   comma-separated device ids allowed to release/reject reports.

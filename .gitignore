@@ -37,3 +37,6 @@ app/ios/build/
 *.jks
 *.p12
 *.mobileprovision
+
+# Build output
+server/dist/
