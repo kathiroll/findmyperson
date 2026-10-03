@@ -2,6 +2,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../design-system';
+import { PermissionFlowScreen } from '../permissions';
 import { PlaceholderScreen } from './PlaceholderScreen';
 import type { RootStackParamList, TabParamList } from './routes';
 
@@ -22,6 +23,11 @@ export function OnboardingScreen({ navigation }: RootProps<'Onboarding'>) {
       title="Thank you for installing"
       description="Onboarding: thank-you, how it works and privacy, permissions."
     >
+      <Button
+        label="Location permission"
+        variant="tint"
+        onPress={() => navigation.navigate('PermissionFlow')}
+      />
       <Button label="Continue" onPress={() => navigation.replace('Main')} trailingIcon="arrow" />
     </PlaceholderScreen>
   );
@@ -83,6 +89,11 @@ export function SettingsScreen({ navigation }: TabProps<'Settings'>) {
         variant="tint"
         onPress={() => navigation.navigate('CaptureHealth')}
       />
+      <Button
+        label="Location permission"
+        variant="tint"
+        onPress={() => navigation.navigate('PermissionFlow')}
+      />
     </PlaceholderScreen>
   );
 }
@@ -94,8 +105,18 @@ export function CaptureHealthScreen({ navigation }: RootProps<'CaptureHealth'>) 
       header={{ variant: 'back', title: 'Capture health', onBackPress: navigation.goBack }}
       title="Capture health"
       description="Capture health: what is wrong with background location and the one button that fixes it."
-    />
+    >
+      <Button
+        label="Location permission"
+        variant="tint"
+        onPress={() => navigation.navigate('PermissionFlow')}
+      />
+    </PlaceholderScreen>
   );
+}
+
+export function PermissionFlowRoute({ navigation }: RootProps<'PermissionFlow'>) {
+  return <PermissionFlowScreen onClose={navigation.goBack} />;
 }
 
 export function ReportFormScreen({ navigation }: RootProps<'ReportForm'>) {

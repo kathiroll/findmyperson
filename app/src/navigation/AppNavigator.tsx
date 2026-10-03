@@ -3,7 +3,10 @@ import { NavigationContainer, type NavigationContainerRef } from '@react-navigat
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { Ref } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import type { LocationCapture } from '@findmyperson/native-location-capture';
+import { useMemo } from 'react';
 import { colors, fontFamilies } from '../design-system';
+import { CaptureProvider, loadNativeCapture } from '../permissions';
 import { linking, type RootStackParamList, type TabParamList } from './routes';
 import {
   BystanderScreen,
@@ -12,6 +15,7 @@ import {
   HomeScreen,
   LiveReportScreen,
   OnboardingScreen,
+  PermissionFlowRoute,
   ReportFormScreen,
   SettingsScreen,
 } from './screens';
@@ -43,35 +47,42 @@ export type AppNavigatorProps = {
   /** First screen when no deep link is being opened. The onboarding gate is a later task. */
   initialRouteName?: keyof RootStackParamList;
   navigationRef?: Ref<NavigationContainerRef<RootStackParamList>>;
+  /** The capture module. Production leaves it out and gets the real native module. */
+  capture?: LocationCapture;
 };
 
 /** The whole app shell: root stack, bottom tabs and deep-link handling. */
 export function AppNavigator({
   initialRouteName = 'Onboarding',
   navigationRef,
+  capture,
 }: AppNavigatorProps) {
+  const module = useMemo(() => capture ?? loadNativeCapture(), [capture]);
   return (
-    <SafeAreaProvider>
-      <NavigationContainer {...(navigationRef ? { ref: navigationRef } : {})} linking={linking}>
-        <Stack.Navigator
-          initialRouteName={initialRouteName}
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen name="CaptureHealth" component={CaptureHealthScreen} />
-          <Stack.Screen name="ReportForm" component={ReportFormScreen} />
-          <Stack.Screen name="LiveReport" component={LiveReportScreen} />
-          <Stack.Screen
-            name="Bystander"
-            component={BystanderScreen}
-            options={{ presentation: 'modal' }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <CaptureProvider capture={module}>
+      <SafeAreaProvider>
+        <NavigationContainer {...(navigationRef ? { ref: navigationRef } : {})} linking={linking}>
+          <Stack.Navigator
+            initialRouteName={initialRouteName}
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+            <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen name="CaptureHealth" component={CaptureHealthScreen} />
+            <Stack.Screen name="PermissionFlow" component={PermissionFlowRoute} />
+            <Stack.Screen name="ReportForm" component={ReportFormScreen} />
+            <Stack.Screen name="LiveReport" component={LiveReportScreen} />
+            <Stack.Screen
+              name="Bystander"
+              component={BystanderScreen}
+              options={{ presentation: 'modal' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </CaptureProvider>
   );
 }

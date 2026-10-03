@@ -17,6 +17,8 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<TabParamList> | undefined;
   CaptureHealth: undefined;
+  /** Staged location permission flow (C2.6). Opened from onboarding, Settings and capture health. */
+  PermissionFlow: undefined;
   ReportForm: undefined;
   LiveReport: { reportId: string };
   Bystander: { matchId: string };
@@ -43,6 +45,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
       Onboarding: 'welcome',
       Main: { screens: { Home: 'home', History: 'history', Settings: 'settings' } },
       CaptureHealth: 'capture-health',
+      PermissionFlow: 'permissions',
       ReportForm: 'new-report',
       LiveReport: 'report/:reportId',
       Bystander: 'match/:matchId',

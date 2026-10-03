@@ -87,3 +87,12 @@ export const BackHandler = {
 };
 export const I18nManager = { isRTL: false, getConstants: () => ({ isRTL: false }) };
 export const Dimensions = { get: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }) };
+
+// Tests drive the app-state listener through `appStateLog`.
+export const appStateLog = { listeners: new Set<(state: string) => void>() };
+export const AppState = {
+  addEventListener: (_type: string, listener: (state: string) => void) => {
+    appStateLog.listeners.add(listener);
+    return { remove: () => void appStateLog.listeners.delete(listener) };
+  },
+};

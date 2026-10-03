@@ -2,6 +2,7 @@ import { getStateFromPath, type NavigationContainerRef } from '@react-navigation
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { Linking } from 'react-native';
+import { createFakeLocationCapture } from '@findmyperson/native-location-capture/fake';
 import { AppNavigator } from '../AppNavigator';
 import {
   linking,
@@ -24,7 +25,7 @@ async function mount(initialUrl: string | null = null) {
   const ref = { current: null as Ref | null };
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(<AppNavigator navigationRef={ref} />);
+    renderer = create(<AppNavigator navigationRef={ref} capture={createFakeLocationCapture()} />);
   });
   return { ref, renderer };
 }
@@ -71,6 +72,7 @@ describe('navigation shell', () => {
       [() => ref.current!.navigate('Main', { screen: 'History' }), 'History'],
       [() => ref.current!.navigate('Main', { screen: 'Settings' }), 'Settings'],
       [() => ref.current!.navigate('CaptureHealth'), 'CaptureHealth'],
+      [() => ref.current!.navigate('PermissionFlow'), 'PermissionFlow'],
       [() => ref.current!.navigate('ReportForm'), 'ReportForm'],
       [() => ref.current!.navigate('LiveReport', { reportId: 'r1' }), 'LiveReport'],
       [() => ref.current!.navigate('Bystander', { matchId: 'm1' }), 'Bystander'],
@@ -139,6 +141,7 @@ describe('deep links', () => {
     expect(resolve('welcome')?.name).toBe('Onboarding');
     expect(resolve('new-report')?.name).toBe('ReportForm');
     expect(resolve('capture-health')?.name).toBe('CaptureHealth');
+    expect(resolve('permissions')?.name).toBe('PermissionFlow');
     expect(resolve('report/r1')).toMatchObject({ name: 'LiveReport', params: { reportId: 'r1' } });
     expect(resolve('match/m1')).toMatchObject({ name: 'Bystander', params: { matchId: 'm1' } });
     for (const tab of ['home', 'history', 'settings']) {
