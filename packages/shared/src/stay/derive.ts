@@ -64,6 +64,20 @@ async function readCursor(db: SqlExecutor): Promise<number> {
   return Number.isSafeInteger(stored) && stored > 0 ? stored : 0;
 }
 
+/**
+ * For the retention purge, in the transaction that deleted fixes. Sample ids are rowids: once
+ * the newest rows are gone the next fix takes an id at or below the cursor, and a run that came
+ * after several such fixes would see a cursor that looks valid and skip them. The cursor is
+ * therefore pulled back to the newest id still stored. Every fix that is left was already
+ * finished with, so nothing is derived twice.
+ */
+export async function rewindStayCursorToStoredSamples(tx: SqlExecutor): Promise<void> {
+  const latest = (await getLatestSampleId(tx)) ?? 0;
+  if ((await readCursor(tx)) > latest) {
+    await kvSet(tx, KV_KEYS.stayDerivationLastSampleId, String(latest));
+  }
+}
+
 export async function deriveStays(db: SqlDatabase): Promise<StayDerivationResult> {
   return db.transaction(async (tx) => {
     const stays = await listStaysOverlapping(tx, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);

@@ -62,7 +62,8 @@ export const TABLE_OWNERSHIP: Readonly<Record<StoreTable, readonly WritePath[]>>
     },
     {
       owner: 'C2.5 retention purge',
-      writes: 'delete rows past retention (deleteStaysEndedBefore)',
+      writes:
+        'delete rows past retention, and move the start of a row still running across it up to the cutoff (deleteStaysEndedBefore, trimStaysStartedBefore)',
     },
   ],
   report_cache: [

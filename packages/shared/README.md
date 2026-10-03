@@ -6,19 +6,20 @@ It is pure TypeScript with no I/O, no clock and no randomness of its own, so the
 
 ## Map
 
-| Area                    | Files                                                | What it defines                                                                                   |
-| ----------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Constants               | `src/constants.ts`                                   | 150 m, 30 min, 30 days, H3 resolutions, size caps. Each says whether it is decided or provisional |
-| Geometry                | `src/geo/distance.ts`                                | `haversineMeters`, the only distance function                                                     |
-| Geo-sharding            | `src/geo/h3.ts`                                      | Cell of a point, shard and push cells, neighbour ring, search-area cover                          |
-| Canonical JSON, signing | `src/payload/canonical.ts`, `src/payload/signing.ts` | The bytes that are signed and how a signature is written                                          |
-| Broadcast payload       | `src/payload/query.ts`, `src/payload/bundle.ts`      | `BroadcastQuery`, `ShardBundle`, `ShardIndex`, and verified reading of both files                 |
-| Widen-only edit rule    | `src/payload/widening.ts`                            | `isWideningEdit`, `classifyCriteriaEdit`                                                          |
-| API shapes              | `src/api/`                                           | The six endpoints, the error shape, the idempotency convention                                    |
-| Device identity seam    | `src/identity/deviceIdentity.ts`                     | `DeviceIdentity`, `DeviceAuthenticator`, and in-memory stubs                                      |
-| On-device store         | `src/store/`                                         | Cipher parameters, migration v1, one typed access module per table, the table-ownership list      |
-| Stay derivation         | `src/stay/`                                          | `deriveStays`, the writer of 'derived' rows in `stay`, and the pure `extractStays`. See below     |
-| Cross-language files    | `contracts/`                                         | Golden vectors and generated copies for Kotlin, Swift and third parties. See its README           |
+| Area                    | Files                                                | What it defines                                                                                    |
+| ----------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Constants               | `src/constants.ts`                                   | 150 m, 30 min, 30 days, H3 resolutions, size caps. Each says whether it is decided or provisional  |
+| Geometry                | `src/geo/distance.ts`                                | `haversineMeters`, the only distance function                                                      |
+| Geo-sharding            | `src/geo/h3.ts`                                      | Cell of a point, shard and push cells, neighbour ring, search-area cover                           |
+| Canonical JSON, signing | `src/payload/canonical.ts`, `src/payload/signing.ts` | The bytes that are signed and how a signature is written                                           |
+| Broadcast payload       | `src/payload/query.ts`, `src/payload/bundle.ts`      | `BroadcastQuery`, `ShardBundle`, `ShardIndex`, and verified reading of both files                  |
+| Widen-only edit rule    | `src/payload/widening.ts`                            | `isWideningEdit`, `classifyCriteriaEdit`                                                           |
+| API shapes              | `src/api/`                                           | The six endpoints, the error shape, the idempotency convention                                     |
+| Device identity seam    | `src/identity/deviceIdentity.ts`                     | `DeviceIdentity`, `DeviceAuthenticator`, and in-memory stubs                                       |
+| On-device store         | `src/store/`                                         | Cipher parameters, migration v1, one typed access module per table, the table-ownership list       |
+| Stay derivation         | `src/stay/`                                          | `deriveStays`, the writer of 'derived' rows in `stay`, and the pure `extractStays`. See below      |
+| Retention               | `src/retention/`                                     | `purgeExpired`, the weekly `VACUUM`, and `createRetentionMaintenance`, the store's hook. See below |
+| Cross-language files    | `contracts/`                                         | Golden vectors and generated copies for Kotlin, Swift and third parties. See its README            |
 
 `src/testing/` is test support (in-memory SQLite, Ed25519 from Node's crypto, sample documents). It is not exported and may use Node freely; nothing else in `src/` may, and `src/purity.test.ts` enforces that.
 
@@ -50,6 +51,48 @@ Limits a consumer should know:
 - Every stored fix counts, whatever its `accuracy_m`. One wild fix closes a stay; if the device is back within the merge gap the stay continues, otherwise there are two.
 - Fixes are taken in stored order. If the clock was set back their times are not in order, and stays derived either side of the change can overlap in time.
 
+## Retention
+
+"Kept for 30 days, then deleted" is made true by one function. Pass it to the store when opening it, and call `store.runMaintenance(now)` on every app foreground and on every capture wake that runs JavaScript:
+
+```ts
+const store = await openStore({
+  vault,
+  driver,
+  maintenance: createRetentionMaintenance({ deviceConditions }),
+});
+await store.runMaintenance(nowSeconds);
+```
+
+One run is `runRetention(db, nowTs, options)`: `deriveStays`, then `purgeExpired`, then `vacuumIfDue`. Call `runRetention` directly to get what it did back.
+
+What the purge deletes, as of the time it is given:
+
+| Table               | Deleted                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| `location_sample`   | fixes older than `RETENTION_SEC`                                                         |
+| `stay`              | rows that ended before that cutoff; a row still running across it has its start moved up |
+| `report_cache`      | reports at or past `expires_at`                                                          |
+| `match`             | rows whose report is no longer cached                                                    |
+| `outbound_response` | sent and failed tips older than `OUTBOUND_RESPONSE_TERMINAL_RETENTION_SEC` (7 days)      |
+
+- **It remembers nothing.** The cutoff is computed from the time passed in, on every run, and no run is skipped because of an earlier one. After the app was closed for weeks, or the clock was changed, one run deletes everything that is then past retention. `purge.last_run_at` is written for diagnostics and never read.
+- **One transaction.** Fixes and stays go by the same cutoff together, so no stay claims a time whose fixes are gone and no fix outlives its stay. `deriveStays` is one transaction as well, and the store's connection runs one at a time, so the purge never sees half a derivation run. Two `runRetention` calls at once are one run.
+- **A stay longer than retention is cut, not kept whole.** A phone that has not moved for 40 days has a stay 30 days long. Its row and id stay; `sample_count` and the centroid still count the fixes that were deleted.
+- **Derivation runs first, inside the run.** If it throws, the purge still runs and the error is thrown afterwards. Purging first would also leave nothing before the cutoff; deriving first keeps the row a `match` may name.
+- **The derivation cursor follows.** Sample ids are rowids, so deleting the newest rows lets later fixes take ids the cursor has already passed. The purge pulls the cursor back in the same transaction.
+- **The vacuum** runs at most once per `VACUUM_INTERVAL_SEC`, and only when `deviceConditions()` says the phone is both charging and idle. No answer counts as not charging. It is followed by a WAL checkpoint, without which the file on disk does not shrink. A vacuum that fails (the native writer was busy) is not recorded and is tried on the next run. Nothing schedules it: a vacuum that is due waits for the next run that finds the phone charging and idle.
+
+Limits a consumer should know:
+
+- **Nothing supplies `deviceConditions` yet.** No module in this repo reports charging state to JavaScript, so in the app the purge runs and the vacuum waits. The source is one function returning `{ charging, idle }`.
+- **The purge runs when JavaScript runs.** A capture wake that stores a fix natively, with no JavaScript running, does not purge. On a phone where the app is never opened, history is purged at the next run, in one pass.
+- **On Android, settle the two-SQLite-libraries question before turning the vacuum on.** `packages/encrypted-store/README.md` describes it: the TypeScript and Kotlin connections do not see each other's file locks. A fix written while `VACUUM` rewrites the file is a far longer exposure than a fix meeting a single write.
+- **Rows dated in the future are kept.** A fix stored while the clock was ahead of where it is now is deleted only once the clock passes its date by 30 days. Deleting such rows would empty the store whenever a phone starts with its clock unset. A clock that jumps forward does delete everything it puts past retention.
+- **`own_report`, `received_response` and `subscription` are not purged,** nor is a tip still waiting to be sent. `src/store/ownership.ts` records that retention for the first two is undecided.
+- **A `match` can outlive its evidence.** Its `stay_id` or `sample_id` may name a row the purge has deleted while the report is still live. The match is kept, because deleting it would allow a second notification for the same report.
+- **A time in milliseconds is refused** (`RangeError`), since it would put the cutoff after every row.
+
 ## Exported types
 
 Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported types are:
@@ -61,6 +104,7 @@ Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported typ
 - API: `ApiErrorCode`, `ApiErrorBody`, `ApiErrorDetail`, `ApiEndpointName`, `IdempotencyKey`, `PushToken`, `DeviceRegistrationRequest`, `DeviceRegistrationResponse`, `ReportSubmitRequest`, `Report`, `ReportStatus`, `ReviewState`, `ReportResponse`, `ReportPatchRequest`, `PersonPatch`, `ReportEndRequest`, `EditableReport`, `ResponseSubmitRequest`, `ResponseSubmitResponse`, `ReceivedResponse`, `ResponseListQuery`, `ResponseListResponse`
 - Identity: `DeviceId`, `DeviceIdentity`, `DeviceAuthenticator`, `AuthenticatedDevice`
 - Stay derivation: `StaySample`, `CoveringStay`, `StayDerivationResult`
+- Retention: `PurgeResult`, `DeviceConditions`, `RetentionOptions`, `RetentionRun`, `VacuumOutcome`
 - Store: `SqlValue`, `SqlRow`, `SqlExecutor`, `SqlDatabase`, `CipherParams`, `Migration`, `StoreTable`, `WritePath`, `LocationSample`, `NewLocationSample`, `SampleSource`, `Stay`, `NewStay`, `StayUpdate`, `StaySource`, `CachedReport`, `UpsertOutcome`, `Match`, `NewMatch`, `MatchState`, `Subscription`, `SubscriptionReason`, `OutboundResponse`, `NewOutboundResponse`, `OutboundResponseState`, `OwnReport`, `OwnReportState`, `StoredResponse`
 
 ## Commands

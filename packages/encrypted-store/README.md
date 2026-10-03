@@ -179,14 +179,22 @@ Pass `null` as the second argument when the store could not be opened at all. Ca
 
 ## The retention hook
 
-The purge and the weekly `VACUUM` are a later task (C2.5). This package gives it one place to plug in and builds none of it:
+The purge and the weekly `VACUUM` live in `@findmyperson/shared` (`src/retention/`, and "Retention" in its README). This package gives them one place to plug in and builds none of it:
 
 ```ts
-const store = await openStore({ vault, driver, maintenance: purge }); // purge: (db, nowTs) => Promise<void>
-await store.runMaintenance(nowSeconds); // the app calls this on every foreground
+import { createRetentionMaintenance } from '@findmyperson/shared';
+
+const store = await openStore({
+  vault,
+  driver,
+  maintenance: createRetentionMaintenance({ deviceConditions }), // (db, nowTs) => Promise<void>
+});
+await store.runMaintenance(nowSeconds); // on every foreground, and every capture wake that runs JavaScript
 ```
 
-The plan also wants a purge on every capture wake. That runs natively and needs delete statements added to `native-writer.json`; it is not here.
+One run derives stays, deletes everything past retention and, once a week while the phone is charging and idle, vacuums the file. `src/retention.test.ts` runs it on a real SQLCipher file: 60 days of data, nothing past 30 days left, and the file back to the size of a store that only ever held 30 days, with a second connection open as the native writer's is.
+
+The purge is TypeScript and runs when JavaScript runs. A capture wake that stores a fix natively, with no JavaScript, does not purge: that would need delete statements in `native-writer.json` and a caller in both capture modules, and it is not built. Until it is, a phone on which the app is never opened keeps capturing and is purged at the next run, which catches up in one pass however long the gap was.
 
 ## What SQLCipher does and does not protect (plan 4.3)
 
@@ -204,7 +212,7 @@ There is no phone, simulator or emulator in this work, and `app/android` and `ap
 - **Where op-sqlite finds its SQLCipher flag in this monorepo.** The flag is set in both `app/package.json` and the root `package.json` because its Android and iOS builds look in different places. If it is missed, `openStore` fails with `NOT_SQLCIPHER`.
 - **`scripts/check-merged-manifest.ts` on an app build.** It was run on the manifests the Android Gradle Plugin produced for this library and on fixtures, not on an app's merged manifest.
 
-Verified here, on a Mac: 87 TypeScript tests (open, mismatch matrix, migrations and delete-all on real SQLCipher; the policy checks; codegen), 35 Kotlin JVM tests, and the Swift store's self-test and cross-language tests against SQLCipher 4.19.0 built from op-sqlite's source.
+Verified here, on a Mac: 89 TypeScript tests (open, mismatch matrix, migrations, retention and delete-all on real SQLCipher; the policy checks; codegen), 35 Kotlin JVM tests, and the Swift store's self-test and cross-language tests against SQLCipher 4.19.0 built from op-sqlite's source.
 
 ## Commands
 
