@@ -26,7 +26,18 @@ Every report is `pending` on submit. Nothing pending is ever broadcast; only the
 - **Generations** go up only when a shard's queries changed, never because a pass ran, and are never reused: the numbering lives in the `shard_generations` table, which must not be reset while devices hold caches. A signing-key switch re-signs everything, so it moves every shard up once.
 - **Keys** (`src/shards/keys.ts`): Ed25519, several at once, each with `sign_from` and `verify_until`, so a new key can be announced, take over, and overlap with the old one. The rotation steps are at the top of that file.
 - **Run it**: the server runs a pass every `FMP_SHARD_INTERVAL_SEC` (default 60) when `FMP_SHARD_OUT_DIR` is set; `dist/cli.js compile` (from `src/shards/cli.ts`) runs one pass and `dist/cli.js keygen <key_id>` makes a key. The environment is listed in `src/shards/worker.ts`. Run one compiler per store.
-- **Not built: the bucket and CDN adapters.** No provider has been chosen. Publishing goes through two interfaces in `src/shards/storage.ts`; what exists is a store over a directory and a CDN stub that logs the paths it was asked to purge and purges nothing.
+- **Cloudflare R2 and cache purge** (`src/shards/r2.ts`). `R2ObjectStore` talks to R2's S3 API (SigV4, region `auto`, `node:crypto` + `fetch`, no SDK); `CloudflareCdnInvalidator` calls the zone's `purge_cache` API in batches of 30 URLs. Bundle puts carry `immutable` cache headers and `index.json` a 60 s one. A failed purge throws, and the compiler retries those paths next pass. Environment (all deployment secrets or config, never committed; setting `FMP_R2_BUCKET` selects R2 over `FMP_SHARD_OUT_DIR`, and a partial set fails at start):
+
+  | Variable                                            | What                                                                         |
+  | --------------------------------------------------- | ---------------------------------------------------------------------------- |
+  | `FMP_R2_BUCKET`                                     | Bucket name                                                                  |
+  | `FMP_R2_ACCOUNT_ID`                                 | Cloudflare account id (the S3 endpoint is `<id>.r2.cloudflarestorage.com`)   |
+  | `FMP_R2_ACCESS_KEY_ID` / `FMP_R2_SECRET_ACCESS_KEY` | R2 API token's S3 credentials, Object Read & Write on that bucket only       |
+  | `FMP_CDN_ORIGIN`                                    | Public https origin devices fetch from (the bucket's custom domain), no path |
+  | `FMP_CDN_ZONE_ID`                                   | Zone that owns that domain                                                   |
+  | `FMP_CDN_API_TOKEN`                                 | Cloudflare API token with Zone > Cache Purge on that zone only               |
+
+  The tests use a fake S3 endpoint; a live-bucket test runs only when `FMP_R2_TEST_BUCKET`, `FMP_R2_TEST_ACCOUNT_ID`, `FMP_R2_TEST_ACCESS_KEY_ID` and `FMP_R2_TEST_SECRET_ACCESS_KEY` are set, and is skipped otherwise. R2 serves directly only through a custom domain (not `r2.dev` in production), which is what `FMP_CDN_ORIGIN` must be; the device-side origin setting is a separate task and must use the same value.
 
 **Bundle size, synthetic 100-report shard** (measured and asserted in `src/shards/bundleSize.test.ts`):
 

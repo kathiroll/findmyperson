@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { ServerDb } from '../db';
 import { compileShards, type CompileOptions, type CompileResult } from './compiler';
 import { KeyRing } from './keys';
+import { CloudflareCdnInvalidator, R2ObjectStore, r2ConfigFromEnv } from './r2';
 import { FileSystemObjectStore, createLoggingCdnInvalidator, type PublishLog } from './storage';
 
 /**
@@ -10,6 +11,10 @@ import { FileSystemObjectStore, createLoggingCdnInvalidator, type PublishLog } f
  * Configuration is environment only, like the rest of the server (main.ts):
  *   FMP_SHARD_OUT_DIR        directory the bundles and index.json are written to. Unset means
  *                            shard publishing is off.
+ *   FMP_R2_BUCKET            publish to Cloudflare R2 instead (takes precedence over the
+ *                            directory); also needs FMP_R2_ACCOUNT_ID, FMP_R2_ACCESS_KEY_ID,
+ *                            FMP_R2_SECRET_ACCESS_KEY, FMP_CDN_ORIGIN, FMP_CDN_ZONE_ID and
+ *                            FMP_CDN_API_TOKEN (r2.ts). All are secrets or deployment config.
  *   FMP_SHARD_KEYS           the signing keys as JSON (see keys.ts), or
  *   FMP_SHARD_KEYS_FILE      a file holding that JSON. Seeds are secrets: keep them out of the
  *                            repository and out of logs.
@@ -28,7 +33,7 @@ type Env = Readonly<Record<string, string | undefined>>;
 function required(env: Env, name: string): string {
   const value = env[name];
   if (value === undefined || value === '') {
-    throw new Error(`${name} is required when FMP_SHARD_OUT_DIR is set`);
+    throw new Error(`${name} is required when shard publishing is on`);
   }
   return value;
 }
@@ -40,7 +45,8 @@ export function shardOptionsFromEnv(
   log: PublishLog,
 ): (CompileOptions & { intervalSec: number }) | null {
   const outDir = env['FMP_SHARD_OUT_DIR'];
-  if (outDir === undefined || outDir === '') {
+  const r2 = r2ConfigFromEnv(env);
+  if (r2 === null && (outDir === undefined || outDir === '')) {
     return null;
   }
   const keysFile = env['FMP_SHARD_KEYS_FILE'];
@@ -65,8 +71,8 @@ export function shardOptionsFromEnv(
   }
   return {
     db,
-    store: new FileSystemObjectStore(outDir),
-    cdn: createLoggingCdnInvalidator(log),
+    store: r2 !== null ? new R2ObjectStore(r2.r2) : new FileSystemObjectStore(outDir!),
+    cdn: r2 !== null ? new CloudflareCdnInvalidator(r2.purge) : createLoggingCdnInvalidator(log),
     keys: new KeyRing(keysConfig),
     respondEndpoint,
     log,
