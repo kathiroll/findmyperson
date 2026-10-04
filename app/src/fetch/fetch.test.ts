@@ -9,7 +9,10 @@ import {
 import { createTestVault, nodeSqlcipherDriver } from '@findmyperson/encrypted-store/testing';
 import {
   FETCH_SHARD_REQUESTS_PER_CYCLE,
+  insertLocationSample,
   listLiveReports,
+  listWatchedShards,
+  pushCellOf,
   putSubscription,
   SHARD_INDEX_PATH,
   type FetchCycleInput,
@@ -166,6 +169,69 @@ describe('the bundle fetch on a cold background wake', () => {
       stored: [HOME],
       inserted: 1,
     });
+  });
+
+  test('a res-3 topic is fetched only when it stands in for res-5 shards', async () => {
+    const region = pushCellOf(HOME);
+    const cdn = await FakeShardCdn.start();
+    // The publisher files a report under its res-5 shard and under the res-3 cell above it.
+    await cdn.publish({
+      [HOME]: [await signedReport(1)],
+      [region]: [await signedReport(1), await signedReport(2)],
+    });
+    const { current, options } = unopenedStore();
+    const clock = { now: NOW };
+    const dataStore = createDataStore(options, current, () => clock.now);
+    // No cover shards, so that what is stored is what the watch list asked for.
+    const withoutWatch = { ...sourceOf(cdn), coverShards: 0 };
+    await dataStore.runFetchCycle({ ...withoutWatch, watch: [] });
+    const db = current.store!.db;
+
+    // As the push-wake topic of a followed shard it is not downloaded: its bundle is the
+    // whole region, and the device needs one shard of it.
+    await putSubscription(db, HOME, 'visited', NOW);
+    await putSubscription(db, region, 'ancestor', NOW);
+    expect(await listWatchedShards(db)).toEqual([HOME]);
+    clock.now += 60;
+    expect(await dataStore.runFetchCycle(withoutWatch)).toMatchObject({
+      outcome: 'completed',
+      stored: [HOME],
+      inserted: 1,
+    });
+    expect(cdn.requests.map((request) => request.path)).not.toContain(cdn.pathOf(region));
+
+    // Coarsened, it is the shard the device follows there.
+    await putSubscription(db, region, 'coarsened', NOW);
+    expect(await listWatchedShards(db)).toEqual([region, HOME].sort());
+    clock.now += 60;
+    expect(await dataStore.runFetchCycle(withoutWatch)).toMatchObject({
+      outcome: 'completed',
+      stored: [region],
+      inserted: 1,
+    });
+  });
+
+  test('asked for in the same breath as maintenance, it follows the list that run leaves', async () => {
+    const cdn = await FakeShardCdn.start();
+    await cdn.publish({ [HOME]: [await signedReport(1)] });
+    const { current, options } = unopenedStore();
+    const dataStore = createDataStore(options, current, () => NOW);
+    await dataStore.runMaintenance();
+    // A fix in a shard the phone does not follow yet, and the wake it causes: maintenance is
+    // asked for first (StoreMaintenance is mounted before ReportFetch), then the fetch.
+    await insertLocationSample(current.store!.db, {
+      ts_utc: NOW,
+      lat: 12.9716,
+      lon: 77.5946,
+      accuracy_m: 20,
+      source: 'wm',
+    });
+    const maintained = dataStore.runMaintenance();
+    const fetched = dataStore.runFetchCycle(sourceOf(cdn));
+
+    expect((await maintained).subscriptions?.added.map((topic) => topic.topic)).toContain(HOME);
+    expect(await fetched).toMatchObject({ outcome: 'completed', inserted: 1 });
+    expect((await fetched).stored).toContain(HOME);
   });
 
   test('with no watch list given and a store that cannot be opened, nothing is requested', async () => {

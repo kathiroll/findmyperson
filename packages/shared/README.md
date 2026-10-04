@@ -21,6 +21,7 @@ It is pure TypeScript with no I/O, no clock and no randomness of its own, so the
 | Matching                | `src/match/`                                         | `matchReport`, the rule that decides whether a device's history crossed a report. See below        |
 | Retention               | `src/retention/`                                     | `purgeExpired`, the weekly `VACUUM`, and `createRetentionMaintenance`, the store's hook. See below |
 | Bundle fetcher          | `src/fetch/`                                         | `runFetchCycle`: the signed index and shard bundles, verified, into `report_cache`. See below      |
+| Subscription manager    | `src/subscription/`                                  | `computeWatchSet`, and `syncSubscriptions`, the writer of `subscription`. See below                |
 | Cross-language files    | `contracts/`                                         | Golden vectors and generated copies for Kotlin, Swift and third parties. See its README            |
 
 `src/testing/` is test support (in-memory SQLite, Ed25519 from Node's crypto, sample documents). It is not exported and may use Node freely; nothing else in `src/` may, and `src/purity.test.ts` enforces that.
@@ -125,7 +126,7 @@ Limits a consumer should know:
 - **Idle is rare while JavaScript runs.** At start and on a foreground the app is on screen, so the vacuum waits. Its moment is a capture wake that reaches JavaScript with the app in the background and the phone on a charger.
 - **Adding a purged table or column** that holds location history needs its statement in `purgeExpired`, in `NATIVE_WRITER_CONTRACT`, and in the purge of both capture modules; their contract tests fail until a new key is accounted for.
 - **Rows dated in the future are kept.** A fix stored while the clock was ahead of where it is now is deleted only once the clock passes its date by 30 days. Deleting such rows would empty the store whenever a phone starts with its clock unset. A clock that jumps forward does delete everything it puts past retention.
-- **`own_report`, `received_response` and `subscription` are not purged,** nor is a tip still waiting to be sent. `src/store/ownership.ts` records that retention for the first two is undecided.
+- **`own_report`, `received_response` and `subscription` are not purged,** nor is a tip still waiting to be sent. `src/store/ownership.ts` records that retention for the first two is undecided. `subscription` holds no history of its own: it shrinks when the subscription manager next runs, which reads the same 30 days.
 - **A `match` can outlive its evidence.** Its `stay_id` or `sample_id` may name a row the purge has deleted while the report is still live. The match is kept, because deleting it would allow a second notification for the same report.
 - **A time in milliseconds is refused** (`RangeError`), since it would put the cutoff after every row.
 
@@ -135,7 +136,7 @@ Limits a consumer should know:
 
 ```ts
 const result = await runFetchCycle(store.db, {
-  watch, // the shard-key list: H3 cell ids at res 5 or res 3, e.g. every `subscription.topic`
+  watch, // the shard-key list: H3 cell ids at res 5 or res 3: `await listWatchedShards(db)`
   nowTs, // Unix seconds
   transport, // FetchTransport: one GET per call (the app's is app/src/fetch/httpTransport.ts)
   trustedKeys, // the publisher's public keys, pinned in the app
@@ -148,7 +149,7 @@ if (result.rematch > 0) {
 }
 ```
 
-- **The shard-key list is an input.** `watch` is a plain array of shard cells, the whole list on every call. Computing it is the subscription manager's job.
+- **The shard-key list is an input.** `watch` is a plain array of shard cells, the whole list on every call. The subscription manager (below) keeps it in the `subscription` table and `listWatchedShards` reads it.
 - **Nothing unverified is stored.** A bundle with a bad or missing signature, an untrusted key, or the signature of another shard or generation is dropped, reported through `log` only, and counted as a failed cycle so that backoff spaces out the next try.
 - **One write per cycle.** Reports, removals, what is held of each shard and the index go into one transaction at the end. A cycle that fails before it has changed nothing; a bundle is stored whole or not at all. Reports a shard no longer lists are removed once no followed shard lists them.
 - **Constant request count.** A cycle that reads an index makes exactly `FETCH_SHARD_REQUESTS_PER_CYCLE` shard requests after it, whatever the watch list or the changes. Changed shards beyond that wait (`result.deferred`); spare slots revalidate unchanged shards with `If-None-Match`, which costs one 304 each.
@@ -164,6 +165,38 @@ Limits a consumer should know:
 - **The five `FETCH_*` constants are provisional.** None has been measured against real traffic.
 - **Supplied by the app, not here** (`app/src/fetch/`): the Ed25519 primitive for Hermes (`ed25519.ts`), the native answer to "is this connection metered" (the capture module's `getNetworkConditions`), and the trigger that calls a cycle at each wake (`trigger.ts`). The pinned key list and the CDN origin are inputs with no value yet: `REPORT_TRUSTED_KEYS` and `REPORT_CDN_ORIGIN` in `reportCdn.ts`.
 
+## Subscription manager
+
+`syncSubscriptions(db, nowTs)` keeps the `subscription` table equal to the watch set of the device's history, so that the fetcher follows everywhere the device has been in 30 days and nothing else. It is the only writer of that table. `computeWatchSet(history, nowTs)` is the rule as a pure function over rows of `stay` and `location_sample`; the top of `src/subscription/watchSet.ts` is the full account.
+
+```ts
+const { added, removed } = await syncSubscriptions(store.db, nowSeconds); // after the purge
+const watch = await listWatchedShards(store.db); // what runFetchCycle is given
+```
+
+The set, for a device inside the cap:
+
+| Reason     | Res | Topics                                                                     | Followed as            |
+| ---------- | --- | -------------------------------------------------------------------------- | ---------------------- |
+| `visited`  | 5   | every cell holding a fix or a stay within `RETENTION_SEC`                  | a shard                |
+| `ring`     | 5   | the neighbours of each visited cell, followed before the device is in them | a shard                |
+| `ancestor` | 3   | the res-3 parent of each cell above                                        | a push-wake topic only |
+
+- **The cap is `SUBSCRIPTION_RES5_CAP` (200, provisional),** on visited and ring cells together. A device over it gives up res-5 cells a whole res-3 region at a time, the region with the most wanted cells first, until the rest fits. The region is then followed as a shard itself, with reason `coarsened`. The publisher files every report under the res-3 parent of the res-7 cells it files under res 5, so the region's bundle holds everything its res-5 bundles hold: no cell loses coverage, and the device downloads the rest of the region too.
+- **An `ancestor` row is not fetched.** Its bundle is every report of a region of 49 shards. `listWatchedShards` leaves it out and is what the fetcher must be given; `listSubscriptions` is every row, and its res-3 rows, `ancestor` and `coarsened` alike, are the push-wake topics.
+- **Only the difference is written,** in one transaction: topics no longer wanted are deleted, new ones inserted, a row whose reason changed rewritten. A run that finds no difference opens no transaction. That is most runs: the set moves when the device enters a res-5 cell it has not been in for 30 days, or its last fix in one passes retention.
+- **It remembers nothing and shrinks with the history.** The cells are read as of `nowTs` with the purge's cutoff, so the set is right whether or not the purge has run. Call it after the purge all the same, in the same pass; the app's `DataStore.runMaintenance` does, at start, on every foreground and on every stored sample the capture module reports.
+- **The result is for the push task.** `added`, `removed` and `changed` are what one run wrote. Subscribing to push topics is not built: whoever builds it applies the res-3 entries of `added` and `removed` to the push service.
+
+Limits a consumer should know:
+
+- **Coarsening is to res 3, never res 4.** Nothing publishes a res-4 shard, and `subscription.res` and the shard keys of the index admit only 5 and 3. One coarsened region replaces up to 49 res-5 cells whatever the excess was.
+- **The set can change shape at the cap.** Which regions are coarsened is decided afresh from the cells on every run, so a device hovering at the cap can swap a region's res-5 rows for the region and back as cells come and go. Coverage holds throughout; each swap is rows written and bundles fetched.
+- **A run's result is not durable.** If the process dies after the transaction and before the push side has applied it, the difference is not reported again. The push task needs its own record of what it subscribed to, checked against the table's res-3 rows.
+- **A run reads the distinct cells of every fix in retention.** On a desktop, in memory and without SQLCipher, a run that changes nothing took about 4 ms over 10,000 fixes and 50 ms over 100,000. It has not been measured on a phone. At the production cadence (a fix per 15 minutes) a month is under 3,000 fixes.
+- **A cell that is not a res-5 cell stops the run** (`RangeError`), as a row derivation cannot read stops derivation. The native writers are held to `sampleCells` by their contract tests.
+- **No cap on res-3 rows.** A device that crosses a continent in a month follows a region per 100 km or so of route.
+
 ## Exported types
 
 Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported types are:
@@ -178,6 +211,7 @@ Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported typ
 - Matching: `MatchQuery`, `MatchHistory`, `MatchStay`, `MatchSample`, `MatchParams`, `MatchResult`, `MatchBounds`
 - Retention: `PurgeResult`, `DeviceConditions`, `RetentionOptions`, `RetentionRun`, `VacuumOutcome`
 - Bundle fetcher: `FetchCycleInput`, `FetchCycleResult`, `FetchFailure`, `FetchLogEntry`, `FetchTransport`, `FetchRequest`, `FetchResponse`, `NetworkConditions`
+- Subscription manager: `WatchTopic`, `WatchHistory`, `WatchSetOptions`, `SubscriptionSyncResult`
 - Store: `SqlValue`, `SqlRow`, `SqlExecutor`, `SqlDatabase`, `CipherParams`, `Migration`, `StoreTable`, `WritePath`, `LocationSample`, `NewLocationSample`, `SampleSource`, `Stay`, `NewStay`, `StayUpdate`, `StaySource`, `CachedReport`, `UpsertOutcome`, `Match`, `NewMatch`, `MatchState`, `Subscription`, `SubscriptionReason`, `OutboundResponse`, `NewOutboundResponse`, `OutboundResponseState`, `OwnReport`, `OwnReportState`, `StoredResponse`
 
 ## Commands

@@ -100,7 +100,8 @@ export interface FetchCycleInput {
    * THE SHARD-KEY LIST: the shards this device needs, as H3 cell ids (15-character lowercase
    * hex) at res 5 or res 3, the keys of `shards` in index.json. Order and repeats do not matter.
    * It is the whole list every time, not a change to it, and may be empty. The subscription
-   * manager (B3.7) supplies it: `(await listSubscriptions(db)).map((row) => row.topic)`.
+   * manager (B3.7) keeps it in the store: `await listWatchedShards(db)`, which is every topic of
+   * `subscription` but the res-3 ones that are push-wake topics only.
    */
   watch: readonly H3Cell[];
   /** Unix seconds. */

@@ -132,6 +132,7 @@ test('the runtime export surface is deliberate', () => {
       "cellAt",
       "classifyCriteriaEdit",
       "coarsenCriteria",
+      "computeWatchSet",
       "countSamplesSince",
       "countUnreadResponses",
       "createInMemoryDeviceIdentity",
@@ -191,6 +192,7 @@ test('the runtime export surface is deliberate', () => {
       "listStaysInCells",
       "listStaysOverlapping",
       "listSubscriptions",
+      "listWatchedShards",
       "markOwnReportAcknowledged",
       "markOwnReportFailed",
       "markOwnReportRetry",
@@ -233,6 +235,7 @@ test('the runtime export surface is deliberate', () => {
       "shardKeysForCells",
       "signDocument",
       "signingInput",
+      "syncSubscriptions",
       "trimStaysStartedBefore",
       "updateDerivedStay",
       "upsertCachedReport",
@@ -240,6 +243,8 @@ test('the runtime export surface is deliberate', () => {
       "uuidV4FromBytes",
       "vacuumIfDue",
       "verifyDocument",
+      "visitedShardCells",
+      "watchSetForCells",
     ]
   `);
 });

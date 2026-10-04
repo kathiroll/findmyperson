@@ -31,7 +31,10 @@ async function mount(initialUrl: string | null = null, store: Partial<DataStore>
         capture={createFakeLocationCapture()}
         dataStore={{
           deleteAll: async () => ({ emptyStoreConfirmed: true }),
-          runMaintenance: async () => ({ ran: true }),
+          runMaintenance: async () => ({
+            ran: true,
+            subscriptions: { added: [], removed: [], changed: [], total: 0 },
+          }),
           runFetchCycle: () => Promise.reject(new Error('no screen fetches')),
           deviceIdentity: {
             getDeviceId: () => Promise.reject(new Error('not used')),

@@ -24,7 +24,8 @@ import { configuredReportSource, type ReportSource } from './reportCdn';
  *   the verify      ./ed25519.ts
  *   the network     the capture module's `getNetworkConditions`, asked by the fetcher only when
  *                   the answer could put a cycle off
- *   the watch list  left to the store: its `subscription` table (`DataStore.runFetchCycle`)
+ *   the watch list  left to the store: the shards of its `subscription` table
+ *                   (`DataStore.runFetchCycle`), which the maintenance pass keeps
  *
  * and makes the two decisions the fetcher leaves open.
  *
