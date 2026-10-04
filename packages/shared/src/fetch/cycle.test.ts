@@ -753,7 +753,7 @@ describe('reports that are revised or end', () => {
   test('a new revision replaces the stored one and resets its match cursor if it widened', async () => {
     await cdn.publish({ [HOME]: [await signedReport(1)] });
     await cycle([HOME]);
-    await setLastMatchedAt(db, queryIdOf(1), NOW + 5);
+    await setLastMatchedAt(db, queryIdOf(1), 1, NOW + 5);
     await cdn.publish({ [HOME]: [await signedReport(1, { revision: 2, radius_m: 900 })] });
 
     const result = await cycle([HOME], NOW + 60);

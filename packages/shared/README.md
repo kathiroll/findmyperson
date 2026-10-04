@@ -18,7 +18,7 @@ It is pure TypeScript with no I/O, no clock and no randomness of its own, so the
 | Device identity seam    | `src/identity/deviceIdentity.ts`                     | `DeviceIdentity`, `DeviceAuthenticator`, and in-memory stubs                                       |
 | On-device store         | `src/store/`                                         | Cipher parameters, migration v1, one typed access module per table, the table-ownership list       |
 | Stay derivation         | `src/stay/`                                          | `deriveStays`, the writer of 'derived' rows in `stay`, and the pure `extractStays`. See below      |
-| Matching                | `src/match/`                                         | `matchReport`, the rule that decides whether a device's history crossed a report. See below        |
+| Matching                | `src/match/`                                         | `matchReport`, the rule, and `runMatchPass`, the runner that applies it to the store. See below    |
 | Retention               | `src/retention/`                                     | `purgeExpired`, the weekly `VACUUM`, and `createRetentionMaintenance`, the store's hook. See below |
 | Bundle fetcher          | `src/fetch/`                                         | `runFetchCycle`: the signed index and shard bundles, verified, into `report_cache`. See below      |
 | Subscription manager    | `src/subscription/`                                  | `computeWatchSet`, and `syncSubscriptions`, the writer of `subscription`. See below                |
@@ -76,11 +76,38 @@ The rule is at the top of `src/match/matchReport.ts`, and `contracts/match-vecto
 
 Limits a consumer should know:
 
-- Nothing calls `matchReport` yet. The match runner (retrospective and prospective passes, the `last_matched_at` cursor) is a separate task.
+- `matchReport` is called on the store by the match runner (next section) and by nothing else on a device. Call the runner; do not write a second caller.
 - `dt_sec` is measured from the window as read on the grid, so it is never more than 30 minutes; it is not the distance in time from the window as written.
 - Every row counts, whatever its `accuracy_m` and whichever writer made it. A fix from a cell tower can be hundreds of metres off and match or miss on that error. An open visit row counts as the instant of its arrival.
 - The centre is not rounded. Moving the pin between reports is the attack the one-report-a-day limit bounds.
 - The widen-only rule (`src/payload/widening.ts`) judges criteria as written. An edit it permits can move the pin inside one 150 m step, and on the grid that moves the search disc without growing it, so evidence at the far edge matches the old revision and not the new one. A reporter cannot see this happen: a device that already matched keeps its `match` row and nothing is reported back. Rounding the radius at intake, before the edit rule looks at it, would close it; that is not done.
+
+## Match runner
+
+`runMatchPass(db, nowTs)` applies the rule to the store: every report in `report_cache` that has not expired and has no `match` row is matched against the history, and the strongest evidence, if there is any, becomes its `match` row in state `new`. It is the only writer of new `match` rows and of `report_cache.last_matched_at`. It raises no notification and makes no request. The top of `src/match/runner.ts` is the full account.
+
+```ts
+const { matches } = await runMatchPass(store.db, nowSeconds); // the rows this run inserted
+```
+
+Call it after `deriveStays` and the purge, in the same pass, so it sees the stays of the fixes just stored. The app does, as the last step of `DataStore.runMaintenance`, and again after a fetch that stored reports.
+
+- **Two passes, told apart by the cursor.** `last_matched_at` NULL means the report is new to the device, or the fetcher stored a revision that changed its criteria: all the history inside `matchBounds` is read (the retrospective pass, for the bystander who was there before the report arrived) and the cursor is set. Otherwise the report is matched against what was written since (the prospective pass, for the bystander who arrives later).
+- **At most one match per report, ever.** `match` is `UNIQUE (query_id)` and the insert is a no-op when a row is there, so only rows a run inserted are returned, and a report that has its match is not matched again. A revision that only edits the description keeps its cursor and gets no retrospective pass; one that changes the criteria gets one, and its match carries the new `revision`.
+- **Stays are matched again on every run; fixes are read from the cursor.** No row says when it was written. Stays are few, change in place and arrive late (a visit is written minutes to hours after the fact), so every run reads the stays overlapping any open report. Fixes are many, so a run reads those taken since the cursor and `MATCH_SAMPLE_LATE_SEC` before it. Matching a row twice is harmless.
+- **Most runs write nothing.** The cursor is written when the retrospective pass is done, and then only once it is more than `MATCH_SAMPLE_LATE_SEC` behind the run (or ahead of it, after the clock was set back). A run repeated with nothing new changes nothing.
+- **A payload is parsed once per revision and process.** A run lists the cursors (`listLiveReportCursors`, no payload read) and remembers what matching reads of each report, per store handle.
+- **The cursor is written only for the revision that was matched** (`setLastMatchedAt` takes the revision), so a pass over old criteria cannot clear the debt of a revision the fetcher stored meanwhile.
+- **The time is an argument.** A time in milliseconds throws `RangeError` before anything is read.
+
+Limits a consumer should know:
+
+- The returned matches are gone if the process dies before they are acted on. `match` rows in state `new` are the durable list of what has not been notified; the notification task must read those too.
+- A match says the history crossed the report. The cache also holds reports of cover shards, and nothing in a match or in the runner says a report is near: do not present one that way.
+- A fix stored more than `MATCH_SAMPLE_LATE_SEC` (provisional, one hour, not measured on a device) after it was taken, with no stay over it, is not matched until the report owes a retrospective pass again.
+- A report whose stored payload this build cannot read is skipped and counted (`unreadable`), and its cursor is left alone.
+- An unreadable `stay` row fails the run, as it fails derivation.
+- The cost of a run grows with the number of live reports: one row each, and one pass of the rule over the overlapping stays. `report_cache` keeps the criteria inside `payload_json`, so even the cursor list walks each row's payload pages; a column or index for it needs a migration, which the native modules gate on.
 
 ## Retention
 
@@ -145,7 +172,7 @@ const result = await runFetchCycle(store.db, {
   network, // optional: () => Promise<{ metered: boolean }>
 });
 if (result.rematch > 0) {
-  /* run the retrospective match pass */
+  await runMatchPass(db, nowTs); // the app asks for a whole maintenance run, which ends with it
 }
 ```
 
@@ -208,7 +235,7 @@ Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported typ
 - API: `ApiErrorCode`, `ApiErrorBody`, `ApiErrorDetail`, `ApiEndpointName`, `IdempotencyKey`, `PushToken`, `DeviceRegistrationRequest`, `DeviceRegistrationResponse`, `ReportSubmitRequest`, `Report`, `ReportStatus`, `ReviewState`, `ReportResponse`, `ReportPatchRequest`, `PersonPatch`, `ReportEndRequest`, `EditableReport`, `ResponseSubmitRequest`, `ResponseSubmitResponse`, `ReceivedResponse`, `ResponseListQuery`, `ResponseListResponse`
 - Identity: `DeviceId`, `DeviceIdentity`, `DeviceAuthenticator`, `AuthenticatedDevice`
 - Stay derivation: `StaySample`, `CoveringStay`, `StayDerivationResult`
-- Matching: `MatchQuery`, `MatchHistory`, `MatchStay`, `MatchSample`, `MatchParams`, `MatchResult`, `MatchBounds`
+- Matching: `MatchQuery`, `MatchHistory`, `MatchStay`, `MatchSample`, `MatchParams`, `MatchResult`, `MatchBounds`, `MatchRunResult`
 - Retention: `PurgeResult`, `DeviceConditions`, `RetentionOptions`, `RetentionRun`, `VacuumOutcome`
 - Bundle fetcher: `FetchCycleInput`, `FetchCycleResult`, `FetchFailure`, `FetchLogEntry`, `FetchTransport`, `FetchRequest`, `FetchResponse`, `NetworkConditions`
 - Subscription manager: `WatchTopic`, `WatchHistory`, `WatchSetOptions`, `SubscriptionSyncResult`

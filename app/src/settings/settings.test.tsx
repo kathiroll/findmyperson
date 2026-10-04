@@ -45,6 +45,7 @@ async function mountSettings(capture: FakeLocationCapture, store: Pick<DataStore
     runMaintenance: async () => ({
       ran: true,
       subscriptions: { added: [], removed: [], changed: [], total: 0 },
+      matches: [],
     }),
     runFetchCycle: () => Promise.reject(new Error('the settings screen never fetches')),
     deviceIdentity: {

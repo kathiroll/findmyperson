@@ -43,7 +43,12 @@ import { configuredReportSource, type ReportSource } from './reportCdn';
  *                        what is still waiting after that is taken up by the next wake, with
  *                        no interval to sit out.
  *   `rematch` above 0    reports now owe a retrospective match pass. `onRematch` is told how
- *                        many, once per run. See `matchRunnerNotBuilt`.
+ *                        many, once per run. Left to itself it asks the store for a
+ *                        maintenance run (`DataStore.runMaintenance`), which ends with the
+ *                        match runner, so a report is matched in the wake that fetched it and
+ *                        not at the next one. Nothing depends on the signal arriving: the debt
+ *                        is kept in the store, as `last_matched_at IS NULL` on each report, and
+ *                        every maintenance run pays what it finds there.
  *
  * A wake with no JavaScript in it (the app's process is gone and only the native capture
  * module ran) does not fetch: there is no headless task yet.
@@ -57,11 +62,14 @@ export const FETCH_TRIGGER_RECHECK_SEC = 60;
 export const FETCH_TRIGGER_MAX_CYCLES = 4;
 
 export interface FetchTriggerOptions {
-  dataStore: Pick<DataStore, 'runFetchCycle'>;
+  dataStore: Pick<DataStore, 'runFetchCycle' | 'runMaintenance'>;
   capture: Pick<LocationCapture, 'getNetworkConditions'>;
   /** Asked at every run. Default: what this build was given (./reportCdn.ts). */
   source?: () => ReportSource | null;
-  /** Told how many reports now owe a retrospective match pass. Default: nobody yet. */
+  /**
+   * Told how many reports now owe a retrospective match pass. Default: a maintenance run of
+   * the store is asked for, whose last step is the match runner.
+   */
   onRematch?: (reports: number) => void;
   /** The clock, Unix seconds. */
   now?: () => number;
@@ -93,19 +101,12 @@ export interface FetchTrigger {
   run(): Promise<FetchRun>;
 }
 
-/**
- * TODO(M5.2): the match runner is not built, so nobody acts on this signal yet. When it exists
- * it is passed as `onRematch` where ReportFetch creates the trigger, and runs its pass here.
- * Nothing is lost meanwhile: the debt is kept in the store, as `last_matched_at IS NULL` on
- * each report (`listReportsAwaitingRetrospective` of @findmyperson/shared), and the runner must
- * read it from there in any case, since a process can die between a fetch and a match.
- */
-export function matchRunnerNotBuilt(): void {}
-
 export function createFetchTrigger(options: FetchTriggerOptions): FetchTrigger {
   const { dataStore, capture } = options;
   const source = options.source ?? configuredReportSource;
-  const onRematch = options.onRematch ?? matchRunnerNotBuilt;
+  // runMaintenance never rejects, and a call made while a run is waiting joins it; that run
+  // reads the reports after the cycle has stored them, since the store does one thing at a time.
+  const onRematch = options.onRematch ?? (() => void dataStore.runMaintenance());
   const now = options.now ?? (() => Math.floor(Date.now() / 1000));
   const random = options.random ?? deviceRandom;
 

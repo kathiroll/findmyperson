@@ -18,6 +18,15 @@ export const MATCH_RADIUS_M = 150;
 /** DECIDED (fmp-granularity, plan 8.1): a match needs the time gap to the window <= this. */
 export const MATCH_WINDOW_SEC = 30 * 60;
 
+/**
+ * PROVISIONAL (match runner). How long after the moment it records a location fix may reach the
+ * store and still be found by the prospective pass. The runner's cursor is a time, and a fix is
+ * stored a little after it was taken (the OS hands fixes over in batches, and can hand over one
+ * it took earlier), so each pass reads again the fixes of this long before the cursor. Larger is
+ * safer and costs a larger read per wake. Not measured on a device. See match/runner.ts.
+ */
+export const MATCH_SAMPLE_LATE_SEC = 60 * 60;
+
 /** DECIDED (fmp-retention, plan 4.7): location history older than this is purged. */
 export const RETENTION_DAYS = 30;
 export const RETENTION_SEC = RETENTION_DAYS * SECONDS_PER_DAY;

@@ -11,10 +11,12 @@ import {
   listOwnReports,
   listWatchedShards,
   runFetchCycle,
+  runMatchPass,
   syncSubscriptions,
   type DeviceIdentity,
   type FetchCycleInput,
   type FetchCycleResult,
+  type Match,
   type OwnReport,
   type ReportSubmitRequest,
   type SqlDatabase,
@@ -29,17 +31,26 @@ import { enqueueReport, runSubmitQueue, type QueueRunResult } from '../report/qu
 import { retentionOptions } from './retention';
 
 /**
- * What one maintenance run came to. `error` is why the store could not be opened or purged, or
- * why the watch list could not be brought up to date.
+ * What one maintenance run came to. `error` is the first thing that went wrong: why the store
+ * could not be opened or purged, why the watch list could not be brought up to date, or why the
+ * reports could not be matched.
  *
  * `subscriptions` is what the run changed in the `subscription` table: the topics it added and
  * removed (`syncSubscriptions` of @findmyperson/shared). On most runs both lists are empty. It
- * is there for the push task, which has to apply the same difference to the push service; it is
- * present on a failed run when the purge failed and the watch list was still updated.
+ * is there for the push task, which has to apply the same difference to the push service.
+ *
+ * `matches` is the `match` rows the run inserted, in state `new` (`runMatchPass` of
+ * @findmyperson/shared): reports this phone's history crossed, each at most once, ever. On
+ * most runs it is empty. It is there for the bystander notification, which nothing raises yet.
+ * A result is gone if the process dies before it is acted on, so that task must also look at
+ * the `match` rows still in state `new`, which are the durable record. Never present a row as
+ * "near you": a match says the history crossed the report and nothing more.
+ *
+ * On a failed run each of the two is present when its own step still ran to the end.
  */
 export type MaintenanceResult =
-  | { ran: true; subscriptions: SubscriptionSyncResult }
-  | { ran: false; error: unknown; subscriptions?: SubscriptionSyncResult };
+  | { ran: true; subscriptions: SubscriptionSyncResult; matches: Match[] }
+  | { ran: false; error: unknown; subscriptions?: SubscriptionSyncResult; matches?: Match[] };
 
 /** What the app lets a screen do to the on-device store. Screens never see the store itself. */
 export interface DataStore {
@@ -62,6 +73,12 @@ export interface DataStore {
    * that the list shrinks with the history, and it runs even if the purge failed, because it
    * reads the history by its dates and not by what is still stored: a fault in derivation must
    * not stop the phone from following a place it has just arrived in.
+   *
+   * Last, the match runner (`runMatchPass`): every cached report that has not expired and has
+   * no match yet is matched against the history, the ones the fetcher has just stored against
+   * all of it and the others against what was written since. It runs last so that it sees the
+   * stays derivation has just made of the newest fixes and nothing the purge has removed, and
+   * it runs whatever failed before it: the rule ignores history past retention by its dates.
    *
    * It never rejects. A store that cannot be opened or purged right now (the phone was not
    * unlocked since it restarted, the native writer held the file) is the result, and the next
@@ -181,20 +198,30 @@ export function createDataStore(
           return { ran: false, error };
         }
         const nowTs = now();
-        const failed = await store.runMaintenance(nowTs).then(
-          () => null,
-          (error: unknown) => ({ error }),
-        );
-        // After the purge, in the same turn of the queue, so nothing comes between the two. A
-        // failed purge does not put it off: it reads the same 30 days either way.
-        try {
-          const subscriptions = await syncSubscriptions(store.db, nowTs);
-          return failed === null
-            ? { ran: true, subscriptions }
-            : { ran: false, error: failed.error, subscriptions };
-        } catch (error) {
-          return { ran: false, error: failed === null ? error : failed.error };
+        // Derivation and the purge, then the watch list, then the match runner, in the same
+        // turn of the queue so nothing comes between them. A step that fails does not put the
+        // next one off: each reads the same 30 days by its dates either way.
+        const errors: unknown[] = [];
+        const step = async <T,>(work: () => Promise<T>): Promise<T | undefined> => {
+          try {
+            return await work();
+          } catch (error) {
+            errors.push(error);
+            return undefined;
+          }
+        };
+        await step(() => store.runMaintenance(nowTs));
+        const subscriptions = await step(() => syncSubscriptions(store.db, nowTs));
+        const matches = (await step(() => runMatchPass(store.db, nowTs)))?.matches;
+        if (errors.length === 0 && subscriptions !== undefined && matches !== undefined) {
+          return { ran: true, subscriptions, matches };
         }
+        return {
+          ran: false,
+          error: errors[0],
+          ...(subscriptions === undefined ? {} : { subscriptions }),
+          ...(matches === undefined ? {} : { matches }),
+        };
       }).finally(() => {
         maintaining = null;
       });

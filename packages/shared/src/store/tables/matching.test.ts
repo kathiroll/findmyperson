@@ -16,6 +16,7 @@ import {
   deleteCachedReport,
   deleteExpiredReports,
   getCachedReport,
+  listLiveReportCursors,
   listLiveReports,
   listReportsAwaitingRetrospective,
   setLastMatchedAt,
@@ -67,15 +68,50 @@ describe('report_cache', () => {
 
   test('the runner moves the cursor; the report then no longer awaits a retrospective pass', async () => {
     await upsertCachedReport(db, await verifiedQueryWith({}), 5000);
-    await setLastMatchedAt(db, base.query_id, 6000);
+    await setLastMatchedAt(db, base.query_id, base.revision, 6000);
     expect((await getCachedReport(db, base.query_id))?.last_matched_at).toBe(6000);
     expect(await listReportsAwaitingRetrospective(db, 6000)).toEqual([]);
     expect(await listLiveReports(db, 6000)).toHaveLength(1);
   });
 
+  test('the cursor is written only for the revision the runner matched', async () => {
+    await upsertCachedReport(db, await verifiedQueryWith({}), 5000);
+    expect(await setLastMatchedAt(db, base.query_id, base.revision, 6000)).toBe(true);
+    // The fetcher stores a widened revision while a pass over the old one is still running.
+    await upsertCachedReport(
+      db,
+      await verifiedQueryWith({ revision: 2, radius_m: base.radius_m + 200 }),
+      7000,
+    );
+    expect(await setLastMatchedAt(db, base.query_id, base.revision, 7500)).toBe(false);
+    expect((await getCachedReport(db, base.query_id))?.last_matched_at).toBeNull();
+    expect(await setLastMatchedAt(db, OTHER_ID, 1, 7500)).toBe(false);
+  });
+
+  test('the cursors of live reports are listed without reading a payload', async () => {
+    await upsertCachedReport(db, await verifiedQueryWith({}), 5000);
+    await upsertCachedReport(
+      db,
+      await verifiedQueryWith({ query_id: OTHER_ID, revision: 3, expires_at: base.issued_at + 10 }),
+      4000,
+    );
+    await setLastMatchedAt(db, base.query_id, base.revision, 6000);
+    await db.execute("UPDATE report_cache SET payload_json = 'not json' WHERE query_id = ?", [
+      OTHER_ID,
+    ]);
+    // Oldest received first, and only what has not expired.
+    expect(await listLiveReportCursors(db, 6000)).toEqual([
+      { query_id: OTHER_ID, revision: 3, last_matched_at: null },
+      { query_id: base.query_id, revision: base.revision, last_matched_at: 6000 },
+    ]);
+    expect(await listLiveReportCursors(db, base.issued_at + 10)).toEqual([
+      { query_id: base.query_id, revision: base.revision, last_matched_at: 6000 },
+    ]);
+  });
+
   test('a revision that widens the criteria resets the cursor', async () => {
     await upsertCachedReport(db, await verifiedQueryWith({}), 5000);
-    await setLastMatchedAt(db, base.query_id, 6000);
+    await setLastMatchedAt(db, base.query_id, base.revision, 6000);
     const widened = await verifiedQueryWith({ revision: 2, radius_m: base.radius_m + 200 });
     expect(await upsertCachedReport(db, widened, 7000)).toEqual({
       outcome: 'revised',
@@ -89,7 +125,7 @@ describe('report_cache', () => {
 
   test('a revision that only edits the description keeps the cursor', async () => {
     await upsertCachedReport(db, await verifiedQueryWith({}), 5000);
-    await setLastMatchedAt(db, base.query_id, 6000);
+    await setLastMatchedAt(db, base.query_id, base.revision, 6000);
     const described = await verifiedQueryWith({
       revision: 2,
       person: { ...base.person, description: 'Now wearing a red cap.' },
@@ -112,7 +148,7 @@ describe('report_cache', () => {
       second,
     ]);
 
-    await setLastMatchedAt(db, base.query_id, 6000);
+    await setLastMatchedAt(db, base.query_id, base.revision, 6000);
     const swapped = await verifiedQueryWith({
       revision: 2,
       person: { ...base.person, photos: [second, first] },
@@ -134,7 +170,7 @@ describe('report_cache', () => {
 
   test('a narrowing revision is stored and re-matched, never trusted to be harmless', async () => {
     await upsertCachedReport(db, await verifiedQueryWith({ radius_m: 500 }), 5000);
-    await setLastMatchedAt(db, base.query_id, 6000);
+    await setLastMatchedAt(db, base.query_id, base.revision, 6000);
     const narrowed = await verifiedQueryWith({ revision: 2, radius_m: 100 });
     expect(await upsertCachedReport(db, narrowed, 7000)).toEqual({
       outcome: 'revised',
@@ -148,7 +184,7 @@ describe('report_cache', () => {
   ])('%s never replaces the stored one', async (_label, revision) => {
     const stored = await verifiedQueryWith({ revision: 2, radius_m: 300 });
     await upsertCachedReport(db, stored, 5000);
-    await setLastMatchedAt(db, base.query_id, 6000);
+    await setLastMatchedAt(db, base.query_id, 2, 6000);
     const stale = await verifiedQueryWith({ revision, radius_m: 900 });
     expect(await upsertCachedReport(db, stale, 7000)).toEqual({
       outcome: 'ignored',

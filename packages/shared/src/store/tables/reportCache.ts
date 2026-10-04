@@ -13,7 +13,8 @@ import { num, numOrNull, StoreRowError, text, type SqlExecutor, type SqlRow } fr
  *
  * `last_matched_at` is the hand-off between fetcher and runner. NULL means "this report has
  * never been checked against stored history in its current form", so the runner owes it a
- * retrospective pass. A value is the time up to which new history has been checked against it.
+ * retrospective pass. A value is a time at which all the history then stored had been checked
+ * against it; the runner moves it forward only now and then (match/runner.ts says when).
  */
 export interface CachedReport {
   query: BroadcastQuery;
@@ -134,16 +135,49 @@ export async function listReportsAwaitingRetrospective(
   return rows.map(fromRow);
 }
 
-/** Match runner: records that history up to `matchedAt` has been checked against the report. */
+/** What the match runner reads of a report before it reads the report itself. */
+export interface ReportCursor {
+  query_id: QueryId;
+  revision: number;
+  last_matched_at: number | null;
+}
+
+/**
+ * The cursor of every report that has not expired at `now`, oldest received first. No payload is
+ * parsed, so it is cheap to ask on every wake, and a row whose payload cannot be read is still
+ * listed.
+ */
+export async function listLiveReportCursors(db: SqlExecutor, now: number): Promise<ReportCursor[]> {
+  const rows = await db.execute(
+    `SELECT query_id, revision, last_matched_at FROM report_cache
+     WHERE expires_at > ? ORDER BY received_at, query_id`,
+    [now],
+  );
+  return rows.map((row) => ({
+    query_id: text(row, 'query_id'),
+    revision: num(row, 'revision'),
+    last_matched_at: numOrNull(row, 'last_matched_at'),
+  }));
+}
+
+/**
+ * Match runner: records that the history stored at `matchedAt` has been checked against the
+ * report as it stood at `revision`. A report the fetcher has revised since is left alone, so a
+ * pass over the old criteria can never clear the debt of the new ones. Returns whether the
+ * cursor was written.
+ */
 export async function setLastMatchedAt(
   db: SqlExecutor,
   queryId: QueryId,
+  revision: number,
   matchedAt: number,
-): Promise<void> {
-  await db.execute('UPDATE report_cache SET last_matched_at = ? WHERE query_id = ?', [
-    matchedAt,
-    queryId,
-  ]);
+): Promise<boolean> {
+  const rows = await db.execute(
+    `UPDATE report_cache SET last_matched_at = ?
+     WHERE query_id = ? AND revision = ? RETURNING query_id`,
+    [matchedAt, queryId, revision],
+  );
+  return rows.length > 0;
 }
 
 /** Fetcher: drops a report that is no longer published (ended by its reporter). */
