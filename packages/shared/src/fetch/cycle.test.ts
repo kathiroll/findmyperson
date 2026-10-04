@@ -5,6 +5,7 @@ import {
   FETCH_COVER_SHARDS,
   FETCH_METERED_INTERVAL_SEC,
   FETCH_SHARD_REQUESTS_PER_CYCLE,
+  MAX_PERSON_PHOTOS,
 } from '../constants';
 import { pushCellOf, ringCells, type H3Cell } from '../geo/h3';
 import { SHARD_INDEX_PATH, shardBundlePath } from '../payload/bundle';
@@ -14,7 +15,7 @@ import { migrate } from '../store/migrations';
 import { KV_KEYS, kvGet, shardGenerationKey } from '../store/tables/kv';
 import { getCachedReport, listLiveReports, setLastMatchedAt } from '../store/tables/reportCache';
 import { ed25519FromSeed, ed25519Verify } from '../testing/ed25519';
-import { testKey, trustedTestKeys, withoutSig } from '../testing/fixtures';
+import { sampleQuery, testKey, trustedTestKeys, withoutSig } from '../testing/fixtures';
 import { openMemoryDb } from '../testing/memoryDb';
 import {
   CDN_T0,
@@ -253,6 +254,16 @@ describe('a bundle that does not verify', () => {
     await cdn.publish({ [HOME]: [await signedReport(1), forged] });
     expect(await cycle([HOME])).toMatchObject({ outcome: 'completed', inserted: 1 });
     expect(await cachedIds()).toEqual([queryIdOf(1)]);
+  });
+
+  test('a report is stored with both of its photos; one signed with three is skipped', async () => {
+    const photos = sampleQuery().person.photos ?? [];
+    expect(photos).toHaveLength(MAX_PERSON_PHOTOS);
+    const person = { ...sampleQuery().person, photos: [...photos, ...photos.slice(0, 1)] };
+    await cdn.publish({ [HOME]: [await signedReport(1), await signedReport(2, { person })] });
+    expect(await cycle([HOME])).toMatchObject({ outcome: 'completed', inserted: 1 });
+    expect(await cachedIds()).toEqual([queryIdOf(1)]);
+    expect((await getCachedReport(db, queryIdOf(1)))?.query.person.photos).toEqual(photos);
   });
 });
 

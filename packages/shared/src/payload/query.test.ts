@@ -1,11 +1,19 @@
 import { describe, expect, test } from 'vitest';
-import { MAX_SEARCH_RADIUS_M, REPORT_TTL_SEC, RETENTION_SEC } from '../constants';
+import {
+  MAX_PERSON_PHOTOS,
+  MAX_SEARCH_RADIUS_M,
+  REPORT_TTL_SEC,
+  RETENTION_SEC,
+} from '../constants';
 import { searchAreaCells } from '../geo/h3';
 import { rawQuery, rawQueryWithUnknownField } from '../testing/fixtures';
 import { BroadcastQuerySchema, parseBroadcastQuery } from './query';
 
 const invalidWith = (changes: Record<string, unknown>) =>
   parseBroadcastQuery({ ...rawQuery(), ...changes });
+
+const PHOTO = { mime: 'image/webp', w: 1, h: 1, b64: 'AAAA' };
+const OTHER_PHOTO = { mime: 'image/jpeg', w: 4, h: 3, b64: 'BBBB' };
 
 describe('parseBroadcastQuery', () => {
   test('reads the sample query', () => {
@@ -38,11 +46,30 @@ describe('parseBroadcastQuery', () => {
     }
   });
 
-  test('accepts a report without a photo', () => {
+  test('accepts a report without photos', () => {
     const raw = rawQuery();
-    delete (raw.person as Record<string, unknown>).photo;
+    delete (raw.person as Record<string, unknown>).photos;
     const result = parseBroadcastQuery(raw);
-    expect(result.status === 'ok' && result.query.person.photo).toBe(undefined);
+    expect(result.status).toBe('ok');
+    expect(result.status === 'ok' && 'photos' in result.query.person).toBe(false);
+  });
+
+  test('accepts one photo and two, and keeps their order', () => {
+    expect(MAX_PERSON_PHOTOS).toBe(2);
+    for (const photos of [[PHOTO], [PHOTO, OTHER_PHOTO], [OTHER_PHOTO, PHOTO]]) {
+      const result = invalidWith({ person: { ...(rawQuery().person as object), photos } });
+      expect(result.status === 'ok' && result.query.person.photos).toEqual(photos);
+    }
+    // The sample itself carries the most a report may.
+    const sample = parseBroadcastQuery(rawQuery());
+    expect(sample.status === 'ok' && sample.query.person.photos).toHaveLength(MAX_PERSON_PHOTOS);
+  });
+
+  test('rejects three photos', () => {
+    const person = { ...(rawQuery().person as object), photos: [PHOTO, OTHER_PHOTO, PHOTO] };
+    const result = invalidWith({ person });
+    expect(result.status).toBe('invalid');
+    expect(result.status === 'invalid' && result.issues.join('\n')).toContain('person.photos');
   });
 
   test.each<[string, unknown]>([
@@ -103,10 +130,14 @@ describe('parseBroadcastQuery', () => {
     ['an empty name', { name: '' }],
     ['a name over the cap', { name: 'x'.repeat(121) }],
     ['a description over the cap', { description: 'x'.repeat(1001) }],
-    ['an unsupported image type', { photo: { mime: 'image/png', w: 1, h: 1, b64: 'AAAA' } }],
-    ['an oversized image', { photo: { mime: 'image/webp', w: 257, h: 1, b64: 'AAAA' } }],
-    ['base64url in the photo', { photo: { mime: 'image/webp', w: 1, h: 1, b64: 'AA-_' } }],
-    ['unpadded base64', { photo: { mime: 'image/webp', w: 1, h: 1, b64: 'AAAAAA' } }],
+    ['an unsupported image type', { photos: [{ ...PHOTO, mime: 'image/png' }] }],
+    ['an oversized image', { photos: [{ ...PHOTO, w: 257 }] }],
+    ['base64url in a photo', { photos: [{ ...PHOTO, b64: 'AA-_' }] }],
+    ['unpadded base64', { photos: [{ ...PHOTO, b64: 'AAAAAA' }] }],
+    ['a second photo that is not valid', { photos: [PHOTO, { ...PHOTO, h: 0 }] }],
+    ['an empty photo list', { photos: [] }],
+    ['null for the photos', { photos: null }],
+    ['one photo outside a list', { photos: PHOTO }],
   ])('rejects a person with %s', (_label, personChanges) => {
     const person = { ...(rawQuery().person as object), ...personChanges };
     expect(invalidWith({ person }).status).toBe('invalid');

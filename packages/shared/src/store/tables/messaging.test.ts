@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import type { Report, ReportSubmitRequest } from '../../api/reports';
 import type { ReceivedResponse } from '../../api/responses';
 import { OUTBOUND_RESPONSE_TERMINAL_RETENTION_SEC } from '../../constants';
+import type { PersonPhoto } from '../../payload/query';
 import { openMemoryDb } from '../../testing/memoryDb';
 import { StoreRowError } from '../driver';
-import { migrate } from '../migrations';
+import { migrate, readSchemaVersion, SCHEMA_VERSION } from '../migrations';
 import { KV_KEYS, kvDelete, kvGet, kvSet, shardGenerationKey } from './kv';
 import {
   deleteFinishedResponsesBefore,
@@ -251,6 +252,35 @@ describe('own_report', () => {
       updated_at: 1002,
     });
     expect(await listDueOwnReports(db, 99_999)).toEqual([]);
+  });
+
+  // The photos are inside request_json and report_json, so two of them need no column and no
+  // migration: the schema version is still 1.
+  test('a report with two photos is queued and acknowledged whole', async () => {
+    const photos: PersonPhoto[] = [
+      { mime: 'image/webp', w: 256, h: 192, b64: 'AAAA' },
+      { mime: 'image/jpeg', w: 192, h: 256, b64: 'BBBB' },
+    ];
+    const withPhotos = { ...request, person: { ...request.person, photos } };
+    const { id } = await enqueueOwnReport(db, KEY_A, withPhotos, 1000);
+    expect((await getOwnReport(db, id))?.request.person.photos).toEqual(photos);
+
+    await markOwnReportSending(db, id, 1001);
+    await markOwnReportAcknowledged(db, id, serverReport({ person: withPhotos.person }), 1002);
+    expect((await getOwnReportByQueryId(db, QUERY_ID))?.report?.person.photos).toEqual(photos);
+    expect(await readSchemaVersion(db)).toBe(SCHEMA_VERSION);
+    expect(SCHEMA_VERSION).toBe(1);
+  });
+
+  test('a stored request with three photos is an error, not a report', async () => {
+    const { id } = await enqueueOwnReport(db, KEY_A, request, 1000);
+    const photo = { mime: 'image/webp', w: 1, h: 1, b64: 'AAAA' };
+    const three = { ...request, person: { ...request.person, photos: [photo, photo, photo] } };
+    await db.execute('UPDATE own_report SET request_json = ? WHERE id = ?', [
+      JSON.stringify(three),
+      id,
+    ]);
+    await expect(getOwnReport(db, id)).rejects.toBeInstanceOf(StoreRowError);
   });
 
   test('offline: a failed attempt is retried later with the same idempotency key', async () => {

@@ -24,6 +24,7 @@ Notes for a native implementer:
 - **`h3_r5` is the res-5 parent of the res-7 cell, not the res-5 cell containing the point.** The two differ near shard edges. `geo-vectors.json` carries both (`h3_r5` and `h3_r5_containing`) and includes points where they differ, `mumbai` among them. Write `h3_r5`.
 - **Distances must match within `distance_tolerance_m`**, using `earth_radius_m` and the haversine formula as written in `src/geo/distance.ts`. The vectors avoid near-antipodal pairs, where haversine is ill-conditioned and platforms legitimately differ by more.
 - **Cell vectors come from h3-js 4.5.0** (H3 core 4.x) and include the worked example from the H3 documentation. Distance values were produced by the TypeScript implementation and cross-checked against H3's own haversine.
+- **A report's photos are an array, and its order is signed.** The first query in `signing-vectors.json` carries two photos (the most a report may) and the second carries one; a report with none has no `photos` member.
 - **The signing key in `signing-vectors.json` is public** (test vector 1 of RFC 8032). It must never be in a real build's trusted keys.
 - `cipher-params.json` mirrors the cipher fields of `m0/store-proof/shared/cipher-params.json`, which proved the values on real SQLCipher builds. A test fails if the two disagree.
 

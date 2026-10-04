@@ -255,7 +255,10 @@ describe('pending reports', () => {
       person: {
         name: 'Sam Okafor',
         description: 'Green cap.\nWalks with a stick.',
-        photo: { mime: 'image/jpeg', w: 2, h: 2, b64: '/9j/4AAQ' },
+        photos: [
+          { mime: 'image/jpeg', w: 2, h: 2, b64: '/9j/4AAQ' },
+          { mime: 'image/webp', w: 2, h: 2, b64: 'UklGRhoA' },
+        ],
       },
       reporter_phone: '+919800000000',
     });
@@ -274,15 +277,15 @@ describe('pending reports', () => {
       '<dd>Green cap.\nWalks with a stick.</dd>',
       '<a href="tel:+919800000000">+919800000000</a>',
       '2026-09-20 10:36 UTC (5 min ago)',
-      '<img alt="Photo sent with the report" src="data:image/jpeg;base64,/9j/4AAQ">',
+      '<div class="photos"><img alt="Photo 1 sent with the report" src="data:image/jpeg;base64,/9j/4AAQ"><img alt="Photo 2 sent with the report" src="data:image/webp;base64,UklGRhoA"></div>',
       `action="/operator/reports/${older}/release"`,
       `action="/operator/reports/${older}/reject"`,
     ]) {
       expect(res.html).toContain(text);
     }
     expect(res.html.indexOf(newer)).toBeLessThan(res.html.indexOf(older));
-    // One photo was sent, so one is shown.
-    expect(res.html.match(/<img /g)).toHaveLength(1);
+    // Two photos were sent with one report and none with the other, so two are shown.
+    expect(res.html.match(/<img /g)).toHaveLength(2);
   });
 
   test('releasing a report makes it broadcastable and takes it off the page', async () => {
@@ -493,7 +496,7 @@ describe('user-supplied text', () => {
       person: {
         name: 'Alex Rivera',
         description: '',
-        photo: { mime: 'image/jpeg', w: 2, h: 2, b64: '/9j/4AAQ' },
+        photos: [{ mime: 'image/jpeg', w: 2, h: 2, b64: '/9j/4AAQ' }],
       },
     });
     // Written past intake validation, as a row from an older or buggy server would be.
@@ -507,7 +510,7 @@ describe('user-supplied text', () => {
         person: {
           name: 'Alex Rivera',
           description: '',
-          photo: { mime: 'image/jpeg', w: 2, h: 2, b64: '"><script>alert(1)</script>' },
+          photos: [{ mime: 'image/jpeg', w: 2, h: 2, b64: '"><script>alert(1)</script>' }],
         },
       },
       nowSec,
@@ -517,6 +520,28 @@ describe('user-supplied text', () => {
     expect(res.html).toContain('Alex Rivera');
     expect(res.html).not.toMatch(/<img/i);
     expect(res.html).not.toMatch(/<script/i);
+  });
+
+  test('a stored row with more photos than the cap shows only the first two', async () => {
+    const cookie = await signIn();
+    const id = await submitReport();
+    const photo = (n: number) => ({ mime: 'image/jpeg' as const, w: 2, h: 2, b64: `/9j/4AA${n}` });
+    // Written past intake validation, as above.
+    db.updateReportCriteria(
+      id,
+      1,
+      {
+        center: submitBody.center,
+        radius_m: submitBody.radius_m,
+        window: submitBody.window,
+        person: { name: 'Alex Rivera', description: '', photos: [photo(1), photo(2), photo(3)] },
+      },
+      nowSec,
+    );
+    const res = await page(cookie);
+    expect(res.html.match(/<img /g)).toHaveLength(2);
+    expect(res.html).toContain('base64,/9j/4AA2"');
+    expect(res.html).not.toContain('base64,/9j/4AA3"');
   });
 
   test('the page forbids script and allows only its own stylesheet', async () => {

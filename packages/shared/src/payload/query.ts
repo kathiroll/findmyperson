@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   MAX_PERSON_DESCRIPTION_CHARS,
   MAX_PERSON_NAME_CHARS,
+  MAX_PERSON_PHOTOS,
   MAX_PHOTO_BASE64_CHARS,
   MAX_PHOTO_EDGE_PX,
   MAX_QUERY_CELLS,
@@ -22,7 +23,7 @@ import {
 /**
  * The broadcast query: one missing-person report as it reaches every device (plan 6.1).
  *
- * Everything the bystander's match screen shows is inside this object, including the photo and
+ * Everything the bystander's match screen shows is inside this object, including the photos and
  * the reporter's phone number. Nothing is fetched lazily, because a fetch made only by devices
  * that matched would tell the server who matched (plan 6.2).
  */
@@ -31,7 +32,7 @@ import {
 export const BROADCAST_VERSION = 1;
 
 /**
- * The thumbnail, inline. WebP is preferred; JPEG is allowed because iOS has no built-in WebP
+ * One thumbnail, inline. WebP is preferred; JPEG is allowed because iOS has no built-in WebP
  * encoder. `b64` is standard base64 (RFC 4648 section 4) with padding.
  */
 export const PersonPhotoSchema = z.object({
@@ -46,11 +47,15 @@ export const PersonPhotoSchema = z.object({
 });
 export type PersonPhoto = z.infer<typeof PersonPhotoSchema>;
 
-/** The missing person. `photo` is left out, not null, when the reporter supplied none. */
+/**
+ * The missing person. `photos` holds one to MAX_PERSON_PHOTOS thumbnails in the order the
+ * reporter added them, and is left out, not null and not empty, when the reporter supplied none:
+ * a report with no photos has one spelling, so it has one signature.
+ */
 export const PersonSchema = z.object({
   name: z.string().min(1).max(MAX_PERSON_NAME_CHARS),
   description: z.string().max(MAX_PERSON_DESCRIPTION_CHARS),
-  photo: PersonPhotoSchema.optional(),
+  photos: z.array(PersonPhotoSchema).min(1).max(MAX_PERSON_PHOTOS).optional(),
 });
 export type Person = z.infer<typeof PersonSchema>;
 

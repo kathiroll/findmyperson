@@ -55,6 +55,7 @@ test('the runtime export surface is deliberate', () => {
       "MATCH_WINDOW_SEC",
       "MAX_PERSON_DESCRIPTION_CHARS",
       "MAX_PERSON_NAME_CHARS",
+      "MAX_PERSON_PHOTOS",
       "MAX_PHOTO_BASE64_CHARS",
       "MAX_PHOTO_EDGE_PX",
       "MAX_QUERY_CELLS",

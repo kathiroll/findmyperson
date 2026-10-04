@@ -10,6 +10,7 @@ import {
   shardBundlePath,
   shardCellOf,
   signDocument,
+  type PersonPhoto,
 } from '@findmyperson/shared';
 import { BUNDLE_KEY_PREFIX, INDEX_KEY, bundleKey } from './compiler';
 import { KeyRing, ed25519Verify } from './keys';
@@ -86,6 +87,46 @@ describe('what is published', () => {
     expect(query?.cells).toContain(matchCellAt(BANGALORE));
   });
 
+  test('both photos of a report are inside its signed query, in the order sent', async () => {
+    const h = harness();
+    const photos: PersonPhoto[] = [
+      { mime: 'image/webp', w: 256, h: 192, b64: 'AAAA' },
+      { mime: 'image/jpeg', w: 192, h: 256, b64: 'BBBB' },
+    ];
+    const person = { name: 'Alex Rivera', description: 'Blue jacket.', photos };
+    const withTwo = addReport(h.db, { person });
+    const withNone = addReport(h.db);
+    await h.compile();
+    // h.bundle verifies the bundle and each query against the published key.
+    const queries = (await h.bundle(bangaloreShard, 1))?.queries ?? [];
+    const personOf = (id: string) => queries.find((entry) => entry.query.query_id === id)?.raw;
+    expect(personOf(withTwo)?.['person']).toEqual(person);
+    expect(personOf(withNone)?.['person']).toEqual({
+      name: 'Alex Rivera',
+      description: 'Blue jacket.',
+    });
+
+    // Dropping one is a change of contents: the shard moves to a new generation.
+    const row = h.db.getReport(withTwo)!;
+    h.db.updateReportCriteria(
+      withTwo,
+      1,
+      {
+        center: row.center,
+        radius_m: row.radius_m,
+        window: row.window,
+        person: { ...person, photos: photos.slice(1) },
+      },
+      NOW + 1,
+    );
+    h.clock.now = NOW + 2;
+    expect((await h.compile()).shards[bangaloreShard]).toBe(2);
+    const after = (await h.bundle(bangaloreShard, 2))?.queries ?? [];
+    expect(after.find((entry) => entry.query.query_id === withTwo)?.query.person.photos).toEqual(
+      photos.slice(1),
+    );
+  });
+
   test('with no released reports the index is published, signed and empty', async () => {
     const h = harness();
     const result = await h.compile();
@@ -151,8 +192,12 @@ describe('the manual-review gate', () => {
     const good = addReport(h.db);
     // Not reachable through intake, which validates; a row like this means a bug upstream.
     const bad = addReport(h.db, { person: { name: '', description: '' } });
+    const photo: PersonPhoto = { mime: 'image/webp', w: 1, h: 1, b64: 'AAAA' };
+    const tooMany = addReport(h.db, {
+      person: { name: 'Alex Rivera', description: '', photos: [photo, photo, photo] },
+    });
     const result = await h.compile();
-    expect(result.skipped).toEqual([bad]);
+    expect(result.skipped).toEqual([bad, tooMany]);
     expect(
       (await h.bundle(bangaloreShard, 1))?.queries.map((entry) => entry.query.query_id),
     ).toEqual([good]);

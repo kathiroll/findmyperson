@@ -31,20 +31,25 @@
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 120 },
         "description": { "type": "string", "maxLength": 1000 },
-        "photo": {
-          "type": "object",
-          "properties": {
-            "mime": { "type": "string", "enum": ["image/webp", "image/jpeg"] },
-            "w": { "type": "integer", "minimum": 1, "maximum": 256 },
-            "h": { "type": "integer", "minimum": 1, "maximum": 256 },
-            "b64": {
-              "type": "string",
-              "minLength": 4,
-              "maxLength": 32768,
-              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
-            }
-          },
-          "required": ["mime", "w", "h", "b64"]
+        "photos": {
+          "minItems": 1,
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "mime": { "type": "string", "enum": ["image/webp", "image/jpeg"] },
+              "w": { "type": "integer", "minimum": 1, "maximum": 256 },
+              "h": { "type": "integer", "minimum": 1, "maximum": 256 },
+              "b64": {
+                "type": "string",
+                "minLength": 4,
+                "maxLength": 32768,
+                "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+              }
+            },
+            "required": ["mime", "w", "h", "b64"]
+          }
         }
       },
       "required": ["name", "description"]

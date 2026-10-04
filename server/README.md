@@ -16,7 +16,7 @@ Every report is `pending` on submit. Nothing pending is ever broadcast; only the
 
 `GET /operator` (`src/operatorPage.ts`) is one server-rendered HTML page, with no script, where the captain does the review:
 
-- **Pending reports**, newest first: the person's name, description and photo, where and when they were last seen, the reporter's phone and the submit time, each with Release and Reject. The buttons run the same `reviewReport` as the operator routes (`src/app.ts`), so the lifecycle rules are the ones above; the decision is recorded as `reviewed_by = operator-web`. A report the reporter ended, or that expired, is offered Reject only. Reports store no reporter name, so the page shows the phone.
+- **Pending reports**, newest first: the person's name, description and photos, where and when they were last seen, the reporter's phone and the submit time, each with Release and Reject. The buttons run the same `reviewReport` as the operator routes (`src/app.ts`), so the lifecycle rules are the ones above; the decision is recorded as `reviewed_by = operator-web`. A report the reporter ended, or that expired, is offered Reject only. Reports store no reporter name, so the page shows the phone.
 - **Held responses**, newest first: the text, the responder's phone if they shared one, the report it answers and why it was held, each with Release and Reject (`decideHeldResponse` in `src/moderation.ts`). Release delivers it: the reporter's next read of `GET /v1/reports/:id/responses` returns it, even if they had already read past the point where it was held. Reject keeps it undelivered for good, and it still counts as that device's one response. Both are final and recorded in the `response_reviews` table.
 
 **Access is a temporary stub and must be replaced by real operator authentication** (`TODO(operator-auth)`, the same gap as `src/operator.ts`). It is one shared token, `FMP_OPERATOR_WEB_TOKEN`:
@@ -57,13 +57,14 @@ Reports and responses are text written by strangers. The page escapes every valu
 
 **Bundle size, synthetic 100-report shard** (measured and asserted in `src/shards/bundleSize.test.ts`):
 
-| 100 reports in one res-5 shard                | Bytes     | gzip -9   | Per report          |
-| --------------------------------------------- | --------- | --------- | ------------------- |
-| Typical: 9 KB thumbnail (12,000 base64 chars) | 1,274,566 | 915,251   | 12.7 KB (9.2 gzip)  |
-| No photo                                      | 69,066    | 8,853     | 0.7 KB              |
-| Largest photo the schema allows               | 3,351,366 | 2,529,364 | 33.5 KB (25.3 gzip) |
+| 100 reports in one res-5 shard                    | Bytes     | gzip -9   | Per report          |
+| ------------------------------------------------- | --------- | --------- | ------------------- |
+| Typical: two 9 KB thumbnails each                 | 2,479,566 | 1,820,014 | 24.8 KB (18.2 gzip) |
+| One 9 KB thumbnail each                           | 1,274,866 | 915,256   | 12.7 KB (9.2 gzip)  |
+| No photo                                          | 69,066    | 8,853     | 0.7 KB              |
+| Largest: two photos of the size the schema allows | 6,633,166 | 5,002,760 | 66.3 KB (50.0 gzip) |
 
-The photo is nearly all of it, compression only undoes its base64 expansion, and a device re-downloads the whole bundle when any report in its shard changes.
+A report carries up to two photos (`MAX_PERSON_PHOTOS`), and a 9 KB thumbnail is 12,000 base64 characters. The photos are nearly all of a bundle, compression only undoes their base64 expansion, and a device re-downloads the whole bundle when any report in its shard changes. A report with two typical photos is about 18 KB over the wire, above the 15 KB a report that plan 6.3 budgets; with one it is 9 KB.
 
 ## The offline matching harness (plan 8.4, task M5.1)
 

@@ -26,7 +26,7 @@ import type { MatchCriteria } from './query';
  * grow by the distance moved (minRadiusForCenterMove). The tolerance only absorbs floating-point
  * noise; at 1 m per edit it is negligible next to the 150 m match radius.
  *
- * Descriptive fields (name, description, photo) are not match criteria and are not judged here.
+ * Descriptive fields (name, description, photos) are not match criteria and are not judged here.
  */
 
 /** Each way an edit can narrow the criteria. An edit can have several at once. */

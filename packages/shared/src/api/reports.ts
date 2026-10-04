@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_PERSON_PHOTOS } from '../constants';
 import {
   LatLonSchema,
   PhoneSchema,
@@ -77,11 +78,15 @@ export type Report = z.infer<typeof ReportSchema>;
 export const ReportResponseSchema = z.object({ report: ReportSchema });
 export type ReportResponse = z.infer<typeof ReportResponseSchema>;
 
-/** In a patch, a field left out is unchanged. `photo: null` removes the photo. */
+/**
+ * In a patch, a field left out is unchanged. `photos` replaces the whole list: there is no way
+ * to add or drop one photo other than sending the list as it should become. `photos: null` and
+ * `photos: []` both remove every photo.
+ */
 export const PersonPatchSchema = z.object({
   name: PersonSchema.shape.name.optional(),
   description: PersonSchema.shape.description.optional(),
-  photo: PersonPhotoSchema.nullable().optional(),
+  photos: z.array(PersonPhotoSchema).max(MAX_PERSON_PHOTOS).nullable().optional(),
 });
 export type PersonPatch = z.infer<typeof PersonPatchSchema>;
 
@@ -124,9 +129,10 @@ export function applyReportPatch(
     name: patch.person?.name ?? current.person.name,
     description: patch.person?.description ?? current.person.description,
   };
-  const photo = patch.person?.photo === undefined ? current.person.photo : patch.person.photo;
-  if (photo !== undefined && photo !== null) {
-    person.photo = photo;
+  const photos = patch.person?.photos === undefined ? current.person.photos : patch.person.photos;
+  // No photos is an absent member, never an empty list (PersonSchema).
+  if (photos !== undefined && photos !== null && photos.length > 0) {
+    person.photos = [...photos];
   }
   return {
     center: patch.center ?? current.center,

@@ -96,6 +96,12 @@ export const MAX_PERSON_NAME_CHARS = 120;
 export const MAX_PERSON_DESCRIPTION_CHARS = 1_000;
 export const MAX_PHOTO_EDGE_PX = 256;
 export const MAX_PHOTO_BASE64_CHARS = 32_768;
+/**
+ * DECIDED (captain, 2026-10-05): a report carries at most this many photos of the missing
+ * person. Each is held to the two caps above, so the photos of one report are at most this many
+ * times MAX_PHOTO_BASE64_CHARS; server/README.md has what that does to a bundle.
+ */
+export const MAX_PERSON_PHOTOS = 2;
 /** Upper bound on `cells`; a 5 km search disc needs well under this many res-7 cells. */
 export const MAX_QUERY_CELLS = 128;
 

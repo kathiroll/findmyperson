@@ -11,7 +11,7 @@ export interface LocationPort {
 /**
  * The native seams of the report form. `photo` and `location` need libraries (an image picker and
  * resizer, a map view) that are not in the app yet, so a build supplies them here. Without a
- * photo port the form hides "Add photo" (the photo is optional); without a location port it asks
+ * photo port the form hides "Add photo" (photos are optional); without a location port it asks
  * for latitude and longitude as text, so a report can always be filed.
  */
 export interface ReportServices {
