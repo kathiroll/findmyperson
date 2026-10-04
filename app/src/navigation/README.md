@@ -1,16 +1,19 @@
 # App navigation shell
 
-React Navigation 7 (native-stack + bottom-tabs). `routes.ts` is the single definition of route names, params and deep links.
+React Navigation 7 (native-stack only; there is no tab bar, as in the v2 mockups). `routes.ts` is the single definition of route names, params and deep links.
 
-| Route                                  | Where it lives               | Reached from                                                                     |
-| -------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
-| `Onboarding`                           | root stack (initial)         | app start                                                                        |
-| `Main` → `Home`, `History`, `Settings` | bottom tabs                  | after onboarding                                                                 |
-| `CaptureHealth`                        | root stack                   | Home, Settings (`SettingsScreen.onOpenCaptureHealth` is the diagnostics seam)    |
-| `PermissionFlow`                       | root stack                   | Onboarding, Settings, CaptureHealth (placeholders), `findmyperson://permissions` |
-| `ReportForm`                           | root stack                   | Home                                                                             |
-| `LiveReport`                           | root stack `{reportId}`      | Home, `findmyperson://report/<id>`                                               |
-| `Bystander`                            | root stack modal `{matchId}` | `findmyperson://match/<id>`                                                      |
+| Route                 | Where it lives               | Reached from                                                                     |
+| --------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| `Onboarding`          | root stack (initial)         | app start                                                                        |
+| `Home`                | root stack                   | after onboarding, `findmyperson://home`                                          |
+| `History`, `Settings` | root stack                   | Home's hamburger menu, `findmyperson://history`, `findmyperson://settings`       |
+| `CaptureHealth`       | root stack                   | Home, Settings (`SettingsScreen.onOpenCaptureHealth` is the diagnostics seam)    |
+| `PermissionFlow`      | root stack                   | Onboarding, Settings, CaptureHealth (placeholders), `findmyperson://permissions` |
+| `ReportForm`          | root stack                   | Home's hamburger menu ("Report a missing person"), `findmyperson://new-report`   |
+| `LiveReport`          | root stack `{reportId}`      | Home, `findmyperson://report/<id>`                                               |
+| `Bystander`           | root stack modal `{matchId}` | `findmyperson://match/<id>`                                                      |
+
+Home (`app/src/home/`) is the v2 Home artboard: brand header with the hamburger, the capture-health row, "Thank you…" copy with the swipe-away note (hidden while the reporter has an active report; read from `own_report` through `DataStore.getActiveReport`, shown as a `LiveReportCard`, "under review" while the server still holds it), and the "If you're curious" list, whose links are the mockups' placeholders and go nowhere yet. The menu entries are "Report a missing person" → `ReportForm`, "History" → `History`, "Settings" → `Settings`. The mockup's "Report a bug" and "About" have no screen and are not listed until they do.
 
 Match notifications should carry `matchNotificationUrl(id)`; reply notifications `reportNotificationUrl(id)`.
 

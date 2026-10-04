@@ -8,6 +8,7 @@ import {
 import type { LocationCapture } from '@findmyperson/native-location-capture';
 import {
   createRetentionMaintenance,
+  listOwnReports,
   listSubscriptions,
   runFetchCycle,
   type DeviceIdentity,
@@ -73,6 +74,12 @@ export interface DataStore {
   enqueueReport(request: ReportSubmitRequest): Promise<OwnReport>;
   /** One pass over the queued submits that are due. Never rejects for a network failure. */
   runReportQueue(api: ReportApi): Promise<QueueRunResult>;
+  /**
+   * The newest report of this owner that the server accepted and has not ended or expired (the
+   * `own_report` row in state `active`), or null. Its `report.review_state` says whether it is
+   * still held for review. Queued, sending and failed submits are not active reports.
+   */
+  getActiveReport(): Promise<OwnReport | null>;
 }
 
 /** A fetch cycle's input, less what the store supplies: the time, and the watch list if absent. */
@@ -128,6 +135,8 @@ export function createDataStore(
     deviceIdentity: createStoreDeviceIdentity(db, randomBytes),
     enqueueReport: (request) => enqueueReport(db, request, randomBytes, now()),
     runReportQueue: (api) => runSubmitQueue(db, api, now),
+    getActiveReport: async () =>
+      (await listOwnReports(db)).find((row) => row.state === 'active') ?? null,
 
     deleteAll: () =>
       serial(async () => {

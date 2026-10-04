@@ -26,6 +26,8 @@ export type SettingsScreenProps = {
   onOpenCaptureHealth: () => void;
   /** Opens the permission flow, for when location access is missing. */
   onOpenPermissionFlow: () => void;
+  /** Back to Home. Settings is a pushed screen now that there is no tab bar. */
+  onBack?: () => void;
 };
 
 const NOTIFICATION = {
@@ -49,7 +51,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-export function SettingsScreen({ onOpenCaptureHealth, onOpenPermissionFlow }: SettingsScreenProps) {
+export function SettingsScreen({
+  onOpenCaptureHealth,
+  onOpenPermissionFlow,
+  onBack,
+}: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const capture = useCapture();
   const dataStore = useDataStore();
@@ -130,7 +136,11 @@ export function SettingsScreen({ onOpenCaptureHealth, onOpenPermissionFlow }: Se
       testID="screen-Settings"
       style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}
     >
-      <ScreenHeader variant="brand" />
+      {onBack ? (
+        <ScreenHeader variant="back" title="Settings" onBackPress={onBack} />
+      ) : (
+        <ScreenHeader variant="brand" />
+      )}
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: sizes.gutter,

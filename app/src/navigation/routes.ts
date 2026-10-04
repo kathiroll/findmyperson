@@ -1,21 +1,16 @@
 import type { LinkingOptions } from '@react-navigation/native';
-import type { NavigatorScreenParams } from '@react-navigation/native';
-
-/** Bottom tabs, in mockup order (`Home.dc.html`): Home, History, Settings. */
-export type TabParamList = {
-  Home: undefined;
-  History: undefined;
-  Settings: undefined;
-};
 
 /**
- * Root stack. Later screen tasks target these route names; the tab screens live under `Main`.
- * `ReportForm`, `LiveReport`, `CaptureHealth` and `Bystander` are pushed from Home or a deep link,
- * never from the tab bar.
+ * Root stack. Later screen tasks target these route names. There is no tab bar (the v2 mockups
+ * have none): `Home` is the root screen after onboarding and reaches `History`, `Settings` and
+ * `ReportForm` through its hamburger menu. `LiveReport`, `CaptureHealth` and `Bystander` are
+ * pushed from Home or a deep link.
  */
 export type RootStackParamList = {
   Onboarding: undefined;
-  Main: NavigatorScreenParams<TabParamList> | undefined;
+  Home: undefined;
+  History: undefined;
+  Settings: undefined;
   CaptureHealth: undefined;
   /** Staged location permission flow (C2.6). Opened from onboarding, Settings and capture health. */
   PermissionFlow: undefined;
@@ -43,7 +38,9 @@ export const linking: LinkingOptions<RootStackParamList> = {
   config: {
     screens: {
       Onboarding: 'welcome',
-      Main: { screens: { Home: 'home', History: 'history', Settings: 'settings' } },
+      Home: 'home',
+      History: 'history',
+      Settings: 'settings',
       CaptureHealth: 'capture-health',
       PermissionFlow: 'permissions',
       ReportForm: 'new-report',
