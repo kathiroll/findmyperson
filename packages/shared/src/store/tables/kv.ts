@@ -13,7 +13,7 @@ export const KV_KEYS = {
    * Stay derivation: id of the last `location_sample` row it has finished with. The samples of
    * a dwell still too short to be a stay come after it and are read again (stay/derive.ts). The
    * retention purge pulls it back, through rewindStayCursorToStoredSamples, when it deletes the
-   * newest rows.
+   * newest rows; so does the native purge, with the same statement.
    */
   stayDerivationLastSampleId: 'stay_derivation.last_sample_id',
   /** Retention purge: when it last ran, Unix seconds. For diagnostics; the purge never reads it. */

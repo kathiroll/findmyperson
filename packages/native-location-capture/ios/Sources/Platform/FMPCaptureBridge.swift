@@ -202,6 +202,11 @@ public final class FMPCaptureBridge: NSObject, CaptureEngineListener {
         resolve(engine.diagnostics(since: sinceTsUtc).map(\.bridgeValue))
     }
 
+    @objc(getDeviceConditionsWithResolve:reject:)
+    public func getDeviceConditions(resolve: Resolve, reject: Reject) {
+        resolve(engine.deviceConditions().bridgeValue)
+    }
+
     @objc(debugInjectSampleWithLat:lon:tsUtc:accuracyM:resolve:reject:)
     public func debugInjectSample(
         lat: Double, lon: Double, tsUtc: Double, accuracyM: Double, resolve: Resolve, reject: Reject

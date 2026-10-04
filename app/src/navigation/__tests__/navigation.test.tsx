@@ -29,7 +29,10 @@ async function mount(initialUrl: string | null = null) {
       <AppNavigator
         navigationRef={ref}
         capture={createFakeLocationCapture()}
-        dataStore={{ deleteAll: async () => ({ emptyStoreConfirmed: true }) }}
+        dataStore={{
+          deleteAll: async () => ({ emptyStoreConfirmed: true }),
+          runMaintenance: async () => ({ ran: true }),
+        }}
       />,
     );
   });

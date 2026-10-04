@@ -112,7 +112,7 @@ final class ContractTests: XCTestCase {
         let shim = try Repo.text(
             "packages/native-location-capture/ios/Sources/Bridge/RCTNativeLocationCapture.mm")
         let names = try methods().compactMap { $0["name"] as? String }
-        XCTAssertEqual(names.count, 10)
+        XCTAssertEqual(names.count, 11)
         for name in names {
             XCTAssertTrue(shim.contains("- (void)\(name):"), "\(name) is missing from the shim")
         }
@@ -136,7 +136,14 @@ final class ContractTests: XCTestCase {
         XCTAssertEqual(writer["insertVisitStaySql"] as? String, StoreContract.insertVisitStaySql)
         XCTAssertEqual(writer["closeVisitStaySql"] as? String, StoreContract.closeVisitStaySql)
         XCTAssertEqual(writer["sampleSources"] as? [String], StoreContract.sampleSources)
-        XCTAssertEqual(writer.count, 7, "a statement was added to the contract: regenerate, then decide")
+        XCTAssertEqual(integer(writer["retentionSec"]).map(Int64.init), StoreContract.retentionSec)
+        XCTAssertEqual(writer["deleteSamplesBeforeSql"] as? String, StoreContract.deleteSamplesBeforeSql)
+        XCTAssertEqual(
+            writer["deleteStaysEndedBeforeSql"] as? String, StoreContract.deleteStaysEndedBeforeSql)
+        XCTAssertEqual(
+            writer["trimStaysStartedBeforeSql"] as? String, StoreContract.trimStaysStartedBeforeSql)
+        XCTAssertEqual(writer["rewindStayCursorSql"] as? String, StoreContract.rewindStayCursorSql)
+        XCTAssertEqual(writer.count, 12, "a statement was added to the contract: regenerate, then decide")
     }
 
     func testEverySampleSourceThisModuleWritesIsInTheContract() {

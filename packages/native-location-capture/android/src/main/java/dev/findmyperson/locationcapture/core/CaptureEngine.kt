@@ -3,6 +3,7 @@ package dev.findmyperson.locationcapture.core
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.math.abs
 
 /**
  * The capture state machine: the behaviour src/specs/NativeLocationCapture.ts writes on each
@@ -14,7 +15,7 @@ import kotlin.concurrent.withLock
  *
  * WHO CALLS IT
  *   The Turbo Module    start, stop, status, initStore, diagnosticsSince, debugInjectSample,
- *                       the permission calls
+ *                       deviceConditions, the permission calls
  *   The periodic job    onWorkWake
  *   The service         servicePlan, onServiceFixes, onServiceHeartbeat, and the three
  *                       onService… reports of what the OS did to it
@@ -35,6 +36,11 @@ import kotlin.concurrent.withLock
  *   fallback carry source `wm`, which is how they were obtained.
  *   There is no fallback in the other direction: mode `wm` never starts a foreground service,
  *   because that would show a notification the user chose not to have.
+ *
+ * RETENTION
+ *   The full purge is TypeScript and runs when the app does. A phone on which the app is never
+ *   opened is only ever woken here, so the wakes that capture also purge: [purgeIfDue], from
+ *   the periodic job, the service's deliveries and the watchdog.
  *
  * LOCKS
  *   `operations` makes the calls that change which mechanism is alive run one at a time, for
@@ -64,6 +70,9 @@ class CaptureEngine(
      * never written anywhere but the encrypted store (see [SampleFilter.judge]).
      */
     private var lastStoredFix: Fix? = null
+
+    /** When this process last purged. Memory only: a new process purges on its first wake. */
+    private var lastPurgeAt: Long? = null
 
     /** The status last sent to listeners. Null until the first call computes a baseline. */
     private var lastEmitted: CaptureStatus? = null
@@ -152,6 +161,16 @@ class CaptureEngine(
     fun diagnosticsSince(sinceTsUtc: Double): List<DiagnosticEntry> =
         diagnostics.since(if (sinceTsUtc.isFinite()) Math.ceil(sinceTsUtc).toLong() else Long.MIN_VALUE)
 
+    /**
+     * `getDeviceConditions`: on external power, and nobody using the app. Never throws; what
+     * Android will not say counts as false, which makes the vacuum wait.
+     */
+    fun deviceConditions(): MaintenanceConditions = try {
+        MaintenanceRules.conditions(device.power())
+    } catch (e: Exception) {
+        MaintenanceRules.UNKNOWN
+    }
+
     /** `debugInjectSample`: stores a synthetic fix past the filter, whether or not started. */
     fun debugInjectSample(lat: Double, lon: Double, tsUtc: Double, accuracyM: Double) {
         if (!debugBuild) {
@@ -230,6 +249,8 @@ class CaptureEngine(
             record(DiagnosticEvents.WATCHDOG_RESTART, current.mode.wire)
             ensureRunning(current)
         }
+        // The wake that still comes when the capture job or the service does not run at all.
+        purgeIfDue()
         notifyStatus()
     }
 
@@ -275,6 +296,7 @@ class CaptureEngine(
         }
         val detail = if (fix == null) "$label:no_fix" else "$label:${outcome.name.lowercase()}:$origin"
         record(DiagnosticEvents.CAPTURE_WAKE, detail)
+        purgeIfDue()
         notifyStatus()
         return outcome
     }
@@ -289,6 +311,7 @@ class CaptureEngine(
         update { it.withWake(clock.nowUtcSec()) }
         val result = submit(fixes, SOURCE_FGS, config)
         record(DiagnosticEvents.CAPTURE_WAKE, "${CaptureMode.FGS.wire}:${result.describe()}")
+        purgeIfDue()
         notifyStatus()
     }
 
@@ -501,6 +524,44 @@ class CaptureEngine(
         return newerThanStored && clock.nowUtcSec() - fix.tsUtc <= config.minIntervalSec
     }
 
+    // ---- retention ----
+
+    /**
+     * The retention purge of a wake with no JavaScript: fixes and stays that are past retention
+     * are deleted from the store, by the statements of native-writer.json. Nothing is derived
+     * and nothing is vacuumed here; both are TypeScript's (packages/shared, retention/).
+     *
+     * At most once per [PURGE_INTERVAL_SEC] in a process, since the service can be handed fixes
+     * every few minutes. The time of the last purge is not kept between processes and never
+     * decides what is deleted: the cutoff is computed from the clock on every run, so a purge
+     * after a long gap, or after the clock was changed, deletes exactly what one at that moment
+     * should. The gap is measured both ways, so a clock set back does not put the purge off.
+     *
+     * A purge that fails changes nothing (it is one transaction), is written to the
+     * diagnostics, and is tried again at the next wake. It does not raise `store_unusable`: a
+     * store that is unusable is reported by the write path, and is not purged at all.
+     */
+    private fun purgeIfDue() = synchronized(stateLock) {
+        val now = clock.nowUtcSec()
+        val last = lastPurgeAt
+        if (last != null && abs(now - last) < PURGE_INTERVAL_SEC) return@synchronized
+        if (state.storeFailure != null) return@synchronized
+        try {
+            val purged = store.purgeExpired(now)
+            lastPurgeAt = now
+            if (!purged.nothing) {
+                record(
+                    DiagnosticEvents.RETENTION_PURGE,
+                    "samples=${purged.samples},stays=${purged.stays},trimmed=${purged.staysTrimmed}",
+                )
+            }
+        } catch (e: StoreUnusableException) {
+            record(DiagnosticEvents.RETENTION_PURGE_FAILED, e.reason)
+        } catch (e: Exception) {
+            record(DiagnosticEvents.RETENTION_PURGE_FAILED, e.javaClass.simpleName)
+        }
+    }
+
     // ---- store health ----
 
     /** The check `initStore` makes. Returns why the store is unusable, or null. */
@@ -641,6 +702,9 @@ class CaptureEngine(
 
         /** How long the periodic job waits for a fresh fix. The M0 trial used the same. */
         const val CURRENT_FIX_TIMEOUT_SEC = 30L
+
+        /** A process purges at most this often. An hour past 30 days is still "30 days". */
+        const val PURGE_INTERVAL_SEC = 3_600L
 
         private const val LABEL_FALLBACK = "fallback"
         private const val ORIGIN_CURRENT = "current"

@@ -13,6 +13,10 @@ import Foundation
 ///
 /// "The mechanism is alive" in the spec's sense means continuous updates are running.
 ///
+/// Retention: the full purge is TypeScript and runs when the app does. A phone on which the
+/// app is never opened only ever runs this, so storing a fix or a visit, and every launch,
+/// also purges (`purgeIfDue`).
+///
 /// Every method must be called on the main thread, where Core Location delivers its callbacks.
 /// The engine has no locks of its own.
 final class CaptureEngine {
@@ -27,6 +31,9 @@ final class CaptureEngine {
         /// How long after the app is active again a pending Always prompt counts as refused.
         /// The authorization callback of a grant can arrive just after the app is active.
         var alwaysPromptSettleSec: Double = 1
+        /// A process purges at most this often: a moving phone stores a fix every few seconds.
+        /// An hour past 30 days is still "30 days".
+        var purgeIntervalSec: Int64 = 3600
     }
 
     struct Dependencies {
@@ -72,6 +79,8 @@ final class CaptureEngine {
     // The store.
     private var storeFailure: String?
     private var lastStoreCheckAt: Int64?
+    /// When this process last purged. Memory only: a new process purges on its first wake.
+    private var lastPurgeAt: Int64?
 
     // The filter. Positions live in memory only.
     /// Where the last stored sample was taken or, in a process that has not stored one yet,
@@ -139,6 +148,8 @@ final class CaptureEngine {
         if state.selection != nil {
             // The spec: the module repeats the store check by itself on every background wake.
             _ = checkStore(force: true)
+            // A relaunch is a wake whether or not a fix follows it.
+            purgeIfDue()
         }
         reconcile()
         save()
@@ -308,6 +319,17 @@ final class CaptureEngine {
         guard sinceTsUtc.isFinite else { return deps.diagnostics.entries(since: Int64.min) }
         let bounded = max(-9e18, min(9e18, sinceTsUtc.rounded(.up)))
         return deps.diagnostics.entries(since: Int64(bounded))
+    }
+
+    /// `getDeviceConditions`: on external power, and nobody using the app. Never throws.
+    ///
+    /// `charging` is external power, whether or not the battery is still filling: the question
+    /// is whether rewriting the store file costs the user battery. `idle` is the app not being
+    /// active, which covers the background, a locked phone and a dark screen alike. A phone
+    /// left on a charger overnight is both; one in use on a charger is not idle; one in a
+    /// pocket is not charging.
+    func deviceConditions() -> MaintenanceConditions {
+        MaintenanceConditions(charging: deps.device.onExternalPower, idle: !deps.device.appActive)
     }
 
     func debugInjectSample(lat: Double, lon: Double, tsUtc: Double, accuracyM: Double) throws {
@@ -612,7 +634,41 @@ final class CaptureEngine {
         relocateRegion(around: fix.coordinate)
         listener?.sampleWritten(
             SampleWrittenEvent(tsUtc: fix.tsUtc, accuracyM: fix.accuracyM, source: source.rawValue))
+        purgeIfDue()
         return nil
+    }
+
+    /// The retention purge of a wake with no JavaScript: fixes and stays that are past
+    /// retention are deleted from the store, by the statements of native-writer.json. Nothing
+    /// is derived and nothing is vacuumed here; both are TypeScript's (packages/shared,
+    /// retention/).
+    ///
+    /// At most once per `purgeIntervalSec` in a process. The time of the last purge is not
+    /// kept between processes and never decides what is deleted: the cutoff is computed from
+    /// the clock on every run, so a purge after a long gap, or after the clock was changed,
+    /// deletes exactly what one at that moment should. The gap is measured both ways, so a
+    /// clock set back does not put the purge off.
+    ///
+    /// A purge that fails changes nothing (it is one transaction), is written to the
+    /// diagnostics, and is tried again at the next wake. It does not raise `store_unusable`: a
+    /// store that is unusable is reported by the write path, and is not purged at all.
+    private func purgeIfDue() {
+        let at = deps.now()
+        if let last = lastPurgeAt, abs(at - last) < deps.tunables.purgeIntervalSec {
+            return
+        }
+        guard storeFailure == nil else { return }
+        do {
+            let purged = try deps.store.purgeExpired(nowTsUtc: at)
+            lastPurgeAt = at
+            if !purged.nothing {
+                log(
+                    DiagnosticEvent.retentionPurge,
+                    "samples=\(purged.samples),stays=\(purged.stays),trimmed=\(purged.staysTrimmed)")
+            }
+        } catch {
+            log(DiagnosticEvent.retentionPurgeFailed, describe(error))
+        }
     }
 
     private func describe(_ error: Error) -> String {
@@ -672,6 +728,7 @@ final class CaptureEngine {
         }
         do {
             try statements()
+            purgeIfDue()
             return true
         } catch {
             _ = storeFailed(describe(error))

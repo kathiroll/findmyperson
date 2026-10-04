@@ -189,9 +189,18 @@ export async function deleteDerivedStay(db: SqlExecutor, id: number): Promise<bo
   return rows.length > 0;
 }
 
+/**
+ * The retention purge's two statements on this table, also run by the native modules on a wake
+ * with no JavaScript (store/nativeWriter.ts). The delete takes the cutoff once; the trim takes
+ * it three times.
+ */
+export const DELETE_STAYS_ENDED_BEFORE_SQL = 'DELETE FROM stay WHERE end_ts < ?';
+export const TRIM_STAYS_STARTED_BEFORE_SQL =
+  'UPDATE stay SET start_ts = ? WHERE start_ts < ? AND end_ts >= ?';
+
 /** Retention purge: deletes stays that ended before the cutoff. Returns how many. */
 export async function deleteStaysEndedBefore(db: SqlExecutor, cutoffTs: number): Promise<number> {
-  const rows = await db.execute('DELETE FROM stay WHERE end_ts < ? RETURNING id', [cutoffTs]);
+  const rows = await db.execute(`${DELETE_STAYS_ENDED_BEFORE_SQL} RETURNING id`, [cutoffTs]);
   return rows.length;
 }
 
@@ -206,9 +215,10 @@ export async function deleteStaysEndedBefore(db: SqlExecutor, cutoffTs: number):
  * still finds it by the arrival time it was written with.
  */
 export async function trimStaysStartedBefore(db: SqlExecutor, cutoffTs: number): Promise<number> {
-  const rows = await db.execute(
-    'UPDATE stay SET start_ts = ? WHERE start_ts < ? AND end_ts >= ? RETURNING id',
-    [cutoffTs, cutoffTs, cutoffTs],
-  );
+  const rows = await db.execute(`${TRIM_STAYS_STARTED_BEFORE_SQL} RETURNING id`, [
+    cutoffTs,
+    cutoffTs,
+    cutoffTs,
+  ]);
   return rows.length;
 }

@@ -1,5 +1,6 @@
 package dev.findmyperson.locationcapture.store
 
+import dev.findmyperson.locationcapture.core.PurgeCounts
 import dev.findmyperson.locationcapture.core.StoredSample
 import java.io.Closeable
 import java.security.SecureRandom
@@ -24,6 +25,12 @@ interface SqlDatabase : Closeable {
     fun scalar(sql: String): String?
 
     fun execute(sql: String, args: Array<Any?>)
+
+    /** Runs an UPDATE or DELETE whose parameters are all integers. Returns the rows it changed. */
+    fun update(sql: String, args: LongArray): Int
+
+    /** Commits if [block] returns and rolls everything back if it throws. */
+    fun <T> transaction(block: () -> T): T
 }
 
 /** Thrown for every failure to open the store with the pinned parameters. Never swallowed. */
@@ -103,6 +110,27 @@ object StoreRules {
             StoreContract.INSERT_LOCATION_SAMPLE_SQL,
             arrayOf(sample.tsUtc, sample.lat, sample.lon, sample.accuracyM, sample.source, sample.h3R7, sample.h3R5),
         )
+    }
+}
+
+/**
+ * The retention purge of a capture wake, as a function of a connection: the four purge
+ * statements of the contract, in the contract's order, in one transaction
+ * (packages/shared/src/store/nativeWriter.ts says why each of those matters). It covers the two
+ * tables that hold where the phone has been; the rest of the purge is TypeScript's.
+ */
+object StorePurge {
+    fun run(db: SqlDatabase, nowTsUtc: Long): PurgeCounts {
+        val cutoff = nowTsUtc - StoreContract.RETENTION_SEC
+        return db.transaction {
+            val samples = db.update(StoreContract.DELETE_SAMPLES_BEFORE_SQL, longArrayOf(cutoff))
+            val stays = db.update(StoreContract.DELETE_STAYS_ENDED_BEFORE_SQL, longArrayOf(cutoff))
+            val trimmed = db.update(StoreContract.TRIM_STAYS_STARTED_BEFORE_SQL, longArrayOf(cutoff, cutoff, cutoff))
+            // Sample ids are rowids: with the newest rows gone, the next fix would take an id
+            // stay derivation has already passed. No parameters.
+            db.update(StoreContract.REWIND_STAY_CURSOR_SQL, longArrayOf())
+            PurgeCounts(samples = samples, stays = stays, staysTrimmed = trimmed)
+        }
     }
 }
 

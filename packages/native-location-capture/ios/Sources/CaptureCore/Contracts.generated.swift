@@ -10,6 +10,11 @@ enum StoreContract {
     static let insertVisitStaySql = "INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'visit')"
     static let closeVisitStaySql = "UPDATE stay SET end_ts = ?, closed = 1 WHERE source = 'visit' AND closed = 0 AND start_ts = ?"
     static let sampleSources: [String] = ["fgs", "wm", "continuous", "slc", "visit", "region", "manual", "fetch-wake"]
+    static let retentionSec: Int64 = 2592000
+    static let deleteSamplesBeforeSql = "DELETE FROM location_sample WHERE ts_utc < ?"
+    static let deleteStaysEndedBeforeSql = "DELETE FROM stay WHERE end_ts < ?"
+    static let trimStaysStartedBeforeSql = "UPDATE stay SET start_ts = ? WHERE start_ts < ? AND end_ts >= ?"
+    static let rewindStayCursorSql = "UPDATE kv SET v = (SELECT CAST(coalesce(max(id), 0) AS TEXT) FROM location_sample) WHERE k = 'stay_derivation.last_sample_id' AND CAST(v AS INTEGER) > (SELECT coalesce(max(id), 0) FROM location_sample)"
 }
 
 /// The pinned SQLCipher parameters of the store (packages/shared/src/store/cipher.ts).

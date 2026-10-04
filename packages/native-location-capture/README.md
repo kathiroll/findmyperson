@@ -31,7 +31,7 @@ This package holds the interface, the codegen setup that turns it into native co
 
 Runtime exports of the root: `NATIVE_MODULE_NAME`, `CAPTURE_DEFAULTS`, `CAPTURE_ERROR_CODES`, `captureErrorCode`, `DIAGNOSTIC_EVENTS`, `HEALTH_FLAGS`, `HEALTH_FLAG_PLATFORMS`, `packageName`.
 
-Types of the root: `LocationCapture` (the interface; it is `Spec` in the spec file, the name codegen requires), `CaptureConfig`, `CaptureStatus`, `CaptureMode`, `CaptureTier`, `HealthFlag`, `PermissionState`, `PermissionStep`, `SettingsTarget`, `Accuracy`, `SampleWrittenEvent`, `DiagnosticEntry`, `CaptureErrorCode`, `CapturePlatform`.
+Types of the root: `LocationCapture` (the interface; it is `Spec` in the spec file, the name codegen requires), `CaptureConfig`, `CaptureStatus`, `CaptureMode`, `CaptureTier`, `DeviceConditions`, `HealthFlag`, `PermissionState`, `PermissionStep`, `SettingsTarget`, `Accuracy`, `SampleWrittenEvent`, `DiagnosticEntry`, `CaptureErrorCode`, `CapturePlatform`.
 
 Types of `/fake`: `FakeLocationCapture`, `FakeLocationCaptureOptions`, `FakeControls`, `FakeFix`, `FixOutcome`, `ConditionFlag`, `MechanismTransition`.
 
@@ -50,6 +50,7 @@ Write application code against `LocationCapture` and take the instance as an arg
 | `requestPermission('foreground' \| 'background')`         | One permission step at a time                                                                           |
 | `openSystemSettings('app' \| 'battery' \| 'hibernation')` | Opens a settings page; `false` if the platform has none                                                 |
 | `getDiagnostics(sinceTsUtc)`                              | The local capture-health log                                                                            |
+| `getDeviceConditions()`                                   | `{ charging, idle }`, read now: what the store's weekly VACUUM waits for. Never rejects                 |
 | `debugInjectSample(lat, lon, tsUtc, accuracyM)`           | Debug builds only: store a synthetic fix                                                                |
 | `onSampleWritten(handler)`                                | Event `{ tsUtc, accuracyM, source }`                                                                    |
 | `onStatusChanged(handler)`                                | Event carrying the whole new `CaptureStatus`                                                            |
@@ -58,6 +59,19 @@ Two rules shape it (architecture plan, section 5.5):
 
 1. **Coordinates never cross the bridge on the capture path.** The native module writes each fix into the encrypted store itself. No return value and no event has a latitude or longitude; a test fails if one is added. JavaScript reads coordinates only from the store.
 2. **Health is observable.** Every way the platform can degrade capture is a `HealthFlag` in the status.
+
+### Retention on a capture wake
+
+The retention purge is TypeScript (`packages/shared`, `src/retention/`) and runs when the app does. A capture wake often has no JavaScript in it, so both native modules also purge: on a wake they delete the fixes and stays that are past retention, with the four purge statements of `packages/shared/contracts/native-writer.json` in one transaction, at most once an hour per process. Nothing in the interface starts or reports it; it shows as `retention_purge` (`samples=N,stays=N,trimmed=N`, only when something was removed) and `retention_purge_failed` in the diagnostics. The fake does the same on every stored fix. Neither module ever vacuums: that is the app's, and `getDeviceConditions` is the answer it waits for.
+
+`getDeviceConditions` on each platform:
+
+|            | Android                                                                                                        | iOS                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `charging` | `BatteryManager.isCharging`                                                                                    | `UIDevice.batteryState` is `.charging` or `.full` |
+| `idle`     | the screen is off (`PowerManager.isInteractive`), or the app is not on it (`ActivityManager.getMyMemoryState`) | `UIApplication.applicationState` is not `.active` |
+
+A fact the platform will not give counts as false, so the vacuum waits.
 
 ### Switching the Android mode at runtime
 
@@ -92,7 +106,7 @@ await capture.start({
 await capture.controls.deliverFix({ lat: 12.9716, lon: 77.5946 }); // 'stored'
 ```
 
-`capture` is a `LocationCapture`. `capture.controls` is what a real module does not have: it plays the user (`answerPermission`, `setPermission`), the operating system (`setCondition`, `killMechanism`, `restartMechanism`, `refuseNextStart`, `setStoreFailure`, `deliverFix`) and lets a test look at what happened (`samples`, `transitions`, `selectedConfig`, `openedSettings`, `shownPermissionPrompts`).
+`capture` is a `LocationCapture`. `capture.controls` is what a real module does not have: it plays the user (`answerPermission`, `setPermission`), the operating system (`setCondition`, `setDeviceConditions`, `killMechanism`, `restartMechanism`, `refuseNextStart`, `setStoreFailure`, `deliverFix`) and lets a test look at what happened (`samples`, `transitions`, `selectedConfig`, `openedSettings`, `shownPermissionPrompts`).
 
 Pass `db` (a migrated store, any `SqlExecutor` from `@findmyperson/shared`) and the fake inserts samples into `location_sample` with the shared `insertLocationSample`, cells included, so code that reads the store sees what a phone would have written. Without `db` samples stay in memory.
 

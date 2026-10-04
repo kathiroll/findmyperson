@@ -1,5 +1,7 @@
 package dev.findmyperson.locationcapture.core
 
+import dev.findmyperson.locationcapture.Contracts
+
 /*
  * The operating system, played by hand. Each fake implements one port of Ports.kt and adds the
  * controls a test needs: refuse a start, kill a mechanism, revoke a permission, fail the store.
@@ -138,6 +140,14 @@ class FakeDevice : DeviceConditions {
     var bootTsUtc = T0 - 30 * 86_400L
     var standbyBucket: String? = null
 
+    /** In a pocket's opposite: on battery, screen on, the app on screen. */
+    var onExternalPower = false
+    var screenOn = true
+    var appInForeground = true
+
+    /** While set, Android throws instead of answering [power]. */
+    var powerUnreadable = false
+
     override fun snapshot() = DeviceSnapshot(
         fineGranted = fine,
         coarseGranted = coarse,
@@ -150,6 +160,11 @@ class FakeDevice : DeviceConditions {
         bootTsUtc = bootTsUtc,
         standbyBucket = standbyBucket,
     )
+
+    override fun power(): PowerSnapshot {
+        if (powerUnreadable) throw SecurityException("no access to the power state")
+        return PowerSnapshot(onExternalPower = onExternalPower, screenOn = screenOn, appInForeground = appInForeground)
+    }
 
     fun grantNothing() {
         fine = false
@@ -164,15 +179,33 @@ class FakeDevice : DeviceConditions {
     }
 }
 
+/** `retentionSec` of native-writer.json: how far behind the clock the purge's cutoff is. */
+val RETENTION_SEC: Long = Contracts.json(Contracts.shared("native-writer.json")).getLong("retentionSec")
+
+/** The store, in memory. The purge here is the contract's rule for fixes; StoreContractTest runs the SQL. */
 class FakeStore : SampleStore {
     val samples = mutableListOf<StoredSample>()
     var failure: String? = null
+
+    /** While set, a purge fails with it although the check passes (the store is busy). */
+    var purgeFailure: String? = null
+
+    /** The time each purge was given, in order. */
+    val purges = mutableListOf<Long>()
 
     override fun check(): String? = failure
 
     override fun insert(sample: StoredSample) {
         failure?.let { throw StoreUnusableException(it) }
         samples += sample
+    }
+
+    override fun purgeExpired(nowTsUtc: Long): PurgeCounts {
+        (failure ?: purgeFailure)?.let { throw StoreUnusableException(it) }
+        purges += nowTsUtc
+        val before = samples.size
+        samples.removeAll { it.tsUtc < nowTsUtc - RETENTION_SEC }
+        return PurgeCounts(samples = before - samples.size, stays = 0, staysTrimmed = 0)
     }
 }
 

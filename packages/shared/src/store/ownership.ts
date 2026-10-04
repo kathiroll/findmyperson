@@ -47,7 +47,11 @@ export const TABLE_OWNERSHIP: Readonly<Record<StoreTable, readonly WritePath[]>>
       writes:
         'insert only, natively, with INSERT_LOCATION_SAMPLE_SQL. TypeScript never writes this table outside tests',
     },
-    { owner: 'C2.5 retention purge', writes: 'delete rows past retention (deleteSamplesBefore)' },
+    {
+      owner: 'C2.5 retention purge',
+      writes:
+        'delete rows past retention (deleteSamplesBefore), and natively on a capture wake with the same statement (DELETE_SAMPLES_BEFORE_SQL)',
+    },
   ],
   stay: [
     {
@@ -63,7 +67,7 @@ export const TABLE_OWNERSHIP: Readonly<Record<StoreTable, readonly WritePath[]>>
     {
       owner: 'C2.5 retention purge',
       writes:
-        'delete rows past retention, and move the start of a row still running across it up to the cutoff (deleteStaysEndedBefore, trimStaysStartedBefore)',
+        'delete rows past retention, and move the start of a row still running across it up to the cutoff (deleteStaysEndedBefore, trimStaysStartedBefore), and natively on a capture wake with the same two statements, for both sources',
     },
   ],
   report_cache: [
@@ -129,6 +133,11 @@ export const TABLE_OWNERSHIP: Readonly<Record<StoreTable, readonly WritePath[]>>
     {
       owner: 'per key, as listed in store/tables/kv.ts',
       writes: 'kvSet and kvDelete on its own keys only',
+    },
+    {
+      owner: 'C2.5 retention purge',
+      writes:
+        'the stay-derivation cursor only, pulled back after it deletes the newest fixes, in TypeScript and natively (REWIND_STAY_CURSOR_SQL)',
     },
   ],
 };

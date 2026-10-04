@@ -6,6 +6,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Looper
 import android.os.PowerManager
@@ -18,6 +19,7 @@ import androidx.core.location.LocationManagerCompat
 import dev.findmyperson.locationcapture.core.DeviceConditions
 import dev.findmyperson.locationcapture.core.DeviceSnapshot
 import dev.findmyperson.locationcapture.core.Hibernation
+import dev.findmyperson.locationcapture.core.PowerSnapshot
 import java.util.concurrent.TimeUnit
 
 /**
@@ -56,6 +58,41 @@ class AndroidDeviceConditions(private val context: Context) : DeviceConditions {
             bootTsUtc = (System.currentTimeMillis() - SystemClock.elapsedRealtime()) / 1000,
             standbyBucket = standbyBucket(),
         )
+    }
+
+    /**
+     * What `getDeviceConditions` is answered from. Each fact that cannot be read takes the
+     * value that makes the vacuum wait: not on power, screen on, app on screen.
+     */
+    override fun power(): PowerSnapshot = PowerSnapshot(
+        onExternalPower = onExternalPower(),
+        screenOn = screenOn(),
+        appInForeground = appInForeground(),
+    )
+
+    /** Plugged in and supplying enough power that the battery is filling, or already full. */
+    private fun onExternalPower(): Boolean = try {
+        (context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager).isCharging
+    } catch (e: Exception) {
+        false
+    }
+
+    private fun screenOn(): Boolean = try {
+        (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
+    } catch (e: Exception) {
+        true
+    }
+
+    /**
+     * True while one of the app's activities is on screen. With only the capture service or a
+     * job running, the process is at most `IMPORTANCE_FOREGROUND_SERVICE`.
+     */
+    private fun appInForeground(): Boolean = try {
+        val state = ActivityManager.RunningAppProcessInfo()
+        ActivityManager.getMyMemoryState(state)
+        state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+    } catch (e: Exception) {
+        true
     }
 
     /** Device policy or parental controls forbid this user from sharing location at all. */

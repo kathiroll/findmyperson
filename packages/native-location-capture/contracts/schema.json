@@ -232,6 +232,25 @@
             }
           ]
         },
+        "DeviceConditions": {
+          "type": "ObjectTypeAnnotation",
+          "properties": [
+            {
+              "name": "charging",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "BooleanTypeAnnotation"
+              }
+            },
+            {
+              "name": "idle",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "BooleanTypeAnnotation"
+              }
+            }
+          ]
+        },
         "DiagnosticEntry": {
           "type": "ObjectTypeAnnotation",
           "properties": [
@@ -520,6 +539,21 @@
                   }
                 }
               ]
+            }
+          },
+          {
+            "name": "getDeviceConditions",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "TypeAliasTypeAnnotation",
+                  "name": "DeviceConditions"
+                }
+              },
+              "params": []
             }
           },
           {

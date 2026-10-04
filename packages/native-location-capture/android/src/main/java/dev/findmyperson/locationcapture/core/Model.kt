@@ -193,6 +193,17 @@ data class SampleWrittenEvent(val tsUtc: Long, val accuracyM: Double, val source
     )
 }
 
+/**
+ * `DeviceConditions` of the spec: what `getDeviceConditions` answers. Named for its use here,
+ * because `DeviceConditions` in this package is the port the engine reads the device through.
+ */
+data class MaintenanceConditions(val charging: Boolean, val idle: Boolean) {
+    fun toWire(): Map<String, Any?> = linkedMapOf(
+        "charging" to charging,
+        "idle" to idle,
+    )
+}
+
 /** One line of the local capture-health log. Never transmitted, and never holds a coordinate. */
 data class DiagnosticEntry(val tsUtc: Long, val event: String, val detail: String) {
     fun toWire(): Map<String, Any?> = linkedMapOf(
@@ -230,4 +241,6 @@ object DiagnosticEvents {
     const val PROCESS_STARTED = "process_started"
     const val STATE_RESET = "state_reset"
     const val INTERNAL_ERROR = "internal_error"
+    const val RETENTION_PURGE = "retention_purge"
+    const val RETENTION_PURGE_FAILED = "retention_purge_failed"
 }

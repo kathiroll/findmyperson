@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteException
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import dev.findmyperson.locationcapture.core.PurgeCounts
 import dev.findmyperson.locationcapture.core.SampleStore
 import dev.findmyperson.locationcapture.core.StoreUnusableException
 import dev.findmyperson.locationcapture.core.StoredSample
@@ -124,6 +125,14 @@ class SqlCipherSampleStore(context: Context, private val key: KeystoreStoreKey) 
         }
     }
 
+    override fun purgeExpired(nowTsUtc: Long): PurgeCounts = try {
+        open().use { StorePurge.run(it, nowTsUtc) }
+    } catch (e: StoreOpenException) {
+        throw StoreUnusableException(e.message ?: e.step, e)
+    } catch (e: Exception) {
+        throw StoreUnusableException("${e.javaClass.simpleName}: ${e.message}", e)
+    }
+
     /** Opens the existing store with the pinned parameters and verifies them before returning. */
     private fun open(): SqlDatabase {
         loadLibrary()
@@ -178,6 +187,29 @@ class SqlCipherSampleStore(context: Context, private val key: KeystoreStoreKey) 
 
         override fun execute(sql: String, args: Array<Any?>) {
             database.execSQL(sql, args)
+        }
+
+        override fun update(sql: String, args: LongArray): Int {
+            val statement = database.compileStatement(sql)
+            try {
+                args.forEachIndexed { index, value -> statement.bindLong(index + 1, value) }
+                return statement.executeUpdateDelete()
+            } finally {
+                statement.close()
+            }
+        }
+
+        // Takes the write lock at the start, so TypeScript's connection cannot write between
+        // two statements of the purge.
+        override fun <T> transaction(block: () -> T): T {
+            database.beginTransaction()
+            try {
+                val result = block()
+                database.setTransactionSuccessful()
+                return result
+            } finally {
+                database.endTransaction()
+            }
         }
 
         override fun close() {

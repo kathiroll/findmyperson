@@ -126,6 +126,9 @@ final class FakeDevice: DeviceConditions {
     var backgroundRefreshAvailable = true
     var lowPowerMode = false
     var bootTimeSec: Double? = 1_700_000_000
+    /// On battery, with the app on screen: a phone in somebody's hand.
+    var onExternalPower = false
+    var appActive = true
     var settingsOpenResult = true
     private(set) var settingsOpened = 0
 
@@ -136,14 +139,35 @@ final class FakeDevice: DeviceConditions {
 }
 
 /// The store, in memory. Coordinates are visible here, as they are to a reader of the store.
+/// Its purge is the contract's rule; StoreTests runs the real statements on the real schema.
 final class FakeStore: CaptureStore {
     /// When set, the check `initStore` makes fails with it.
     var failure: StoreFailure?
     /// When set, the next write fails with it although the check passed.
     var writeFailure: StoreFailure?
+    /// When set, a purge fails with it although the check passed (the store is busy).
+    var purgeFailure: StoreFailure?
     private(set) var samples: [SampleRow] = []
     private(set) var stays: [VisitStayRow] = []
     private(set) var checks = 0
+    /// The time each purge was given, in order.
+    private(set) var purges: [Int64] = []
+
+    func purgeExpired(nowTsUtc: Int64) throws -> PurgeCounts {
+        if let purgeFailure { throw purgeFailure }
+        purges.append(nowTsUtc)
+        let cutoff = nowTsUtc - StoreContract.retentionSec
+        var counts = PurgeCounts(samples: samples.count, stays: stays.count, staysTrimmed: 0)
+        samples.removeAll { $0.tsUtc < cutoff }
+        stays.removeAll { $0.endTs < cutoff }
+        counts.samples -= samples.count
+        counts.stays -= stays.count
+        for index in stays.indices where stays[index].startTs < cutoff {
+            stays[index].startTs = cutoff
+            counts.staysTrimmed += 1
+        }
+        return counts
+    }
 
     func check() throws {
         checks += 1

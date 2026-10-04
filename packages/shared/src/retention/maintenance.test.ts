@@ -129,6 +129,28 @@ describe('the weekly VACUUM', () => {
     expect(await lastVacuum()).toBe(String(NOW));
   });
 
+  test('switched off, it never runs and says so, and the purge still does', async () => {
+    const store = watchingVacuum();
+    const deviceConditions = vi.fn(chargingAndIdle);
+    const options = { deviceConditions, vacuum: 'disabled' } as const;
+    expect(await vacuumIfDue(store, NOW, options)).toBe('disabled');
+    expect(await vacuumIfDue(store, NOW + 10 * VACUUM_INTERVAL_SEC, options)).toBe('disabled');
+    expect(store.vacuums).toBe(0);
+    expect(deviceConditions).not.toHaveBeenCalled();
+    expect(await lastVacuum()).toBeNull();
+
+    await writeSamples(db, [
+      { ts_utc: CUTOFF - 1, ...home },
+      { ts_utc: NOW, ...home },
+    ]);
+    const run = await runRetention(store, NOW, options);
+    expect(run).toMatchObject({ purge: { samples: 1 }, vacuum: 'disabled' });
+    expect(store.vacuums).toBe(0);
+
+    // Switched on again, a vacuum that came due meanwhile runs at the next chance.
+    expect(await vacuumIfDue(store, NOW, { deviceConditions, vacuum: 'enabled' })).toBe('done');
+  });
+
   test('with nobody to ask, or no answer, the device counts as not charging', async () => {
     const store = watchingVacuum();
     expect(await vacuumIfDue(store, NOW)).toBe('waiting');

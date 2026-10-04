@@ -42,6 +42,11 @@ public enum StoreContract {
     ]
     public static let insertVisitStaySql = "INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'visit')"
     public static let closeVisitStaySql = "UPDATE stay SET end_ts = ?, closed = 1 WHERE source = 'visit' AND closed = 0 AND start_ts = ?"
+    public static let retentionSec = 2592000
+    public static let deleteSamplesBeforeSql = "DELETE FROM location_sample WHERE ts_utc < ?"
+    public static let deleteStaysEndedBeforeSql = "DELETE FROM stay WHERE end_ts < ?"
+    public static let trimStaysStartedBeforeSql = "UPDATE stay SET start_ts = ? WHERE start_ts < ? AND end_ts >= ?"
+    public static let rewindStayCursorSql = "UPDATE kv SET v = (SELECT CAST(coalesce(max(id), 0) AS TEXT) FROM location_sample) WHERE k = 'stay_derivation.last_sample_id' AND CAST(v AS INTEGER) > (SELECT coalesce(max(id), 0) FROM location_sample)"
     public static let storeDirectoryName = "findmyperson-store"
     public static let keychainService = "dev.findmyperson.store"
     public static let keychainAccount = "store-key-v1"

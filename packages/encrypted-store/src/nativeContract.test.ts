@@ -36,7 +36,9 @@ test('the native constants carry the schema version and every native statement',
   const statements = Object.entries(NATIVE_WRITER_CONTRACT)
     .filter(([name]) => name.endsWith('Sql'))
     .map(([, sql]) => sql);
-  expect(statements).toHaveLength(4);
+  // One read, three capture writes, four purge statements.
+  expect(statements).toHaveLength(8);
+  expect(constants.get('RETENTION_SEC')).toBe(NATIVE_WRITER_CONTRACT.retentionSec);
   for (const sql of statements) {
     expect([...constants.values()]).toContain(sql);
   }

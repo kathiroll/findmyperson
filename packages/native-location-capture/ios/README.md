@@ -52,6 +52,19 @@ Four Core Location services, as chosen in the architecture plan (section 5.3) an
 
 **The watchdog.** iOS runs no timer for a suspended app. `reconcile` in the engine is called on every wake path (launch, permission change, return to the foreground, unlock) and makes what is running match what is selected, which is how a mechanism iOS refused comes back.
 
+## Retention
+
+The full purge is TypeScript and runs when the app does. A phone on which the app is never opened only ever runs this module, so storing a sample or a visit, and every launch with capture selected, also purges: `purgeIfDue` in the engine asks the store to delete the fixes and stays past retention, and `SQLiteCaptureStore.purgeExpired` runs the four purge statements of `native-writer.json` in one `BEGIN IMMEDIATE` transaction, with the cutoff `retentionSec` behind the clock.
+
+- **At most once an hour per process** (`Tunables.purgeIntervalSec`): a phone on the move stores a fix every few seconds. The time of the last purge is kept in memory only and never decides what is deleted, so a relaunched process purges at once, and a purge after a long gap or a changed clock deletes exactly what one at that moment should.
+- **A failed purge changes nothing**, is logged as `retention_purge_failed`, and is tried at the next wake. It does not raise `store_unusable`. A store that is already unusable is not purged.
+- **`retention_purge`** in the diagnostics carries `samples=N,stays=N,trimmed=N`, and is written only when something was removed.
+- **Nothing is derived and nothing is vacuumed here.** Both are TypeScript's. The vacuum runs in the app when `getDeviceConditions` says charging and idle.
+
+`getDeviceConditions`: `charging` is `UIDevice.batteryState` being `.charging` or `.full` (battery monitoring is switched on when the module is built), and `idle` is `UIApplication.applicationState` not being `.active`, which covers the background, a locked phone and a dark screen alike.
+
+`RetentionTests` covers when the purge is asked for and the getter; `StoreTests` runs the purge on the real schema, and under `scripts/test-sqlcipher.sh` on an encrypted one.
+
 ## Health flags
 
 Each is produced by its real condition and tested (`EngineTests`, `CaptureFlowTests`, `RelaunchTests`).
@@ -95,8 +108,8 @@ The store key is in the Keychain (`AfterFirstUnlockThisDeviceOnly`), as in `m0/s
 
 ```sh
 cd packages/native-location-capture/ios
-swift test                     # the state machine, 125 tests; Mac or Linux, no simulator
-sh scripts/test-sqlcipher.sh   # the same on an encrypted store, against real SQLCipher, 129 tests; Mac
+swift test                     # the state machine, 148 tests; Mac or Linux, no simulator
+sh scripts/test-sqlcipher.sh   # the same on an encrypted store, against real SQLCipher, 152 tests; Mac
 sh scripts/check-ios.sh        # compiles every source for arm64 iOS, the Turbo Module shim included; Mac
 ```
 
@@ -138,14 +151,15 @@ These tests fix what the module does when iOS behaves as the trial observed. The
 
 Verified on a Mac, with no phone and no simulator:
 
-- The state machine, with fakes for the phone: `swift test`, 125 tests.
-- The store against real SQLCipher built from the C source op-sqlite vendors: opens an encrypted file with the pinned parameters, writes samples and visit stays into the real schema (`migration-v1.sql`), refuses a wrong key, other cipher parameters and a plaintext file, and leaves no plaintext on disk (`scripts/test-sqlcipher.sh`, 129 tests). That build uses CommonCrypto where the app uses OpenSSL.
+- The state machine, with fakes for the phone: `swift test`, 148 tests.
+- The store against real SQLCipher built from the C source op-sqlite vendors: opens an encrypted file with the pinned parameters, writes samples and visit stays into the real schema (`migration-v1.sql`), purges what is past retention from it, refuses a wrong key, other cipher parameters and a plaintext file, and leaves no plaintext on disk (`scripts/test-sqlcipher.sh`, 152 tests). That build uses CommonCrypto where the app uses OpenSSL.
 - Cells and distances against `geo-vectors.json`, with the same H3 version h3-js bundles.
 - Every source file compiles for arm64 iOS 15.1 against the iPhoneOS 18.2 SDK: Swift, the vendored C, the launch observer, and the Turbo Module shim against React Native 0.87.1's headers and the committed codegen header (`scripts/check-ios.sh`).
 
 Not verified:
 
 - **Any behaviour on a device.** In particular: that the launch notification is early enough for iOS to deliver the event that caused a relaunch (the M0 app started capture inside `didFinishLaunching` itself; an app can do the same with `FMPCaptureBridge.resume`); that iOS delivers region exits and visits to the third location manager after a relaunch; that the Always prompt makes the app inactive, which is how a refusal is detected; that state and store are readable in a background launch on a locked phone that was unlocked once.
+- **The battery state and the application state on a phone.** That `batteryState` is already known at the first call after monitoring is switched on (it reads `.unknown`, which counts as on battery, until iOS has told the process), and what `applicationState` is during a background relaunch.
 - **`FMPLocationCapture.podspec`.** CocoaPods is not installed on this machine and there is no `app/ios` to install into. Only its Ruby syntax was checked.
 - **Linking.** Whether the module binds to op-sqlite's SQLCipher and not the system `libsqlite3` in the linked app. If it binds to the wrong one the module refuses to write and reports `store_unusable`; it does not write a plaintext store. `StoreTests.testAnEngineThatIsNotSQLCipherIsRefused` covers that refusal.
 - **That TypeScript (op-sqlite) reads what this module wrote** on a phone. `m0/store-proof` showed it for the same cipher parameters with a probe table, not for this module.

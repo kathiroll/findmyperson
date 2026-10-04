@@ -122,6 +122,40 @@ final class SQLiteCaptureStore: CaptureStore {
         return sqlite3_changes(db) > 0
     }
 
+    /// The retention purge of a capture wake: the four purge statements of the contract, in
+    /// the contract's order, in one transaction (packages/shared/src/store/nativeWriter.ts says
+    /// why each of those matters). It covers the two tables that hold where the phone has
+    /// been; the rest of the purge is TypeScript's.
+    func purgeExpired(nowTsUtc: Int64) throws -> PurgeCounts {
+        let cutoff = nowTsUtc - StoreContract.retentionSec
+        // IMMEDIATE takes the write lock now, so op-sqlite's connection cannot write between
+        // two statements of the purge.
+        try execute("BEGIN IMMEDIATE", step: "purge")
+        do {
+            let samples = try change(StoreContract.deleteSamplesBeforeSql, [cutoff])
+            let stays = try change(StoreContract.deleteStaysEndedBeforeSql, [cutoff])
+            let trimmed = try change(StoreContract.trimStaysStartedBeforeSql, [cutoff, cutoff, cutoff])
+            // Sample ids are rowids: with the newest rows gone, the next fix would take an id
+            // stay derivation has already passed. No parameters.
+            _ = try change(StoreContract.rewindStayCursorSql, [])
+            try execute("COMMIT", step: "purge")
+            return PurgeCounts(samples: samples, stays: stays, staysTrimmed: trimmed)
+        } catch {
+            try? execute("ROLLBACK", step: "purge")
+            throw error
+        }
+    }
+
+    /// Runs an UPDATE or DELETE whose parameters are all integers. Returns the rows it changed.
+    private func change(_ sql: String, _ arguments: [Int64]) throws -> Int {
+        try run(sql, step: "purge") { statement in
+            for (index, value) in arguments.enumerated() {
+                sqlite3_bind_int64(statement, Int32(index + 1), value)
+            }
+        }
+        return Int(sqlite3_changes(db))
+    }
+
     // MARK: opening
 
     /// The steps m0/store-proof proved, in its order. Each failure names its step.

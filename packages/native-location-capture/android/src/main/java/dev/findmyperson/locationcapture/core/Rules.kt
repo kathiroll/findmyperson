@@ -141,3 +141,21 @@ object WakeHeuristic {
         return covered * DENOMINATOR < slots * NUMERATOR
     }
 }
+
+/**
+ * The two answers of `getDeviceConditions`, from what Android reports.
+ *
+ * `charging` is external power, whether or not the battery is still filling: the question is
+ * whether rewriting the store file costs the user battery. `idle` is "nobody is using the app":
+ * the screen is off, or the app is not what is on it. A phone left on a charger overnight is
+ * both; a phone in use on a charger is not idle; a phone in a pocket is not charging.
+ */
+object MaintenanceRules {
+    fun conditions(power: PowerSnapshot) = MaintenanceConditions(
+        charging = power.onExternalPower,
+        idle = !power.screenOn || !power.appInForeground,
+    )
+
+    /** What is answered when Android will not say: the vacuum waits. */
+    val UNKNOWN = MaintenanceConditions(charging = false, idle = false)
+}

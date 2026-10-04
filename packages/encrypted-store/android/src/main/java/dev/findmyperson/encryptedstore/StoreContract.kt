@@ -44,6 +44,11 @@ object StoreContract {
     )
     const val INSERT_VISIT_STAY_SQL = "INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'visit')"
     const val CLOSE_VISIT_STAY_SQL = "UPDATE stay SET end_ts = ?, closed = 1 WHERE source = 'visit' AND closed = 0 AND start_ts = ?"
+    const val RETENTION_SEC = 2592000
+    const val DELETE_SAMPLES_BEFORE_SQL = "DELETE FROM location_sample WHERE ts_utc < ?"
+    const val DELETE_STAYS_ENDED_BEFORE_SQL = "DELETE FROM stay WHERE end_ts < ?"
+    const val TRIM_STAYS_STARTED_BEFORE_SQL = "UPDATE stay SET start_ts = ? WHERE start_ts < ? AND end_ts >= ?"
+    const val REWIND_STAY_CURSOR_SQL = "UPDATE kv SET v = (SELECT CAST(coalesce(max(id), 0) AS TEXT) FROM location_sample) WHERE k = 'stay_derivation.last_sample_id' AND CAST(v AS INTEGER) > (SELECT coalesce(max(id), 0) FROM location_sample)"
     const val STORE_DIRECTORY_NAME = "fmp-store"
     const val KEY_FILE_NAME = "store-key.wrapped"
     const val KEYSTORE_ALIAS = "fmp_store_wrap_v1"

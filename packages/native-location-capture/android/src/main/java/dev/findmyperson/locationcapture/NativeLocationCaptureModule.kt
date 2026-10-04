@@ -116,6 +116,10 @@ class NativeLocationCaptureModule(reactContext: ReactApplicationContext) :
         entries
     }
 
+    override fun getDeviceConditions(promise: Promise) = answer(promise, "getDeviceConditions") {
+        toMap(engine.deviceConditions().toWire())
+    }
+
     override fun debugInjectSample(lat: Double, lon: Double, tsUtc: Double, accuracyM: Double, promise: Promise) =
         answer(promise, "debugInjectSample") {
             engine.debugInjectSample(lat, lon, tsUtc, accuracyM)

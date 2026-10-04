@@ -91,6 +91,9 @@ Both capture modules in `packages/native-location-capture` were merged while thi
 | iOS `CaptureStore.check` / `insertSample` / `insertVisitStay` / `closeVisitStay` | the methods of the same names on `EncryptedStore.shared`                            |
 | iOS `StoreKeySource`, `StoreLocation.prepare()`                                  | `keyHex()`, `directory()`                                                           |
 | The status ledger kept because "the store contract has no read"                  | can stay, or be replaced by `readScalar("SELECT max(ts_utc) FROM location_sample")` |
+| Android `SampleStore.purgeExpired`, iOS `CaptureStore.purgeExpired`              | not on `EncryptedStore` yet: the swap adds it, from the purge constants below       |
+
+The retention purge of a capture wake is in those stand-ins too (`StorePurge` in Kotlin, `SQLiteCaptureStore.purgeExpired` in Swift). `StoreContract.kt` and `StoreContract.swift` here already carry the four purge statements and `RETENTION_SEC`, so the swap has the same SQL to run; `EncryptedStore` has no method for it until then, and needs a transaction on its connection to get one.
 
 Until that is done the two implementations run side by side, so this package uses exactly the names and formats the stand-ins use: the same Keychain item, the same Android Keystore alias, key file name and key file format, and the same directory on each platform (`src/location.ts`). Both therefore find one key and one file. What the stand-ins lack is what is new here: the backup guard at open, the fail-closed check of the exclusion flag on iOS, and any part in "Delete all my data". On Android the stand-in opens the file for each write and re-reads the key file, so it follows a delete by itself. On iOS it keeps its connection open, so after a delete it goes on writing to the removed file until the app restarts. The swap has to land before a Settings screen offers the delete.
 
@@ -100,7 +103,7 @@ On Android the TypeScript side reads and writes the file through op-sqlite's SQL
 
 The problem is specific and real. SQLite protects a database with POSIX file locks, which belong to the process, not to the library copy. Two copies in one process do not see each other's locks, so they do not exclude each other, and when one closes its handle the operating system drops the other's locks too (sqlite.org, "How To Corrupt An SQLite Database File", section 2.2.1). While the app is open and capture stores a fix, both copies can believe they hold the write lock. Each write is a few milliseconds and happens about four times an hour, so the window is small, but the outcome when it is hit is lost writes or a damaged WAL. iOS is not affected: there is one SQLCipher in the app and Swift binds to it.
 
-This package narrows the window (the Kotlin store keeps one connection open instead of opening and closing per write, so a close seldom happens) and does not remove it. The options, for whoever decides:
+This package narrows the window (the Kotlin store keeps one connection open instead of opening and closing per write, so a close seldom happens) and does not remove it. Two things wait on the decision. The weekly `VACUUM` is switched off on Android (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`): rewriting the whole file holds the write lock for far longer than an insert. And the native retention purge, which is a few small deletes about once an hour on a capture wake, is one more native write of the kind an insert already is. The options, for whoever decides:
 
 1. **One library.** The Kotlin writer calls the SQLCipher inside `libop-sqlite.so` through a small JNI shim, as Swift does through `FMPSqlcipher.c`. Removes the problem and the second 4 MB library. Needs the NDK, depends on op-sqlite exporting the `sqlite3_*` symbols, and must be proved on a device.
 2. **Two processes.** Run capture's worker and service in their own process (`android:process`). File locks work between processes. Changes how the capture module talks to JavaScript.
@@ -194,7 +197,9 @@ await store.runMaintenance(nowSeconds); // on every foreground, and every captur
 
 One run derives stays, deletes everything past retention and, once a week while the phone is charging and idle, vacuums the file. `src/retention.test.ts` runs it on a real SQLCipher file: 60 days of data, nothing past 30 days left, and the file back to the size of a store that only ever held 30 days, with a second connection open as the native writer's is.
 
-The purge is TypeScript and runs when JavaScript runs. A capture wake that stores a fix natively, with no JavaScript, does not purge: that would need delete statements in `native-writer.json` and a caller in both capture modules, and it is not built. Until it is, a phone on which the app is never opened keeps capturing and is purged at the next run, which catches up in one pass however long the gap was.
+The app does exactly this (`createDataStore` and `StoreMaintenance` in `app/src/store/`): it opens the store at its first maintenance run and keeps the handle, with `deviceConditions` answered by the capture module. On Android it passes `vacuum: 'disabled'` until the decision above is made (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`).
+
+That purge is TypeScript and runs when JavaScript runs. On a capture wake with no JavaScript the capture modules purge fixes and stays themselves, with the purge statements of `native-writer.json`; see "Retention" in `packages/shared/README.md`. They never vacuum.
 
 ## What SQLCipher does and does not protect (plan 4.3)
 
