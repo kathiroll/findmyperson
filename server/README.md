@@ -10,6 +10,22 @@ Every report is `pending` on submit. Nothing pending is ever broadcast; only the
 - `ServerDb.listBroadcastable` is the only read the shard compiler uses: released, active, unexpired.
 - On submit the operator alert fires (`src/alerts.ts`). It is a logged `report.pending` event; a real push/SMS/email channel plugs in there.
 - Operator routes (`/v1/operator/...`): list, `release`, `reject`, held responses. Auth is a device-id allow-list on the forgeable stub (`FMP_OPERATOR_DEVICE_IDS`, empty means nobody). **Needs real operator authentication before this is exposed** (`src/operator.ts`).
+- The operator page (`/operator`, below) puts the same release and reject in front of a browser.
+
+## The operator page
+
+`GET /operator` (`src/operatorPage.ts`) is one server-rendered HTML page, with no script, where the captain does the review:
+
+- **Pending reports**, newest first: the person's name, description and photo, where and when they were last seen, the reporter's phone and the submit time, each with Release and Reject. The buttons run the same `reviewReport` as the operator routes (`src/app.ts`), so the lifecycle rules are the ones above; the decision is recorded as `reviewed_by = operator-web`. A report the reporter ended, or that expired, is offered Reject only. Reports store no reporter name, so the page shows the phone.
+- **Held responses**, newest first: the text, the responder's phone if they shared one, the report it answers and why it was held, each with Release and Reject (`decideHeldResponse` in `src/moderation.ts`). Release delivers it: the reporter's next read of `GET /v1/reports/:id/responses` returns it, even if they had already read past the point where it was held. Reject keeps it undelivered for good, and it still counts as that device's one response. Both are final and recorded in the `response_reviews` table.
+
+**Access is a temporary stub and must be replaced by real operator authentication** (`TODO(operator-auth)`, the same gap as `src/operator.ts`). It is one shared token, `FMP_OPERATOR_WEB_TOKEN`:
+
+- Unset, empty or shorter than 16 characters, the page refuses every request with 403. Generate one with `openssl rand -hex 32`.
+- The sign-in form posts the token; a correct one sets a 12-hour cookie (`HttpOnly`, `SameSite=Lax`, `Secure` over TLS) holding an expiry and an HMAC of it keyed by the token. Every request to `/operator` and everything under it checks that cookie. Changing the token signs everyone out.
+- What it does not have: accounts, a record of which person decided, a limit on sign-in attempts, or revocation of one session. Serve it over TLS only, and do not rely on it facing the internet for long.
+
+Reports and responses are text written by strangers. The page escapes every value it prints (the `markup` tag in that file) and is sent with a Content-Security-Policy that allows no script; a POST that the browser marks as coming from another site is refused.
 
 ## The shard compiler (plan 7, task B3.4)
 
@@ -128,7 +144,7 @@ Limits of the measurement:
 
 - One response per `(report, device)`: a UNIQUE constraint, no other cap.
 - Device identity is the plain client-generated id; no attestation or phone verification.
-- Moderation (`src/moderation.ts`): text with a link or payment identifier is held and logged; everything else is delivered. Regex heuristic, limits documented in the file.
+- Moderation (`src/moderation.ts`): text with a link or payment identifier is held and logged; everything else is delivered. Regex heuristic, limits documented in the file. A held response waits until the operator releases or rejects it on the operator page.
 
 ## Open points for review
 
@@ -143,7 +159,7 @@ The sources import each other, and `@findmyperson/shared`, without file extensio
 
 ```
 pnpm --filter @findmyperson/server build
-FMP_OPERATOR_DEVICE_IDS=<id> node server/dist/main.js        # or: pnpm --filter @findmyperson/server start
+FMP_OPERATOR_DEVICE_IDS=<id> FMP_OPERATOR_WEB_TOKEN=<token> node server/dist/main.js        # or: pnpm --filter @findmyperson/server start
 node server/dist/cli.js compile | keygen <key_id>
 ```
 

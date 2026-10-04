@@ -12,7 +12,13 @@
  * unusual TLDs, homoglyphs beyond NFKC folding, addresses with injected characters, and payment
  * requests phrased in unlisted words or languages. It also over-holds: an email address looks
  * like a UPI id. Over-holding is the intended failure direction.
+ *
+ * A held response waits for the operator, who decides it with `decideHeldResponse` (the operator
+ * page, operatorPage.ts): release delivers it to the reporter, reject keeps it undelivered for
+ * good. Both are final, and nothing else moves a response out of `held`.
  */
+import type { ServerDb } from './db';
+
 export type ModerationReason = 'url' | 'crypto_address' | 'upi_id' | 'payment_phrase';
 
 export type ModerationVerdict = { held: false } | { held: true; reason: ModerationReason };
@@ -68,4 +74,21 @@ export function moderateResponse(text: string): ModerationVerdict {
     return { held: true, reason: 'payment_phrase' };
   }
   return { held: false };
+}
+
+export type HeldResponseAction = 'release' | 'reject';
+
+/**
+ * The operator's decision on a held response. False when `responseId` is not a held response
+ * awaiting a decision (unknown, never held, or already decided), in which case nothing changed.
+ */
+export function decideHeldResponse(
+  db: Pick<ServerDb, 'releaseHeldResponse' | 'rejectHeldResponse'>,
+  responseId: string,
+  action: HeldResponseAction,
+  now: number,
+): boolean {
+  return action === 'release'
+    ? db.releaseHeldResponse(responseId, now)
+    : db.rejectHeldResponse(responseId, now);
 }

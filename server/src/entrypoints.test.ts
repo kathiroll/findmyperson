@@ -66,6 +66,10 @@ describe('built entry points under plain node', () => {
       });
       const res = await fetch(`${url}/v1/reports/does-not-exist`);
       expect(res.status).toBeLessThan(500);
+      // No FMP_OPERATOR_WEB_TOKEN in this environment, so the operator page refuses.
+      const operatorPage = await fetch(`${url}/operator`);
+      expect(operatorPage.status).toBe(403);
+      expect(operatorPage.headers.get('content-type')).toContain('text/html');
     } finally {
       child.kill('SIGTERM');
     }
