@@ -23,6 +23,7 @@ import type {
   CaptureMode,
   CaptureStatus,
   CaptureTier,
+  DeviceConditions,
   DiagnosticEntry,
   HealthFlag,
   PermissionState,
@@ -96,6 +97,11 @@ export interface FakeControls {
   setPermission(state: PermissionState): void;
   /** Turns a device condition on or off. Throws for a flag the platform cannot raise. */
   setCondition(flag: ConditionFlag, on: boolean): void;
+  /**
+   * The phone was plugged in or unplugged, the app left the screen or came back to it. What
+   * `getDeviceConditions` answers; at the start the phone is on battery and in use.
+   */
+  setDeviceConditions(conditions: Partial<DeviceConditions>): void;
   /** The platform hands the module a fix. This is the capture path, filter included. */
   deliverFix(fix: FakeFix): Promise<FixOutcome>;
   /** The OS will refuse the next `start` that has to start a mechanism. */
@@ -210,6 +216,7 @@ export function createFakeLocationCapture(
     background: 'always',
   };
   const conditions = new Set<ConditionFlag>();
+  const deviceConditions: DeviceConditions = { charging: false, idle: false };
 
   let selection: Selection | null = null;
   let mechanismAlive = false;
@@ -315,6 +322,7 @@ export function createFakeLocationCapture(
     }
     const id = db === undefined ? nextSampleId++ : await insertLocationSample(db, sample);
     samples.push({ id, ...sample, ...sampleCells(sample) });
+    await purge();
     sampleWritten.emit({
       tsUtc: sample.ts_utc,
       accuracyM: sample.accuracy_m,
@@ -322,6 +330,25 @@ export function createFakeLocationCapture(
     });
     notify();
     return null;
+  }
+
+  /**
+   * The retention purge a native module runs on a capture wake, with the contract's statements:
+   * fixes and stays past retention go, whether or not JavaScript ever runs the full purge.
+   */
+  async function purge(): Promise<void> {
+    const cutoff = now() - NATIVE_WRITER_CONTRACT.retentionSec;
+    for (let index = samples.length - 1; index >= 0; index--) {
+      if ((samples[index]?.ts_utc ?? cutoff) < cutoff) {
+        samples.splice(index, 1);
+      }
+    }
+    if (db !== undefined) {
+      await db.execute(NATIVE_WRITER_CONTRACT.deleteSamplesBeforeSql, [cutoff]);
+      await db.execute(NATIVE_WRITER_CONTRACT.deleteStaysEndedBeforeSql, [cutoff]);
+      await db.execute(NATIVE_WRITER_CONTRACT.trimStaysStartedBeforeSql, [cutoff, cutoff, cutoff]);
+      await db.execute(NATIVE_WRITER_CONTRACT.rewindStayCursorSql);
+    }
   }
 
   function startMechanism(mode: ActiveMode): void {
@@ -363,6 +390,9 @@ export function createFakeLocationCapture(
         conditions.delete(flag);
       }
       notify();
+    },
+    setDeviceConditions(next) {
+      Object.assign(deviceConditions, next);
     },
     deliverFix: (fix) =>
       serial(async () => {
@@ -519,6 +549,8 @@ export function createFakeLocationCapture(
       serial(async () =>
         diagnostics.filter((entry) => entry.tsUtc >= sinceTsUtc).map((entry) => ({ ...entry })),
       ),
+
+    getDeviceConditions: () => serial(async () => ({ ...deviceConditions })),
 
     debugInjectSample: (lat, lon, tsUtc, accuracyM) =>
       serial(async () => {

@@ -21,6 +21,7 @@ export type {
   CaptureMode,
   CaptureStatus,
   CaptureTier,
+  DeviceConditions,
   DiagnosticEntry,
   HealthFlag,
   PermissionState,

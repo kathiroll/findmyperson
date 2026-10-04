@@ -60,7 +60,7 @@ export * from './store/tables/kv';
 // Stay derivation: the writer of 'derived' rows in `stay`.
 export type { StaySample } from './stay/cluster';
 export { extractStays, type CoveringStay } from './stay/extract';
-export { deriveStays, type StayDerivationResult } from './stay/derive';
+export { deriveStays, REWIND_STAY_CURSOR_SQL, type StayDerivationResult } from './stay/derive';
 
 // Retention: the purge, the weekly VACUUM and the store's maintenance hook.
 export { purgeExpired, type PurgeResult } from './retention/purge';

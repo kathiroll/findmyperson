@@ -70,12 +70,14 @@ async function readCursor(db: SqlExecutor): Promise<number> {
  * after several such fixes would see a cursor that looks valid and skip them. The cursor is
  * therefore pulled back to the newest id still stored. Every fix that is left was already
  * finished with, so nothing is derived twice.
+ *
+ * It is one statement with no parameters, so the native modules can run the same thing after
+ * their own purge on a wake with no JavaScript (store/nativeWriter.ts).
  */
+export const REWIND_STAY_CURSOR_SQL = `UPDATE kv SET v = (SELECT CAST(coalesce(max(id), 0) AS TEXT) FROM location_sample) WHERE k = '${KV_KEYS.stayDerivationLastSampleId}' AND CAST(v AS INTEGER) > (SELECT coalesce(max(id), 0) FROM location_sample)`;
+
 export async function rewindStayCursorToStoredSamples(tx: SqlExecutor): Promise<void> {
-  const latest = (await getLatestSampleId(tx)) ?? 0;
-  if ((await readCursor(tx)) > latest) {
-    await kvSet(tx, KV_KEYS.stayDerivationLastSampleId, String(latest));
-  }
+  await tx.execute(REWIND_STAY_CURSOR_SQL);
 }
 
 export async function deriveStays(db: SqlDatabase): Promise<StayDerivationResult> {

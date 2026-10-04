@@ -39,7 +39,8 @@ const press = async (renderer: ReactTestRenderer, label: string) => {
   });
 };
 
-async function mountSettings(capture: FakeLocationCapture, dataStore: DataStore) {
+async function mountSettings(capture: FakeLocationCapture, store: Pick<DataStore, 'deleteAll'>) {
+  const dataStore: DataStore = { ...store, runMaintenance: async () => ({ ran: true }) };
   const handlers = { onOpenCaptureHealth: vi.fn(), onOpenPermissionFlow: vi.fn() };
   let renderer!: ReactTestRenderer;
   await act(async () => {

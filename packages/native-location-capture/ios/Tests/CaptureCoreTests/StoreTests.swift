@@ -155,6 +155,156 @@ final class StoreTests: XCTestCase {
         XCTAssertThrowsError(try store.closeVisitStay(endTs: 2, startTs: 1))
     }
 
+    // MARK: the purge statements of native-writer.json
+
+    private static let now: Int64 = 1_790_000_000
+    private static let cutoff = now - StoreContract.retentionSec
+    private static let day: Int64 = 86_400
+
+    private func sample(at tsUtc: Int64) -> SampleRow {
+        SampleRow(
+            tsUtc: tsUtc, coordinate: Place.home, accuracyM: 20, source: "continuous",
+            h3r7: "8760145b4ffffff", h3r5: "8560145bfffffff")
+    }
+
+    private func insertStay(_ database: TestDatabase, _ start: Int64, _ end: Int64, _ source: String) throws {
+        try database.execute(
+            """
+            INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source)
+            VALUES (\(start), \(end), 12.9716, 77.5946, 60, '8760145b4ffffff', 4, 1, '\(source)')
+            """)
+    }
+
+    private func setCursor(_ database: TestDatabase, _ value: Int) throws {
+        try database.execute(
+            "INSERT OR REPLACE INTO kv (k, v) VALUES ('stay_derivation.last_sample_id', '\(value)')")
+    }
+
+    func testThePurgeDeletesFixesAndStaysPastRetentionAndNothingInsideIt() throws {
+        let fixture = try StoreFixture()
+        let store = fixture.store()
+        try store.check()
+        let (now, cutoff, day) = (Self.now, Self.cutoff, Self.day)
+        for tsUtc in [cutoff - 10 * day, cutoff - 1, cutoff, cutoff + 1, now] {
+            try store.insertSample(sample(at: tsUtc))
+        }
+        try insertStay(fixture.database, cutoff - 5 * day, cutoff - 4 * day, "derived")
+        try insertStay(fixture.database, cutoff - 2 * day, cutoff - 1, "visit")
+        try insertStay(fixture.database, cutoff - 3600, cutoff + 3600, "derived")
+        try insertStay(fixture.database, cutoff - 7200, cutoff, "visit")
+        try insertStay(fixture.database, now - day, now, "derived")
+        try setCursor(fixture.database, 5)
+
+        XCTAssertEqual(
+            try store.purgeExpired(nowTsUtc: now), PurgeCounts(samples: 2, stays: 2, staysTrimmed: 2))
+
+        XCTAssertEqual(
+            try fixture.database.column("SELECT ts_utc FROM location_sample ORDER BY ts_utc"),
+            [cutoff, cutoff + 1, now].map(String.init))
+        // A stay still running across the cutoff keeps its row, from the cutoff on.
+        XCTAssertEqual(
+            try fixture.database.column(
+                "SELECT start_ts || '|' || end_ts || '|' || source FROM stay ORDER BY id"),
+            ["\(cutoff)|\(cutoff + 3600)|derived", "\(cutoff)|\(cutoff)|visit", "\(now - day)|\(now)|derived"])
+        // The newest fix is still there, so the cursor has nothing to catch up with.
+        XCTAssertEqual(try fixture.database.column("SELECT v FROM kv"), ["5"])
+
+        // Nothing is remembered between runs: a second one finds nothing left to delete.
+        XCTAssertEqual(
+            try store.purgeExpired(nowTsUtc: now), PurgeCounts(samples: 0, stays: 0, staysTrimmed: 0))
+    }
+
+    func testWhenEveryFixIsPastRetentionTheDerivationCursorIsPulledBackWithThem() throws {
+        let fixture = try StoreFixture()
+        let store = fixture.store()
+        try store.check()
+        let (now, cutoff, day) = (Self.now, Self.cutoff, Self.day)
+        for tsUtc in [cutoff - 3 * day, cutoff - 2 * day, cutoff - day] {
+            try store.insertSample(sample(at: tsUtc))
+        }
+        try setCursor(fixture.database, 3)
+
+        XCTAssertEqual(
+            try store.purgeExpired(nowTsUtc: now), PurgeCounts(samples: 3, stays: 0, staysTrimmed: 0))
+        // The next fix takes id 1 again. A cursor left at 3 would have stay derivation skip it.
+        XCTAssertEqual(try fixture.database.column("SELECT v FROM kv"), ["0"])
+        try store.insertSample(sample(at: now))
+        XCTAssertEqual(try fixture.database.column("SELECT id FROM location_sample"), ["1"])
+    }
+
+    func testThePurgeTouchesNoOtherTable() throws {
+        let fixture = try StoreFixture()
+        let store = fixture.store()
+        try store.check()
+        try fixture.database.execute(
+            """
+            INSERT INTO report_cache (query_id, payload_json, version, received_at, expires_at, revision)
+            VALUES ('q', '{}', 1, 1, 2, 1)
+            """)
+        try fixture.database.execute("INSERT INTO kv (k, v) VALUES ('purge.last_vacuum_at', '99')")
+        try store.insertSample(sample(at: Self.cutoff - Self.day))
+
+        _ = try store.purgeExpired(nowTsUtc: Self.now)
+
+        XCTAssertEqual(try fixture.database.column("SELECT count(*) FROM report_cache"), ["1"])
+        XCTAssertEqual(try fixture.database.column("SELECT v FROM kv"), ["99"])
+    }
+
+    func testAPurgeThatFailsPartWayDeletesNothing() throws {
+        let fixture = try StoreFixture()
+        let store = fixture.store()
+        try store.check()
+        try store.insertSample(sample(at: Self.cutoff - Self.day))
+        try insertStay(fixture.database, Self.cutoff - 2 * Self.day, Self.cutoff - Self.day, "derived")
+        // The stay table goes missing between the first statement and the second.
+        try fixture.database.execute("ALTER TABLE stay RENAME TO stay_moved")
+
+        XCTAssertEqual(failure { _ = try store.purgeExpired(nowTsUtc: Self.now) }?.step, "purge")
+
+        XCTAssertEqual(try fixture.database.column("SELECT count(*) FROM location_sample"), ["1"])
+        XCTAssertEqual(try fixture.database.column("SELECT count(*) FROM stay_moved"), ["1"])
+        // The transaction was closed, so the connection still writes.
+        try fixture.database.execute("ALTER TABLE stay_moved RENAME TO stay")
+        XCTAssertEqual(
+            try store.purgeExpired(nowTsUtc: Self.now), PurgeCounts(samples: 1, stays: 1, staysTrimmed: 0))
+    }
+
+    func testAClockThatHasNotBeenSetDeletesNothing() throws {
+        let fixture = try StoreFixture()
+        let store = fixture.store()
+        try store.check()
+        try store.insertSample(sample(at: Self.now))
+        // 1970: the cutoff is before every row there is.
+        XCTAssertEqual(
+            try store.purgeExpired(nowTsUtc: 0), PurgeCounts(samples: 0, stays: 0, staysTrimmed: 0))
+        XCTAssertEqual(try fixture.database.samples.count, 1)
+    }
+
+    func testPurgingBeforeTheCheckFailsInsteadOfCrashing() throws {
+        let fixture = try StoreFixture()
+        XCTAssertEqual(failure { _ = try fixture.store().purgeExpired(nowTsUtc: Self.now) }?.step, "purge")
+    }
+
+    func testCaptureOnTheRealStoreKeepsThirtyDaysWithNoJavaScript() throws {
+        let fixture = try StoreFixture()
+        let phone = Harness(launch: false)
+        phone.realStore = fixture.store()
+        phone.launch()
+        try phone.start()
+        // Forty days of a phone sitting still, one stored fix every fifteen minutes.
+        for _ in 0..<(40 * 96) {
+            phone.location.deliver(Fix(Place.home, at: phone.clock.now))
+            phone.clock.advance(900)
+        }
+
+        let oldest = try XCTUnwrap(
+            Int64(try fixture.database.column("SELECT min(ts_utc) FROM location_sample")[0]))
+        XCTAssertGreaterThanOrEqual(oldest, phone.clock.now - StoreContract.retentionSec - 3600)
+        let kept = try XCTUnwrap(Int(try fixture.database.column("SELECT count(*) FROM location_sample")[0]))
+        XCTAssertTrue((30 * 96...30 * 96 + 5).contains(kept), "\(kept) fixes kept")
+        XCTAssertEqual(phone.status.health, [])
+    }
+
     // MARK: the engine on the real store
 
     func testCaptureWritesSamplesAndVisitStaysIntoTheRealSchema() throws {

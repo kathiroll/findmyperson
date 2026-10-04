@@ -9,7 +9,9 @@ import { purgeExpired, type PurgeResult } from './purge';
  *
  * createRetentionMaintenance() is the function to pass as `maintenance` to openStore in
  * @findmyperson/encrypted-store. `store.runMaintenance(now)` then does all three, on every
- * capture wake that runs JavaScript and on every app foreground.
+ * capture wake that runs JavaScript and on every app foreground (app/src/store/ calls it). A
+ * capture wake with no JavaScript purges fixes and stays natively instead, with the statements
+ * of store/nativeWriter.ts; it never vacuums.
  *
  * Derivation runs here, and not only before it in the caller, so that no caller can purge fixes
  * that were never looked at. Calling deriveStays elsewhere as well is harmless.
@@ -17,7 +19,8 @@ import { purgeExpired, type PurgeResult } from './purge';
  * VACUUM. Deleting rows frees pages inside the file; only VACUUM gives them back. It rewrites
  * the whole file, so it runs at most once per VACUUM_INTERVAL_SEC, and only while the device is
  * charging and nobody is using it. This package cannot see either; the app says so through
- * `deviceConditions`, and without an answer the file is not vacuumed. Nothing here schedules
+ * `deviceConditions` (the capture module's `getDeviceConditions`), and without an answer the
+ * file is not vacuumed. Nothing here schedules
  * anything: a vacuum that is due waits for the next run that finds the device charging and idle.
  */
 export interface DeviceConditions {
@@ -33,16 +36,24 @@ export interface RetentionOptions {
    * still runs and the vacuum waits.
    */
   deviceConditions?: () => Promise<DeviceConditions>;
+  /**
+   * 'disabled' switches the VACUUM off for this store, whatever the conditions: nothing is asked,
+   * nothing is rewritten, and every run reports `disabled`. The purge is not affected. For a
+   * platform where rewriting the whole file is not yet known to be safe; the app decides which
+   * (ANDROID_VACUUM_ENABLED in app/src/store/retention.ts). Default 'enabled'.
+   */
+  vacuum?: 'enabled' | 'disabled';
 }
 
 /**
+ *   disabled  the caller switched the vacuum off (RetentionOptions.vacuum)
  *   not_due   the last vacuum was less than VACUUM_INTERVAL_SEC ago
  *   waiting   due, but the device is not both charging and idle
  *   done      the file was vacuumed
  *   failed    VACUUM did not run to the end (the native writer held the file, or the disk is
  *             full); nothing is lost and the next run tries again
  */
-export type VacuumOutcome = 'not_due' | 'waiting' | 'done' | 'failed';
+export type VacuumOutcome = 'disabled' | 'not_due' | 'waiting' | 'done' | 'failed';
 
 export interface RetentionRun {
   derived: StayDerivationResult;
@@ -66,6 +77,9 @@ export async function vacuumIfDue(
   nowTs: number,
   options: RetentionOptions = {},
 ): Promise<VacuumOutcome> {
+  if (options.vacuum === 'disabled') {
+    return 'disabled';
+  }
   if (!vacuumIsDue(await kvGet(db, KV_KEYS.vacuumLastRunAt), nowTs)) {
     return 'not_due';
   }

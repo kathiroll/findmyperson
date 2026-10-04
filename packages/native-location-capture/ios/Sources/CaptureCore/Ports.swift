@@ -83,6 +83,12 @@ protocol DeviceConditions: AnyObject {
     var lowPowerMode: Bool { get }
     /// When the phone last started, Unix seconds, or nil if it cannot be read.
     var bootTimeSec: Double? { get }
+    /// On external power: charging, or plugged in with the battery full. False if iOS will not
+    /// say.
+    var onExternalPower: Bool { get }
+    /// The app is on screen and receiving events. False in the background, and while the phone
+    /// is locked or its screen is off.
+    var appActive: Bool { get }
     /// Opens the app's page in Settings.
     func openAppSettings(completion: @escaping (Bool) -> Void)
 }
@@ -128,6 +134,18 @@ protocol CaptureStore: AnyObject {
     func insertVisitStay(_ row: VisitStayRow) throws
     /// Closes the open visit that began at `startTs`. False if there was no such row.
     func closeVisitStay(endTs: Int64, startTs: Int64) throws -> Bool
+    /// Deletes the fixes and stays that are past retention as of `nowTsUtc`: the purge
+    /// statements of native-writer.json, in one transaction. Call it after `check` has passed.
+    func purgeExpired(nowTsUtc: Int64) throws -> PurgeCounts
+}
+
+/// What one purge removed. Counts only, so it can go into the diagnostics.
+struct PurgeCounts: Equatable {
+    var samples: Int
+    var stays: Int
+    var staysTrimmed: Int
+
+    var nothing: Bool { samples == 0 && stays == 0 && staysTrimmed == 0 }
 }
 
 /// Thrown by StateStorage.load when the file exists but cannot be read.

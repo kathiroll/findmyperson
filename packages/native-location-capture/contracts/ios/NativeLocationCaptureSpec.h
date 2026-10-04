@@ -76,6 +76,8 @@ namespace JS {
 - (void)getDiagnostics:(double)sinceTsUtc
                resolve:(RCTPromiseResolveBlock)resolve
                 reject:(RCTPromiseRejectBlock)reject;
+- (void)getDeviceConditions:(RCTPromiseResolveBlock)resolve
+                     reject:(RCTPromiseRejectBlock)reject;
 - (void)debugInjectSample:(double)lat
                       lon:(double)lon
                     tsUtc:(double)tsUtc

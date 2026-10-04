@@ -5,6 +5,7 @@ import dev.findmyperson.locationcapture.Contracts.strings
 import dev.findmyperson.locationcapture.core.H3
 import dev.findmyperson.locationcapture.core.HOME_LAT
 import dev.findmyperson.locationcapture.core.HOME_LON
+import dev.findmyperson.locationcapture.core.PurgeCounts
 import dev.findmyperson.locationcapture.core.StoredSample
 import dev.findmyperson.locationcapture.core.T0
 import org.junit.After
@@ -21,6 +22,8 @@ import java.sql.DriverManager
  *   - the constants the build generated are the contract files' values;
  *   - the insert statement, bound the way this module binds it, writes the row TypeScript
  *     expects into the real schema (contracts/migration-v1.sql), run on a real SQLite;
+ *   - the purge statements, run the way this module runs them, delete what is past retention
+ *     from that schema and nothing else;
  *   - a store at another schema version is refused, and a drifted cipher parameter is caught.
  *
  * What is not run here is SQLCipher itself: its Android library cannot load on a JVM. The
@@ -55,6 +58,26 @@ class StoreContractTest {
             }
         }
 
+        override fun update(sql: String, args: LongArray): Int =
+            connection.prepareStatement(sql).use { statement ->
+                args.forEachIndexed { index, value -> statement.setLong(index + 1, value) }
+                statement.executeUpdate()
+            }
+
+        override fun <T> transaction(block: () -> T): T {
+            connection.autoCommit = false
+            try {
+                val result = block()
+                connection.commit()
+                return result
+            } catch (e: Exception) {
+                connection.rollback()
+                throw e
+            } finally {
+                connection.autoCommit = true
+            }
+        }
+
         override fun close() = connection.close()
     }
 
@@ -86,6 +109,21 @@ class StoreContractTest {
         assertEquals(writer.getString("storeFileName"), StoreContract.STORE_FILE_NAME)
         assertEquals(writer.getString("insertLocationSampleSql"), StoreContract.INSERT_LOCATION_SAMPLE_SQL)
         assertEquals(writer.getJSONArray("sampleSources").strings(), StoreContract.SAMPLE_SOURCES.toList())
+
+        assertEquals(writer.getLong("retentionSec"), StoreContract.RETENTION_SEC)
+        assertEquals(writer.getString("deleteSamplesBeforeSql"), StoreContract.DELETE_SAMPLES_BEFORE_SQL)
+        assertEquals(writer.getString("deleteStaysEndedBeforeSql"), StoreContract.DELETE_STAYS_ENDED_BEFORE_SQL)
+        assertEquals(writer.getString("trimStaysStartedBeforeSql"), StoreContract.TRIM_STAYS_STARTED_BEFORE_SQL)
+        assertEquals(writer.getString("rewindStayCursorSql"), StoreContract.REWIND_STAY_CURSOR_SQL)
+        // The whole contract. A key added to it needs a decision here; the two visit statements are iOS's.
+        assertEquals(
+            setOf(
+                "schemaVersion", "readSchemaVersionSql", "storeFileName", "insertLocationSampleSql", "sampleSources",
+                "insertVisitStaySql", "closeVisitStaySql", "retentionSec", "deleteSamplesBeforeSql",
+                "deleteStaysEndedBeforeSql", "trimStaysStartedBeforeSql", "rewindStayCursorSql",
+            ),
+            writer.keys().asSequence().toSet(),
+        )
 
         assertEquals(cipher.getInt("sqlcipherMajor"), StoreContract.SQLCIPHER_MAJOR)
         assertEquals(cipher.getInt("cipherCompatibility"), StoreContract.CIPHER_COMPATIBILITY)
@@ -157,6 +195,107 @@ class StoreContractTest {
                 assertEquals(listOf("integer", "real", "real"), listOf(rows.getString(1), rows.getString(2), rows.getString(3)))
             }
         }
+    }
+
+    // ---- the purge ----
+
+    private fun column(sql: String): List<String> = connection.createStatement().use { statement ->
+        statement.executeQuery(sql).use { rows ->
+            generateSequence { if (rows.next()) rows.getString(1) else null }.toList()
+        }
+    }
+
+    private fun stay(startTs: Long, endTs: Long, source: String, closed: Int = 1) {
+        connection.createStatement().use {
+            it.execute(
+                "INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source) " +
+                    "VALUES ($startTs, $endTs, $HOME_LAT, $HOME_LON, 60, '8760145b4ffffff', 4, $closed, '$source')",
+            )
+        }
+    }
+
+    private fun setCursor(value: Long) {
+        connection.createStatement().use {
+            it.execute("INSERT OR REPLACE INTO kv (k, v) VALUES ('stay_derivation.last_sample_id', '$value')")
+        }
+    }
+
+    private val day = 86_400L
+    private val cutoff get() = T0 - StoreContract.RETENTION_SEC
+
+    @Test
+    fun `the purge deletes fixes and stays past retention and nothing inside it`() {
+        for (ts in listOf(cutoff - 10 * day, cutoff - 1, cutoff, cutoff + 1, T0)) StoreRules.insert(db, sample(ts))
+        stay(cutoff - 5 * day, cutoff - 4 * day, "derived")
+        stay(cutoff - 2 * day, cutoff - 1, "visit")
+        stay(cutoff - 3600, cutoff + 3600, "derived")
+        stay(cutoff - 7200, cutoff, "visit")
+        stay(T0 - day, T0, "derived", closed = 0)
+        setCursor(5)
+
+        assertEquals(PurgeCounts(samples = 2, stays = 2, staysTrimmed = 2), StorePurge.run(db, T0))
+
+        assertEquals(listOf(cutoff, cutoff + 1, T0).map { it.toString() }, column("SELECT ts_utc FROM location_sample ORDER BY ts_utc"))
+        // A stay still running across the cutoff keeps its row, from the cutoff on.
+        assertEquals(
+            listOf("$cutoff|${cutoff + 3600}|derived", "$cutoff|$cutoff|visit", "${T0 - day}|$T0|derived"),
+            column("SELECT start_ts || '|' || end_ts || '|' || source FROM stay ORDER BY id"),
+        )
+        // The newest fix is still there, so the cursor has nothing to catch up with.
+        assertEquals(listOf("5"), column("SELECT v FROM kv"))
+
+        // Nothing is remembered between runs: a second one finds nothing left to delete.
+        assertEquals(PurgeCounts(0, 0, 0), StorePurge.run(db, T0))
+    }
+
+    @Test
+    fun `when every fix is past retention the derivation cursor is pulled back with them`() {
+        for (ts in listOf(cutoff - 3 * day, cutoff - 2 * day, cutoff - day)) StoreRules.insert(db, sample(ts))
+        setCursor(3)
+
+        assertEquals(PurgeCounts(samples = 3, stays = 0, staysTrimmed = 0), StorePurge.run(db, T0))
+        // The next fix takes id 1 again. A cursor left at 3 would have stay derivation skip it.
+        assertEquals(listOf("0"), column("SELECT v FROM kv"))
+        StoreRules.insert(db, sample(T0))
+        assertEquals(listOf("1"), column("SELECT id FROM location_sample"))
+    }
+
+    @Test
+    fun `the purge touches no other table`() {
+        connection.createStatement().use {
+            it.execute(
+                "INSERT INTO report_cache (query_id, payload_json, version, received_at, expires_at, revision) " +
+                    "VALUES ('q', '{}', 1, 1, 2, 1)",
+            )
+            it.execute("INSERT INTO kv (k, v) VALUES ('purge.last_vacuum_at', '99')")
+        }
+        StoreRules.insert(db, sample(cutoff - day))
+
+        StorePurge.run(db, T0)
+
+        assertEquals(listOf("1"), column("SELECT count(*) FROM report_cache"))
+        assertEquals(listOf("99"), column("SELECT v FROM kv"))
+    }
+
+    @Test
+    fun `a purge that fails part-way deletes nothing`() {
+        StoreRules.insert(db, sample(cutoff - day))
+        stay(cutoff - 2 * day, cutoff - day, "derived")
+        // The stay table goes missing between the first statement and the second.
+        connection.createStatement().use { it.execute("ALTER TABLE stay RENAME TO stay_moved") }
+
+        assertThrows(java.sql.SQLException::class.java) { StorePurge.run(db, T0) }
+
+        assertEquals(listOf("1"), column("SELECT count(*) FROM location_sample"))
+        assertEquals(listOf("1"), column("SELECT count(*) FROM stay_moved"))
+    }
+
+    @Test
+    fun `a clock that has not been set deletes nothing`() {
+        StoreRules.insert(db, sample(T0))
+        // 1970: the cutoff is before every row there is.
+        assertEquals(PurgeCounts(0, 0, 0), StorePurge.run(db, 0))
+        assertEquals(listOf("1"), column("SELECT count(*) FROM location_sample"))
     }
 
     // ---- the checks ----

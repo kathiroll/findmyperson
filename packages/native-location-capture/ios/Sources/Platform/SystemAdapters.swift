@@ -2,8 +2,23 @@ import Foundation
 import Security
 import UIKit
 
-/// Low Power Mode, Background App Refresh, the boot time and the Settings app.
+/// Low Power Mode, Background App Refresh, the boot time, the battery, whether the app is on
+/// screen, and the Settings app. Main thread only, like the engine that reads it.
 final class SystemDeviceConditions: DeviceConditions {
+    init() {
+        // UIDevice reports `.unknown` until monitoring is on. It stays on for the process.
+        UIDevice.current.isBatteryMonitoringEnabled = true
+    }
+
+    /// `.charging`, or `.full`, which is "plugged in and at 100%". `.unknown` counts as on
+    /// battery.
+    var onExternalPower: Bool {
+        let state = UIDevice.current.batteryState
+        return state == .charging || state == .full
+    }
+
+    var appActive: Bool { UIApplication.shared.applicationState == .active }
+
     var backgroundRefreshAvailable: Bool {
         UIApplication.shared.backgroundRefreshStatus == .available
     }

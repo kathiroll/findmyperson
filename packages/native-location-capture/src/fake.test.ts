@@ -4,6 +4,8 @@ import {
   keyLiteral,
   listSamplesBetween,
   migrate,
+  NATIVE_WRITER_CONTRACT,
+  RETENTION_SEC,
   SAMPLE_SOURCES,
   sampleCells,
 } from '@findmyperson/shared';
@@ -646,6 +648,74 @@ describe('with a real store', () => {
     expect(statuses.at(-1)?.health).toEqual([]);
     expect(await countSamplesSince(db, 0)).toBe(1);
     db.close();
+  });
+});
+
+describe('retention on a capture wake', () => {
+  const DAY = 86_400;
+
+  test('a stored fix purges the fixes and stays that are past retention', async () => {
+    const db = openMemoryDb();
+    await migrate(db);
+    const { capture, controls, advance } = setup({ db });
+    await capture.start(config());
+    await controls.deliverFix(HOME);
+    // A visit that ended that day, and one still running when the next fix is stored.
+    const visit = [HOME.lat, HOME.lon, 50, sampleCells(HOME).h3_r7];
+    await db.execute(NATIVE_WRITER_CONTRACT.insertVisitStaySql, [T0, T0 + 3600, ...visit, 1]);
+    await db.execute(NATIVE_WRITER_CONTRACT.insertVisitStaySql, [
+      T0 + DAY,
+      T0 + 40 * DAY,
+      ...visit,
+      0,
+    ]);
+
+    advance(29 * DAY);
+    await controls.deliverFix(HOME);
+    expect(controls.samples().map((sample) => sample.ts_utc)).toEqual([T0, T0 + 29 * DAY]);
+
+    advance(2 * DAY);
+    await controls.deliverFix(HOME);
+    const cutoff = T0 + 31 * DAY - RETENTION_SEC;
+    expect(controls.samples().map((sample) => sample.ts_utc)).toEqual([
+      T0 + 29 * DAY,
+      T0 + 31 * DAY,
+    ]);
+    expect(await listSamplesBetween(db, 0, T0 + 100 * DAY)).toEqual(controls.samples());
+    expect(await db.execute('SELECT start_ts, end_ts FROM stay')).toEqual([
+      { start_ts: cutoff, end_ts: T0 + 40 * DAY },
+    ]);
+    db.close();
+  });
+
+  test('without a store the fake forgets old samples the same way', async () => {
+    const { capture, controls, advance } = setup();
+    await capture.start(config());
+    await controls.deliverFix(HOME);
+    advance(RETENTION_SEC + 1);
+    await controls.deliverFix(HOME);
+    expect(controls.samples().map((sample) => sample.ts_utc)).toEqual([T0 + RETENTION_SEC + 1]);
+  });
+});
+
+describe('getDeviceConditions', () => {
+  test('answers what the phone is doing now: on battery and in use until told otherwise', async () => {
+    const { capture, controls } = setup();
+    expect(await capture.getDeviceConditions()).toEqual({ charging: false, idle: false });
+
+    controls.setDeviceConditions({ charging: true });
+    expect(await capture.getDeviceConditions()).toEqual({ charging: true, idle: false });
+    controls.setDeviceConditions({ idle: true });
+    expect(await capture.getDeviceConditions()).toEqual({ charging: true, idle: true });
+    controls.setDeviceConditions({ charging: false, idle: false });
+    expect(await capture.getDeviceConditions()).toEqual({ charging: false, idle: false });
+  });
+
+  test('works with capture stopped and no permission, and is not part of the status', async () => {
+    const { capture, controls, statuses } = setup({ permission: 'denied' });
+    controls.setDeviceConditions({ charging: true, idle: true });
+    expect(await capture.getDeviceConditions()).toEqual({ charging: true, idle: true });
+    expect(statuses).toEqual([]);
   });
 });
 

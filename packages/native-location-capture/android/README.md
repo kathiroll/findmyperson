@@ -136,6 +136,21 @@ Android has no "never asked" state, so the module records that it showed the for
 | `settings_opened`                      | target and the page that opened, e.g. `battery:samsung_battery`                                     |
 | `interval_clamped`                     | the period WorkManager will use                                                                     |
 | `state_reset`, `internal_error`        | what went wrong                                                                                     |
+| `retention_purge`                      | `samples=N,stays=N,trimmed=N`: what a wake's purge removed. Not written when it removed nothing     |
+| `retention_purge_failed`               | why the purge could not run; it is tried again at the next wake                                     |
+
+## Retention
+
+The full purge is TypeScript and runs when the app does. A phone on which the app is never opened is woken only by this module, so its wakes purge too: the periodic job (with or without a fix), a delivery to the service, and the hourly watchdog call `purgeIfDue` in the engine, which asks the store to delete the fixes and stays past retention. `StorePurge` in `store/StoreRules.kt` runs the four purge statements of `native-writer.json` in one transaction, with the cutoff `retentionSec` behind the clock.
+
+- **At most once an hour per process.** The time of the last purge is kept in memory only and never decides what is deleted, so a new process purges on its first wake, and a purge after a long gap or a changed clock deletes exactly what one at that moment should.
+- **A failed purge changes nothing** (one transaction), is logged, and is tried at the next wake. It does not raise `store_unusable`. A store that is already unusable is not purged.
+- **Nothing is derived and nothing is vacuumed here.** Both are TypeScript's.
+- **With nothing selected there is no wake**, so a phone on which capture was stopped is purged when the app is next opened.
+
+`getDeviceConditions` is `MaintenanceRules` in `core/Rules.kt` over three facts read in `platform/AndroidDeviceConditions.kt`: `BatteryManager.isCharging`, `PowerManager.isInteractive`, and whether one of the app's activities is on screen (`ActivityManager.getMyMemoryState`). `charging` is the first; `idle` is the screen off or the app not on it. The app does not vacuum on Android yet whatever this answers (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`, and item 2 under "For whoever owns the spec and the store").
+
+`RetentionTest` covers when the purge is asked for and every combination of the three facts; `StoreContractTest` runs the purge on the real schema.
 
 ## Privacy
 
@@ -167,22 +182,24 @@ The stand-in is the M0 store proof with the real contract:
 Three things this task ran into that are not its to change:
 
 1. **The store contract has no read.** The distance rule needs the position of the last stored sample. A process that did not store it cannot know it (positions are never kept outside the store), so the first fix after a process start is held to the interval alone. Adding a "last sample" query to `native-writer.json` would close that, and would let the status be counted from the store instead of a ledger.
-2. **Two SQLite libraries in one process.** op-sqlite and `sqlcipher-android` each carry their own SQLCipher. SQLite's documentation warns that two copies of the library using one database file in one process defeat its file locking (POSIX locks are per process). While the app is open, JavaScript reads the file through one copy and capture writes through the other. The M0 proof showed they can open the same file; it did not test them concurrently. The store's owner should decide: one library for both sides, or a rule that serialises access.
+2. **Two SQLite libraries in one process.** op-sqlite and `sqlcipher-android` each carry their own SQLCipher. SQLite's documentation warns that two copies of the library using one database file in one process defeat its file locking (POSIX locks are per process). While the app is open, JavaScript reads the file through one copy and capture writes through the other. The M0 proof showed they can open the same file; it did not test them concurrently. The store's owner should decide: one library for both sides, or a rule that serialises access. Until then the app does not run the weekly `VACUUM` on Android, and the purge above is one more small native write of the kind an insert already is.
 3. **The spec has no word for the fallback.** While mode `fgs` captures through the periodic job, the status can only say "not running" plus a rising sample count. A tier for it would be a spec change.
 
 ## Verified and not verified
 
 Verified here, on a Mac, with no phone:
 
-- `./gradlew testDebugUnitTest lintDebug assembleDebug` passes: 123 JVM tests, lint with no issues, a debug AAR.
+- `./gradlew testDebugUnitTest lintDebug assembleDebug` passes: 146 JVM tests, lint with no issues, a debug AAR.
 - The module class compiles against the committed generated spec and `react-android` 0.87.1, so it implements every spec method with the generated signatures.
 - The state machine behaves as the spec's comments and `../src/fake.test.ts` say (`CaptureEngineTest`), survives the S0.2 scenarios as far as its own behaviour goes (`M0ScenarioTest`), raises each health flag by its condition (`HealthFlagTest`) and keeps coordinates out of everything but the store (`PrivacyTest`).
 - The contract's insert statement, bound as this module binds it, writes the expected row into the real v1 schema on a real SQLite; the generated constants equal the contract files; the cells match the golden vectors and the reference library.
+- The contract's purge statements, run as this module runs them on that schema, delete the fixes and stays past retention, cut a stay that straddles the cutoff, pull the derivation cursor back, touch no other table, and delete nothing when one of them fails. Forty days of wakes with no JavaScript leave thirty days of fixes (`RetentionTest`, on the fake store).
 
 Not verified, because it needs a phone or the app's build:
 
 - **Any behaviour on a device.** Whether the service starts, how often WorkManager runs the job, what each vendor does. The unit tests prove what the module does when Android behaves a given way, not that Android behaves that way.
 - **The build inside the app.** `app/android` does not exist yet, so the autolinked path (the React Native Gradle plugin generating the spec, versions from the root project, the manifest merge) has not run. The first task that adds `app/android` should build with this library and fix what differs.
+- **The purge and the power facts on a phone.** That `compileStatement` and `beginTransaction` of `sqlcipher-android` behave as the JDBC stand-in in the tests does; that `isCharging`, `isInteractive` and the process importance read what this README says they do on a real device, and off the main thread.
 - **SQLCipher on Android.** `SqlCipherSampleStore` and `KeystoreStoreKey` compile and have never run: `libsqlcipher.so` cannot load on a JVM. Open questions from the M0 proof stand: that the Keystore key is readable while locked after first unlock, and that the two SQLCipher copies coexist.
 - **Foreground-service rules per Android version.** Whether a `location` service may start from the boot receiver and from the watchdog on each version (Android 12 restricted background starts, Android 15 changed boot-time rules). If it may not, the module logs `start_failed` and runs the fallback; that path is unit-tested, the rule itself is not.
 - **The Android 10 background-permission dialog**, and resolving `requestPermission('background')` on return from settings on Android 11+.

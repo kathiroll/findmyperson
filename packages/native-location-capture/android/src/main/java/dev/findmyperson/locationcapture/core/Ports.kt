@@ -86,8 +86,24 @@ data class DeviceSnapshot(
     val standbyBucket: String?,
 )
 
-fun interface DeviceConditions {
+/**
+ * What the weekly VACUUM waits for, read at one moment: the facts behind the spec's
+ * `getDeviceConditions`. [MaintenanceRules] turns them into its two answers.
+ */
+data class PowerSnapshot(
+    /** On external power: charging, or plugged in with the battery full. */
+    val onExternalPower: Boolean,
+    /** The screen is on. */
+    val screenOn: Boolean,
+    /** An activity of this app is on screen, as opposed to only its service or its jobs running. */
+    val appInForeground: Boolean,
+)
+
+interface DeviceConditions {
     fun snapshot(): DeviceSnapshot
+
+    /** Cheap, and safe on any thread. */
+    fun power(): PowerSnapshot
 }
 
 /** One-shot location for the periodic job. Both calls block and neither throws. */
@@ -118,6 +134,18 @@ interface SampleStore {
     /** Runs the same check, then inserts the row. */
     @Throws(StoreUnusableException::class)
     fun insert(sample: StoredSample)
+
+    /**
+     * Runs the same check, then deletes the fixes and stays that are past retention as of
+     * [nowTsUtc]: the purge statements of native-writer.json, in one transaction.
+     */
+    @Throws(StoreUnusableException::class)
+    fun purgeExpired(nowTsUtc: Long): PurgeCounts
+}
+
+/** What one purge removed. Counts only, so it can go into the diagnostics. */
+data class PurgeCounts(val samples: Int, val stays: Int, val staysTrimmed: Int) {
+    val nothing: Boolean get() = samples == 0 && stays == 0 && staysTrimmed == 0
 }
 
 /** Receives what the spec's two event emitters send. Called on the thread that caused the event. */

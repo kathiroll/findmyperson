@@ -158,10 +158,14 @@ export async function countSamplesSince(db: SqlExecutor, sinceTs: number): Promi
   return num(rows[0] ?? {}, 'n');
 }
 
+/**
+ * The retention purge's delete, also run by the native modules on a wake with no JavaScript
+ * (store/nativeWriter.ts). Parameter: the cutoff, Unix seconds.
+ */
+export const DELETE_SAMPLES_BEFORE_SQL = 'DELETE FROM location_sample WHERE ts_utc < ?';
+
 /** Retention purge: deletes samples older than the cutoff. Returns how many were deleted. */
 export async function deleteSamplesBefore(db: SqlExecutor, cutoffTs: number): Promise<number> {
-  const rows = await db.execute('DELETE FROM location_sample WHERE ts_utc < ? RETURNING id', [
-    cutoffTs,
-  ]);
+  const rows = await db.execute(`${DELETE_SAMPLES_BEFORE_SQL} RETURNING id`, [cutoffTs]);
   return rows.length;
 }

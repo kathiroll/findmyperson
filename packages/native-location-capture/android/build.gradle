@@ -121,6 +121,12 @@ public final class StoreContract {
   public static final String INSERT_LOCATION_SAMPLE_SQL = ${str(writer.insertLocationSampleSql)};
   public static final String[] SAMPLE_SOURCES = {${writer.sampleSources.collect { str(it) }.join(', ')}};
 
+  public static final long RETENTION_SEC = ${writer.retentionSec as long}L;
+  public static final String DELETE_SAMPLES_BEFORE_SQL = ${str(writer.deleteSamplesBeforeSql)};
+  public static final String DELETE_STAYS_ENDED_BEFORE_SQL = ${str(writer.deleteStaysEndedBeforeSql)};
+  public static final String TRIM_STAYS_STARTED_BEFORE_SQL = ${str(writer.trimStaysStartedBeforeSql)};
+  public static final String REWIND_STAY_CURSOR_SQL = ${str(writer.rewindStayCursorSql)};
+
   public static final int SQLCIPHER_MAJOR = ${cipher.sqlcipherMajor as int};
   public static final int CIPHER_COMPATIBILITY = ${cipher.cipherCompatibility as int};
   public static final int PAGE_SIZE_BYTES = ${cipher.pageSizeBytes as int};

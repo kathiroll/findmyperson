@@ -22,6 +22,11 @@
  *   2. The module is a state machine with observable health. Every way the platform can degrade
  *      capture is a `HealthFlag`, readable through `getStatus`, so the app can say so honestly.
  *
+ * Retention is the module's too, where JavaScript cannot do it: on a capture wake both native
+ * modules delete the fixes and stays that are past retention, with the purge statements of
+ * native-writer.json, so a phone on which the app is never opened still keeps 30 days and no
+ * more. Nothing in this interface starts or reports that; it shows only in the diagnostics.
+ *
  * What a rejected promise carries is fixed in ../constants.ts (CAPTURE_ERROR_CODES).
  */
 import type { CodegenTypes, TurboModule } from 'react-native';
@@ -148,6 +153,17 @@ export type CaptureStatus = {
   expectedLast24h: number;
 };
 
+/**
+ * Whether now is a good moment to rewrite the store file: `DeviceConditions` of
+ * @findmyperson/shared (retention/maintenance.ts), which vacuums only when both are true.
+ */
+export type DeviceConditions = {
+  /** The phone is on external power: charging, or plugged in and full. */
+  charging: boolean;
+  /** Nobody is using the app: it is not on screen, or the screen is off. */
+  idle: boolean;
+};
+
 /** Sent after a sample is committed to the store. Deliberately has no coordinates. */
 export type SampleWrittenEvent = {
   /** Time of the fix, Unix seconds: the row's `ts_utc`. */
@@ -234,6 +250,15 @@ export interface Spec extends TurboModule {
 
   /** Entries of the local capture-health log with tsUtc >= sinceTsUtc, oldest first. */
   getDiagnostics(sinceTsUtc: number): Promise<DiagnosticEntry[]>;
+
+  /**
+   * Whether the phone is on external power and whether anybody is using the app, read at the
+   * moment of the call. It is the `deviceConditions` source of the retention maintenance in
+   * @findmyperson/shared, which asks only when the weekly VACUUM is due. Never rejects: a fact
+   * the platform will not give counts as false, which makes the vacuum wait. Works whether or
+   * not capture is started.
+   */
+  getDeviceConditions(): Promise<DeviceConditions>;
 
   /**
    * Debug builds only: stores a synthetic fix with source `manual` exactly as a real one is

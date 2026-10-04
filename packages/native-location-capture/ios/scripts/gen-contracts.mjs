@@ -45,6 +45,11 @@ enum StoreContract {
     static let insertVisitStaySql = ${str(writer.insertVisitStaySql)}
     static let closeVisitStaySql = ${str(writer.closeVisitStaySql)}
     static let sampleSources: [String] = ${list(writer.sampleSources)}
+    static let retentionSec: Int64 = ${writer.retentionSec}
+    static let deleteSamplesBeforeSql = ${str(writer.deleteSamplesBeforeSql)}
+    static let deleteStaysEndedBeforeSql = ${str(writer.deleteStaysEndedBeforeSql)}
+    static let trimStaysStartedBeforeSql = ${str(writer.trimStaysStartedBeforeSql)}
+    static let rewindStayCursorSql = ${str(writer.rewindStayCursorSql)}
 }
 
 /// The pinned SQLCipher parameters of the store (packages/shared/src/store/cipher.ts).

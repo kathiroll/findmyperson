@@ -7,7 +7,7 @@ import type { LocationCapture } from '@findmyperson/native-location-capture';
 import { useMemo } from 'react';
 import { colors, fontFamilies } from '../design-system';
 import { CaptureProvider, loadNativeCapture } from '../permissions';
-import { DataStoreProvider, type DataStore } from '../store';
+import { DataStoreProvider, StoreMaintenance, type DataStore } from '../store';
 import { linking, type RootStackParamList, type TabParamList } from './routes';
 import {
   BystanderScreen,
@@ -50,7 +50,10 @@ export type AppNavigatorProps = {
   navigationRef?: Ref<NavigationContainerRef<RootStackParamList>>;
   /** The capture module. Production leaves it out and gets the real native module. */
   capture?: LocationCapture;
-  /** What Settings may do to the on-device store. Production leaves it out and gets the real one. */
+  /**
+   * The on-device store: what Settings may do to it, and the maintenance the app runs on it at
+   * start and on every foreground. Production leaves it out and gets the real one.
+   */
   dataStore?: DataStore;
 };
 
@@ -65,6 +68,7 @@ export function AppNavigator({
   return (
     <CaptureProvider capture={module}>
       <DataStoreProvider {...(dataStore ? { dataStore } : {})}>
+        <StoreMaintenance />
         <SafeAreaProvider>
           <NavigationContainer {...(navigationRef ? { ref: navigationRef } : {})} linking={linking}>
             <Stack.Navigator

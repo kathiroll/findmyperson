@@ -122,6 +122,19 @@ struct SampleWrittenEvent: Equatable {
     }
 }
 
+/// `DeviceConditions` of the spec: what `getDeviceConditions` answers. Named for its use here,
+/// because `DeviceConditions` in this module is the port the engine reads the phone through.
+struct MaintenanceConditions: Equatable {
+    /// The phone is on external power.
+    var charging: Bool
+    /// Nobody is using the app.
+    var idle: Bool
+
+    var bridgeValue: [String: Any] {
+        ["charging": charging, "idle": idle]
+    }
+}
+
 /// One line of the local capture-health log. Never holds a coordinate.
 struct DiagnosticEntry: Codable, Equatable {
     var tsUtc: Int64
@@ -175,6 +188,10 @@ enum DiagnosticEvent {
     static let permChanged = "perm_changed"
     static let permAccuracy = "perm_accuracy"
     static let settingsOpened = "settings_opened"
+    /// The purge of a capture wake removed something. detail: `samples=N,stays=N,trimmed=N`.
+    static let retentionPurge = "retention_purge"
+    /// It could not run. detail: why. It is tried again at the next wake.
+    static let retentionPurgeFailed = "retention_purge_failed"
 }
 
 // MARK: values that hold a position

@@ -50,6 +50,11 @@ export function nativeConstants(): Array<[name: string, value: Value]> {
     ['SAMPLE_SOURCES', writer.sampleSources],
     ['INSERT_VISIT_STAY_SQL', writer.insertVisitStaySql],
     ['CLOSE_VISIT_STAY_SQL', writer.closeVisitStaySql],
+    ['RETENTION_SEC', writer.retentionSec],
+    ['DELETE_SAMPLES_BEFORE_SQL', writer.deleteSamplesBeforeSql],
+    ['DELETE_STAYS_ENDED_BEFORE_SQL', writer.deleteStaysEndedBeforeSql],
+    ['TRIM_STAYS_STARTED_BEFORE_SQL', writer.trimStaysStartedBeforeSql],
+    ['REWIND_STAY_CURSOR_SQL', writer.rewindStayCursorSql],
   ];
 }
 
