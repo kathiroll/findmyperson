@@ -51,6 +51,7 @@ async function mountSettings(capture: FakeLocationCapture, store: Pick<DataStore
     },
     enqueueReport: () => Promise.reject(new Error('this screen never submits')),
     runReportQueue: () => Promise.reject(new Error('this screen never submits')),
+    getActiveReport: async () => null,
   };
   const handlers = { onOpenCaptureHealth: vi.fn(), onOpenPermissionFlow: vi.fn() };
   let renderer!: ReactTestRenderer;

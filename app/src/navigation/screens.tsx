@@ -1,31 +1,25 @@
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback } from 'react';
-import { Button } from '../design-system';
-import { CaptureHealthDiagnostics, CaptureHealthStatus } from '../capture-health';
+import { CaptureHealthDiagnostics } from '../capture-health';
+import { HomeScreen } from '../home';
 import { OnboardingScreen } from '../onboarding';
 import { PermissionFlowScreen } from '../permissions';
 import { ReportSubmitScreen } from '../report';
 import { SettingsScreen } from '../settings';
 import { PlaceholderScreen } from './PlaceholderScreen';
-import type { RootStackParamList, TabParamList } from './routes';
+import type { RootStackParamList } from './routes';
 
 // Each screen below is a stub. A later screen task replaces the body (and drops the temporary
 // navigation buttons) but keeps the route name and params from routes.ts.
 
 type RootProps<R extends keyof RootStackParamList> = NativeStackScreenProps<RootStackParamList, R>;
-type TabProps<R extends keyof TabParamList> = CompositeScreenProps<
-  BottomTabScreenProps<TabParamList, R>,
-  NativeStackScreenProps<RootStackParamList>
->;
 
 export function OnboardingRoute({ navigation }: RootProps<'Onboarding'>) {
   const subscribeFocus = useCallback(
     (onFocus: () => void) => navigation.addListener('focus', onFocus),
     [navigation],
   );
-  const onDone = useCallback(() => navigation.replace('Main'), [navigation]);
+  const onDone = useCallback(() => navigation.replace('Home'), [navigation]);
   return (
     <OnboardingScreen
       onEnable={() => navigation.navigate('PermissionFlow')}
@@ -35,56 +29,38 @@ export function OnboardingRoute({ navigation }: RootProps<'Onboarding'>) {
   );
 }
 
-export function HomeScreen({ navigation }: TabProps<'Home'>) {
+export function HomeRoute({ navigation }: RootProps<'Home'>) {
+  // The menu is Home's only navigation: the mockups have no tab bar and no report button.
+  const menuItems = [
+    { label: 'Report a missing person', onPress: () => navigation.navigate('ReportForm') },
+    { label: 'History', onPress: () => navigation.navigate('History') },
+    { label: 'Settings', onPress: () => navigation.navigate('Settings') },
+  ];
   return (
-    <PlaceholderScreen
-      testID="screen-Home"
-      header={{ variant: 'brand' }}
-      title="Home"
-      description="Home: capture-health status, report entry point, live report card."
-    >
-      <CaptureHealthStatus
-        onOpenPermissionFlow={() => navigation.navigate('PermissionFlow')}
-        onOpenDiagnostics={() => navigation.navigate('CaptureHealth')}
-      />
-      <Button
-        label="Report a missing person"
-        icon="plus"
-        onPress={() => navigation.navigate('ReportForm')}
-      />
-      <Button
-        label="Capture health"
-        variant="tint"
-        onPress={() => navigation.navigate('CaptureHealth')}
-      />
-      <Button
-        label="My live report"
-        variant="ghost"
-        onPress={() => navigation.navigate('LiveReport', { reportId: 'preview' })}
-      />
-      <Button
-        label="Preview a match"
-        variant="ghost"
-        onPress={() => navigation.navigate('Bystander', { matchId: 'preview' })}
-      />
-    </PlaceholderScreen>
+    <HomeScreen
+      menuItems={menuItems}
+      onOpenPermissionFlow={() => navigation.navigate('PermissionFlow')}
+      onOpenCaptureHealth={() => navigation.navigate('CaptureHealth')}
+      onOpenLiveReport={(reportId) => navigation.navigate('LiveReport', { reportId })}
+    />
   );
 }
 
-export function HistoryScreen() {
+export function HistoryScreen({ navigation }: RootProps<'History'>) {
   return (
     <PlaceholderScreen
       testID="screen-History"
-      header={{ variant: 'brand' }}
+      header={{ variant: 'back', title: 'History', onBackPress: navigation.goBack }}
       title="History"
       description="History: past matches and reports. Not in the v2 mockups yet."
     />
   );
 }
 
-export function SettingsRoute({ navigation }: TabProps<'Settings'>) {
+export function SettingsRoute({ navigation }: RootProps<'Settings'>) {
   return (
     <SettingsScreen
+      onBack={navigation.goBack}
       onOpenCaptureHealth={() => navigation.navigate('CaptureHealth')}
       onOpenPermissionFlow={() => navigation.navigate('PermissionFlow')}
     />

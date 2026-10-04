@@ -45,7 +45,6 @@ Versions are the ones pinned in the manifests and resolved in `pnpm-lock.yaml`. 
 | `react`                          | `19.2.3`   | 19.2.3   |                                                          |
 | `@react-navigation/native`       | `^7.5.0`   | 7.5.0    | Navigation container and deep links                      |
 | `@react-navigation/native-stack` | `^7.20.0`  | 7.20.0   | Root stack                                               |
-| `@react-navigation/bottom-tabs`  | `^7.20.0`  | 7.20.0   | Home, History, Settings tabs                             |
 | `react-native-screens`           | `^4.28.0`  | 4.28.0   | Native screen containers for the stack                   |
 | `react-native-safe-area-context` | `^5.10.1`  | 5.10.1   | Insets                                                   |
 | `react-native-svg`               | `^15.15.5` | 15.15.5  | Icons in the design system                               |
@@ -160,15 +159,14 @@ The research milestone: native trial apps that measured background capture on re
 
 ## 3. Navigation and screen map
 
-React Navigation 7: a native stack at the root with bottom tabs under `Main`. Route names, params and deep links are defined only in [`app/src/navigation/routes.ts`](../app/src/navigation/routes.ts); `screens.tsx` binds each route to a screen.
+React Navigation 7: a native stack at the root (no tab bar; Home's hamburger menu reaches History, Settings and the report form). Route names, params and deep links are defined only in [`app/src/navigation/routes.ts`](../app/src/navigation/routes.ts); `screens.tsx` binds each route to a screen.
 
 ```
 Root stack (initial route: Onboarding)
 |- Onboarding
-|- Main (bottom tabs)
-|   |- Home
-|   |- History
-|   `- Settings
+|- Home
+|- History
+|- Settings
 |- CaptureHealth
 |- PermissionFlow
 |- ReportForm
@@ -176,20 +174,19 @@ Root stack (initial route: Onboarding)
 `- Bystander    { matchId }   presented as a modal
 ```
 
-| Route            | Params                 | Deep link                          | Screen                                      | State                                                                                                |
-| ---------------- | ---------------------- | ---------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `Onboarding`     | none                   | `findmyperson://welcome`           | `OnboardingScreen`                          | Real                                                                                                 |
-| `Main`           | nested tab, optional   | -                                  | tab navigator                               | Real                                                                                                 |
-| `Home`           | none                   | `findmyperson://home`              | `PlaceholderScreen` + `CaptureHealthStatus` | Placeholder shell. The capture-health row is real; the rest is temporary buttons to the other routes |
-| `History`        | none                   | `findmyperson://history`           | `PlaceholderScreen`                         | Placeholder. Not in the v2 mockups                                                                   |
-| `Settings`       | none                   | `findmyperson://settings`          | `SettingsScreen`                            | Real                                                                                                 |
-| `CaptureHealth`  | none                   | `findmyperson://capture-health`    | `CaptureHealthDiagnostics`                  | Real                                                                                                 |
-| `PermissionFlow` | none                   | `findmyperson://permissions`       | `PermissionFlowScreen`                      | Real                                                                                                 |
-| `ReportForm`     | none                   | `findmyperson://new-report`        | `ReportSubmitScreen`                        | Real, with two seams unfilled (photo, map); see section 8                                            |
-| `LiveReport`     | `{ reportId: string }` | `findmyperson://report/<reportId>` | `PlaceholderScreen`                         | Placeholder: a fixed "Submitted, under review" text                                                  |
-| `Bystander`      | `{ matchId: string }`  | `findmyperson://match/<matchId>`   | `PlaceholderScreen`                         | Placeholder: the match notice and the share-or-stay-anonymous choice are not built                   |
+| Route            | Params                 | Deep link                          | Screen                         | State                                                                                                     |
+| ---------------- | ---------------------- | ---------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `Onboarding`     | none                   | `findmyperson://welcome`           | `OnboardingScreen`             | Real                                                                                                      |
+| `Home`           | none                   | `findmyperson://home`              | `HomeScreen` (`app/src/home/`) | Real: status row, thank-you copy, active-report card, hamburger menu. Curious-list links are placeholders |
+| `History`        | none                   | `findmyperson://history`           | `PlaceholderScreen`            | Placeholder. Not in the v2 mockups                                                                        |
+| `Settings`       | none                   | `findmyperson://settings`          | `SettingsScreen`               | Real                                                                                                      |
+| `CaptureHealth`  | none                   | `findmyperson://capture-health`    | `CaptureHealthDiagnostics`     | Real                                                                                                      |
+| `PermissionFlow` | none                   | `findmyperson://permissions`       | `PermissionFlowScreen`         | Real                                                                                                      |
+| `ReportForm`     | none                   | `findmyperson://new-report`        | `ReportSubmitScreen`           | Real, with two seams unfilled (photo, map); see section 8                                                 |
+| `LiveReport`     | `{ reportId: string }` | `findmyperson://report/<reportId>` | `PlaceholderScreen`            | Placeholder: a fixed "Submitted, under review" text                                                       |
+| `Bystander`      | `{ matchId: string }`  | `findmyperson://match/<matchId>`   | `PlaceholderScreen`            | Placeholder: the match notice and the share-or-stay-anonymous choice are not built                        |
 
-How screens reach each other: `Onboarding` opens `PermissionFlow` and then replaces itself with `Main`. `Home` pushes `ReportForm`, `CaptureHealth`, and (through temporary preview buttons) `LiveReport` and `Bystander`. `Settings` and `CaptureHealth` open `PermissionFlow`. A successful submit replaces `ReportForm` with `LiveReport`, so Back cannot return to a form that was already sent. `matchNotificationUrl(id)` and `reportNotificationUrl(id)` in `routes.ts` build the links a notification should carry.
+How screens reach each other: `Onboarding` opens `PermissionFlow` and then replaces itself with `Home`. `Home` pushes `ReportForm`, `History` and `Settings` from its menu, `CaptureHealth` and `PermissionFlow` from its status row, and `LiveReport` from the active-report card. `Settings` and `CaptureHealth` open `PermissionFlow`. A successful submit replaces `ReportForm` with `LiveReport`, so Back cannot return to a form that was already sent. `matchNotificationUrl(id)` and `reportNotificationUrl(id)` in `routes.ts` build the links a notification should carry.
 
 "Real" means the screen is implemented and tested in TypeScript against the in-repo fake of the capture module and a real SQLCipher file under Node. Nothing has run on a phone: the Android project builds an installable APK, and nobody has installed it yet.
 

@@ -48,7 +48,6 @@ vi.mock(
   '@react-navigation/native-stack',
   async () => await import('../navigation/__tests__/stubs'),
 );
-vi.mock('@react-navigation/bottom-tabs', async () => await import('../navigation/__tests__/stubs'));
 vi.mock(
   'react-native-safe-area-context',
   async () => await import('../navigation/__tests__/stubs'),
