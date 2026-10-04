@@ -64,6 +64,11 @@ CREATE TABLE IF NOT EXISTS responses (
   held_reason   TEXT,
   UNIQUE (query_id, device_id)
 );
+CREATE TABLE IF NOT EXISTS response_reviews (
+  response_id TEXT PRIMARY KEY,
+  decision    TEXT NOT NULL CHECK (decision IN ('released', 'rejected')),
+  reviewed_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS idempotency (
   device_id    TEXT NOT NULL,
   key          TEXT NOT NULL,
@@ -364,11 +369,70 @@ export class ServerDb {
       .all(queryId, afterSeq, limit) as unknown as ResponseRow[];
   }
 
-  /** For the operator's manual review of held responses. */
+  /**
+   * Held responses the operator has not decided yet, oldest first. A rejected one stays `held`
+   * for good (so it is never delivered and still uses up the device's one response) and is told
+   * apart by its row in `response_reviews`.
+   */
   listHeldResponses(): ResponseRow[] {
     return this.db
-      .prepare(`SELECT * FROM responses WHERE moderation = 'held' ORDER BY seq`)
+      .prepare(
+        `SELECT * FROM responses WHERE moderation = 'held'
+           AND response_id NOT IN (SELECT response_id FROM response_reviews)
+         ORDER BY seq`,
+      )
       .all() as unknown as ResponseRow[];
+  }
+
+  /**
+   * Delivers a held response the operator has not decided yet; false if there is none by that
+   * id. The row is re-inserted so it takes a new `seq`: the reporter pages by `seq`, and a
+   * response released where it was held would be behind a cursor they have already passed.
+   * Call it through `decideHeldResponse` in moderation.ts.
+   */
+  releaseHeldResponse(responseId: string, now: number): boolean {
+    return this.transaction(() => {
+      const held = this.db
+        .prepare(
+          `SELECT * FROM responses WHERE response_id = ? AND moderation = 'held'
+             AND response_id NOT IN (SELECT response_id FROM response_reviews)`,
+        )
+        .get(responseId) as unknown as ResponseRow | undefined;
+      if (held === undefined) {
+        return false;
+      }
+      this.db.prepare('DELETE FROM responses WHERE seq = ?').run(held.seq);
+      this.insertResponse({ ...held, moderation: 'delivered' });
+      this.recordResponseReview(responseId, 'released', now);
+      return true;
+    });
+  }
+
+  /** Marks a held response as never to be delivered; false if there is none left to decide. */
+  rejectHeldResponse(responseId: string, now: number): boolean {
+    return this.transaction(() => {
+      const held = this.db
+        .prepare(
+          `SELECT 1 AS one FROM responses WHERE response_id = ? AND moderation = 'held'
+             AND response_id NOT IN (SELECT response_id FROM response_reviews)`,
+        )
+        .get(responseId);
+      if (held === undefined) {
+        return false;
+      }
+      this.recordResponseReview(responseId, 'rejected', now);
+      return true;
+    });
+  }
+
+  private recordResponseReview(
+    responseId: string,
+    decision: 'released' | 'rejected',
+    now: number,
+  ): void {
+    this.db
+      .prepare('INSERT INTO response_reviews (response_id, decision, reviewed_at) VALUES (?, ?, ?)')
+      .run(responseId, decision, now);
   }
 
   // --- idempotency ---------------------------------------------------------------------------

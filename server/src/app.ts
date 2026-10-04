@@ -27,6 +27,7 @@ import type { ReportRow, ServerDb } from './db';
 import { transition, type ReviewAction } from './lifecycle';
 import { moderateResponse } from './moderation';
 import { createDeviceAllowListOperatorPolicy, type OperatorPolicy } from './operator';
+import { registerOperatorPage, type ReportReview } from './operatorPage';
 import { newUlid } from './ulid';
 
 export interface AppOptions {
@@ -39,6 +40,11 @@ export interface AppOptions {
   authenticator?: DeviceAuthenticator;
   /** Who may release or reject reports. See operator.ts: NEEDS REAL OPERATOR AUTH. */
   operator?: OperatorPolicy;
+  /**
+   * The token that opens the operator page (operatorPage.ts). Unset, empty or too short means
+   * the page refuses every request. TEMPORARY STUB, to be replaced by real operator login.
+   */
+  operatorWebToken?: string | undefined;
   alerter?: OperatorAlerter;
   /** Unix seconds. Injectable for tests. */
   now?: () => number;
@@ -468,30 +474,46 @@ export function buildApp(options: AppOptions): FastifyInstance {
   // --- operator: the manual-review gate ------------------------------------------------------
   // Not part of the public API table. Every route here calls requireOperator first.
 
-  function decide(req: FastifyRequest, device: AuthenticatedDevice, action: ReviewAction): Result {
-    requireOperator(device);
-    const queryId = queryIdParam(req);
+  /**
+   * The one implementation of a review decision. The operator routes below and the operator
+   * page both go through it, so the lifecycle rules cannot differ between them.
+   */
+  function reviewReport(queryId: string, action: ReviewAction, by: string): ReportReview {
     const row = db.getReport(queryId);
     if (row === null) {
-      throw new ApiFailure('not_found', 'no such report');
+      return { ok: false, code: 'not_found', message: 'no such report' };
     }
     const live = fresh(row);
     const moved = transition(live.review_state, action);
     if (!moved.ok) {
-      throw new ApiFailure('report_not_active', `report is already ${moved.current}`);
+      return {
+        ok: false,
+        code: 'report_not_active',
+        message: `report is already ${moved.current}`,
+      };
     }
     // An ended or expired report must not go live later.
     if (action === 'release' && live.status !== 'active') {
-      throw new ApiFailure('report_not_active', `report is ${live.status}; it cannot be released`);
+      return {
+        ok: false,
+        code: 'report_not_active',
+        message: `report is ${live.status}; it cannot be released`,
+      };
     }
-    if (!db.setReviewState(queryId, moved.next, device.device_id, now())) {
-      throw new ApiFailure('report_not_active', 'report was decided concurrently');
+    if (!db.setReviewState(queryId, moved.next, by, now())) {
+      return { ok: false, code: 'report_not_active', message: 'report was decided concurrently' };
     }
-    req.log.info(
-      { event: `report.${moved.next}`, query_id: queryId, by: device.device_id },
-      'report reviewed',
-    );
-    return { status: 200, body: { report: toReport(db.getReport(queryId) as ReportRow) } };
+    app.log.info({ event: `report.${moved.next}`, query_id: queryId, by }, 'report reviewed');
+    return { ok: true, report: db.getReport(queryId) as ReportRow };
+  }
+
+  function decide(req: FastifyRequest, device: AuthenticatedDevice, action: ReviewAction): Result {
+    requireOperator(device);
+    const outcome = reviewReport(queryIdParam(req), action, device.device_id);
+    if (!outcome.ok) {
+      throw new ApiFailure(outcome.code, outcome.message);
+    }
+    return { status: 200, body: { report: toReport(outcome.report) } };
   }
 
   /** The release action. Only this, and `reject`, ever move a report out of `pending`. */
@@ -517,6 +539,16 @@ export function buildApp(options: AppOptions): FastifyInstance {
   route('GET', '/v1/operator/responses/held', (_req, _reply, device) => {
     requireOperator(device);
     return { status: 200, body: { responses: db.listHeldResponses() } };
+  });
+
+  // --- operator page: the same gate, and held responses, for a browser -----------------------
+
+  registerOperatorPage(app, {
+    db,
+    now,
+    token: options.operatorWebToken,
+    listPendingReports: () => db.listReportsByReviewState('pending').map(fresh),
+    reviewReport,
   });
 
   return app;
