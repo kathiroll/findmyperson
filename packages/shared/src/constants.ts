@@ -49,7 +49,12 @@ export const H3_RES_MATCH = 7;
 export const H3_RES_SHARD = 5;
 /** PLAN 7.3: resolution of the push-wake topics, deliberately coarser than the shards. */
 export const H3_RES_PUSH = 3;
-/** PLAN 7.2: cap on res-5 cells in a device's subscription set; the excess coarsens to res 3. */
+/**
+ * PROVISIONAL (subscription manager, plan 7.2). The most res-5 cells in a device's subscription
+ * set, visited cells and their neighbours together. A device over it follows whole res-3 cells
+ * (H3_RES_PUSH) in place of the res-5 cells inside them until the rest fits, so coverage is kept
+ * and only bandwidth grows. Not measured against real traces. See subscription/watchSet.ts.
+ */
 export const SUBSCRIPTION_RES5_CAP = 200;
 
 /**

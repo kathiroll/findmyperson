@@ -94,7 +94,8 @@ export const TABLE_OWNERSHIP: Readonly<Record<StoreTable, readonly WritePath[]>>
   subscription: [
     {
       owner: 'B3.7 subscription manager',
-      writes: 'every write (putSubscription, deleteSubscription)',
+      writes:
+        'every write, as the difference between the watch set and the rows stored, inside syncSubscriptions (putSubscription, deleteSubscription)',
     },
   ],
   outbound_response: [

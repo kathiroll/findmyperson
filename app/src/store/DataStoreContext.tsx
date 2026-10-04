@@ -9,14 +9,16 @@ import type { LocationCapture } from '@findmyperson/native-location-capture';
 import {
   createRetentionMaintenance,
   listOwnReports,
-  listSubscriptions,
+  listWatchedShards,
   runFetchCycle,
+  syncSubscriptions,
   type DeviceIdentity,
   type FetchCycleInput,
   type FetchCycleResult,
   type OwnReport,
   type ReportSubmitRequest,
   type SqlDatabase,
+  type SubscriptionSyncResult,
 } from '@findmyperson/shared';
 import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
 import { Platform } from 'react-native';
@@ -26,8 +28,18 @@ import { createStoreDeviceIdentity, platformRandomBytes } from '../report/identi
 import { enqueueReport, runSubmitQueue, type QueueRunResult } from '../report/queue';
 import { retentionOptions } from './retention';
 
-/** What one maintenance run came to. `error` is why the store could not be opened or purged. */
-export type MaintenanceResult = { ran: true } | { ran: false; error: unknown };
+/**
+ * What one maintenance run came to. `error` is why the store could not be opened or purged, or
+ * why the watch list could not be brought up to date.
+ *
+ * `subscriptions` is what the run changed in the `subscription` table: the topics it added and
+ * removed (`syncSubscriptions` of @findmyperson/shared). On most runs both lists are empty. It
+ * is there for the push task, which has to apply the same difference to the push service; it is
+ * present on a failed run when the purge failed and the watch list was still updated.
+ */
+export type MaintenanceResult =
+  | { ran: true; subscriptions: SubscriptionSyncResult }
+  | { ran: false; error: unknown; subscriptions?: SubscriptionSyncResult };
 
 /** What the app lets a screen do to the on-device store. Screens never see the store itself. */
 export interface DataStore {
@@ -44,6 +56,13 @@ export interface DataStore {
    * the app runs. `StoreMaintenance` calls it when the app starts, each time it returns to the
    * foreground and on each capture wake; a screen has no reason to.
    *
+   * The same pass then brings the watch list up to date (`syncSubscriptions`): the shards of
+   * everywhere the phone has been in the 30 days the purge has just left, written to the
+   * `subscription` table only where it differs from what is there. It runs after the purge so
+   * that the list shrinks with the history, and it runs even if the purge failed, because it
+   * reads the history by its dates and not by what is still stored: a fault in derivation must
+   * not stop the phone from following a place it has just arrived in.
+   *
    * It never rejects. A store that cannot be opened or purged right now (the phone was not
    * unlocked since it restarted, the native writer held the file) is the result, and the next
    * call tries again from the start.
@@ -54,9 +73,10 @@ export interface DataStore {
    * store, opening it first if this is a cold wake: no screen, no provider and no earlier call
    * is needed. The time is this store's clock.
    *
-   * `input.watch` is the shard-key list. Left out, it is read from the store: every topic of
-   * the `subscription` table, which is the list the subscription manager (B3.7) keeps. Until
-   * that manager exists the table is empty and so is the list.
+   * `input.watch` is the shard-key list. Left out, it is read from the store: the shards of the
+   * `subscription` table (`listWatchedShards`), which `runMaintenance` keeps equal to where the
+   * phone has been. Before the first maintenance run of a new store the table is empty and so
+   * is the list.
    *
    * For background work, never for a screen. It rejects only for a malformed argument; a store
    * that cannot be opened is a `failed` result with `store_failed`, and the next call tries
@@ -154,11 +174,26 @@ export function createDataStore(
       // Start, foreground and a capture wake often arrive together. A call made while a run is
       // waiting or running joins it; the purge it would have done is the one being done.
       maintaining ??= serial<MaintenanceResult>(async () => {
+        let store: EncryptedStore;
         try {
-          await (await opened()).runMaintenance(now());
-          return { ran: true };
+          store = await opened();
         } catch (error) {
           return { ran: false, error };
+        }
+        const nowTs = now();
+        const failed = await store.runMaintenance(nowTs).then(
+          () => null,
+          (error: unknown) => ({ error }),
+        );
+        // After the purge, in the same turn of the queue, so nothing comes between the two. A
+        // failed purge does not put it off: it reads the same 30 days either way.
+        try {
+          const subscriptions = await syncSubscriptions(store.db, nowTs);
+          return failed === null
+            ? { ran: true, subscriptions }
+            : { ran: false, error: failed.error, subscriptions };
+        } catch (error) {
+          return { ran: false, error: failed === null ? error : failed.error };
         }
       }).finally(() => {
         maintaining = null;
@@ -170,7 +205,7 @@ export function createDataStore(
       let watch = input.watch;
       if (watch === undefined) {
         try {
-          watch = (await listSubscriptions(db)).map((row) => row.topic);
+          watch = await listWatchedShards(db);
         } catch {
           // Not an empty list: a cycle run on one would follow no shard and say so on the wire.
           return { ...NO_CYCLE, outcome: 'failed', reason: 'store_failed' };

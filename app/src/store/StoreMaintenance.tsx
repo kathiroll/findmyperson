@@ -11,7 +11,12 @@ import { useAppWake } from './useAppWake';
  *                        app was closed, in one pass however long that was
  *   on every foreground  the same, each time the app comes back to the screen
  *   (both of those also send any report still queued from being offline)
- *   on a capture wake    the only moment a VACUUM that is due can find the phone idle
+ *   on a capture wake    the only moment a VACUUM that is due can find the phone idle, and the
+ *                        moment the phone may have entered a shard it does not follow yet
+ *
+ * Every one of them also brings the fetcher's watch list up to date with where the phone has
+ * been (`DataStore.runMaintenance` does it after the purge). What a run added and removed is in
+ * its result, which nothing reads yet: applying it to push topics is the push task's.
  *
  * A wake that stores a fix with no JavaScript running is not seen here. The capture modules
  * purge fixes and stays themselves on those (native-writer.json), so retention does not depend

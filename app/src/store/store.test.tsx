@@ -20,7 +20,12 @@ import {
   kvGet,
   listSamplesAfterId,
   listStaysOverlapping,
+  listSubscriptions,
+  listWatchedShards,
   RETENTION_SEC,
+  sampleCells,
+  StoreRowError,
+  watchSetForCells,
   type SqlDatabase,
 } from '@findmyperson/shared';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -52,10 +57,19 @@ afterEach(async () => {
   }
 });
 
+/** The database of a store with no history: every read comes back empty. */
+const noRows: SqlDatabase = {
+  execute: async () => [],
+  transaction: (work) => work({ execute: async () => [] }),
+};
+/** What a run that changed nothing in the watch list reports. */
+const UNCHANGED = { added: [], removed: [], changed: [], total: 0 };
+
 /** A store that only records when its maintenance was asked for. */
 function recordingStore() {
   const runs: number[] = [];
   const store = {
+    db: noRows,
     runMaintenance: async (nowTs: number) => void runs.push(nowTs),
   } as unknown as EncryptedStore;
   return { store, runs };
@@ -182,7 +196,7 @@ describe('the maintenance run', () => {
     const dataStore = createDataStore(real.options, current, () => clock.now);
     cleanups.push(() => current.store?.close());
 
-    expect(await dataStore.runMaintenance()).toEqual({ ran: true });
+    expect(await dataStore.runMaintenance()).toEqual({ ran: true, subscriptions: UNCHANGED });
     expect(real.opens()).toBe(1);
     const db = current.store!.db;
     expect(await kvGet(db, KV_KEYS.purgeLastRunAt)).toBe(String(T0));
@@ -203,7 +217,7 @@ describe('the maintenance run', () => {
     });
     clock.now = T0 + 40 * DAY;
 
-    expect(await dataStore.runMaintenance()).toEqual({ ran: true });
+    expect(await dataStore.runMaintenance()).toMatchObject({ ran: true });
     expect(real.opens()).toBe(1);
     expect(await sampleTimes(db)).toEqual([T0 + 39 * DAY]);
     expect(await listStaysOverlapping(db, 0, clock.now - RETENTION_SEC - 1)).toEqual([]);
@@ -227,7 +241,7 @@ describe('the maintenance run', () => {
 
     // The phone is unlocked and the store opens.
     current.store = store;
-    expect(await dataStore.runMaintenance()).toEqual({ ran: true });
+    expect(await dataStore.runMaintenance()).toEqual({ ran: true, subscriptions: UNCHANGED });
     expect(runs).toEqual([T0]);
   });
 
@@ -235,6 +249,7 @@ describe('the maintenance run', () => {
     let fail = true;
     const runs: number[] = [];
     const store = {
+      db: noRows,
       runMaintenance: async (nowTs: number) => {
         if (fail) throw new Error('database is locked');
         runs.push(nowTs);
@@ -247,7 +262,7 @@ describe('the maintenance run', () => {
       error: { message: 'database is locked' },
     });
     fail = false;
-    expect(await dataStore.runMaintenance()).toEqual({ ran: true });
+    expect(await dataStore.runMaintenance()).toEqual({ ran: true, subscriptions: UNCHANGED });
     expect(runs).toEqual([T0]);
   });
 
@@ -255,6 +270,7 @@ describe('the maintenance run', () => {
     let release!: () => void;
     const started: number[] = [];
     const store = {
+      db: noRows,
       runMaintenance: (nowTs: number) => {
         started.push(nowTs);
         return new Promise<void>((resolve) => (release = resolve));
@@ -272,14 +288,14 @@ describe('the maintenance run', () => {
     await underWay();
     expect(started).toEqual([T0]);
     release();
-    expect(await first).toEqual({ ran: true });
+    expect(await first).toMatchObject({ ran: true });
 
     // Once it has finished, the next trigger is a run of its own.
     const third = dataStore.runMaintenance();
     expect(third).not.toBe(first);
     await underWay();
     release();
-    expect(await third).toEqual({ ran: true });
+    expect(await third).toMatchObject({ ran: true });
     expect(started).toEqual([T0, T0 + 1]);
   });
 
@@ -298,11 +314,134 @@ describe('the maintenance run', () => {
     const deleted = dataStore.deleteAll();
     const maintained = dataStore.runMaintenance();
     expect(await deleted).toEqual({ emptyStoreConfirmed: true });
-    expect(await maintained).toEqual({ ran: true });
+    // The fix went with the old store, so the new one follows nothing.
+    expect(await maintained).toEqual({ ran: true, subscriptions: UNCHANGED });
 
     expect(current.store).not.toBe(before);
     expect(await sampleTimes(current.store!.db)).toEqual([]);
     expect(await kvGet(current.store!.db, KV_KEYS.purgeLastRunAt)).toBe(String(T0));
+  });
+});
+
+describe('the watch list', () => {
+  const HOME_SHARD = sampleCells(HOME).h3_r5;
+  const AWAY = { lat: 12.2958, lon: 76.6394 };
+  const AWAY_SHARD = sampleCells(AWAY).h3_r5;
+
+  function realDataStore(clock: { now: number }) {
+    const real = realStoreOptions(createFakeLocationCapture(), 'ios');
+    const current: { store: EncryptedStore | null } = { store: null };
+    cleanups.push(() => current.store?.close());
+    return { current, dataStore: createDataStore(real.options, current, () => clock.now) };
+  }
+  const fixAt = (db: SqlDatabase, ts: number, place = HOME) =>
+    insertLocationSample(db, { ts_utc: ts, ...place, accuracy_m: 20, source: 'wm' });
+  const rows = async (db: SqlDatabase) =>
+    (await listSubscriptions(db)).map(({ topic, res, reason }) => ({ topic, res, reason }));
+
+  test('is brought up to date by every maintenance run, and most runs change nothing', async () => {
+    const clock = { now: T0 };
+    const { current, dataStore } = realDataStore(clock);
+    await dataStore.runMaintenance();
+    const db = current.store!.db;
+
+    // The capture module stores a fix, and the wake that follows runs maintenance.
+    await fixAt(db, T0);
+    const first = await dataStore.runMaintenance();
+    const wanted = watchSetForCells([HOME_SHARD]);
+    expect(first).toEqual({
+      ran: true,
+      subscriptions: { added: wanted, removed: [], changed: [], total: wanted.length },
+    });
+    expect(await rows(db)).toEqual(wanted);
+    // What the fetcher is given: the shard the phone is in and its ring, at res 5, and not
+    // the res-3 cells above them.
+    expect(await listWatchedShards(db)).toEqual(
+      wanted.filter((topic) => topic.res === 5).map((topic) => topic.topic),
+    );
+    expect(await listWatchedShards(db)).toContain(HOME_SHARD);
+
+    const stored = await listSubscriptions(db);
+    for (const later of [T0 + 900, T0 + DAY]) {
+      clock.now = later;
+      await fixAt(db, later);
+      expect(await dataStore.runMaintenance()).toEqual({
+        ran: true,
+        subscriptions: { added: [], removed: [], changed: [], total: wanted.length },
+      });
+    }
+    expect(await listSubscriptions(db)).toEqual(stored);
+  });
+
+  test('follows a new place at once, and lets go of an old one when the purge does', async () => {
+    const clock = { now: T0 };
+    const { current, dataStore } = realDataStore(clock);
+    await dataStore.runMaintenance();
+    const db = current.store!.db;
+    await fixAt(db, T0, AWAY);
+    await dataStore.runMaintenance();
+    expect(await listWatchedShards(db)).toContain(AWAY_SHARD);
+
+    clock.now = T0 + 20 * DAY;
+    await fixAt(db, clock.now);
+    const arrived = await dataStore.runMaintenance();
+    expect(arrived).toMatchObject({ ran: true, subscriptions: { removed: [] } });
+    expect(await listWatchedShards(db)).toEqual(expect.arrayContaining([HOME_SHARD, AWAY_SHARD]));
+
+    // Eleven days on, the purge deletes the fix taken away, and the same run drops its shards.
+    clock.now = T0 + 31 * DAY;
+    const purged = await dataStore.runMaintenance();
+    expect(await sampleTimes(db)).toEqual([T0 + 20 * DAY]);
+    expect(purged).toMatchObject({ ran: true, subscriptions: { added: [] } });
+    expect(purged.subscriptions?.removed).toContainEqual({
+      topic: AWAY_SHARD,
+      res: 5,
+      reason: 'visited',
+    });
+    expect(await rows(db)).toEqual(watchSetForCells([HOME_SHARD]));
+
+    // And with nothing left inside 30 days, nothing is followed.
+    clock.now = T0 + 60 * DAY;
+    expect(await dataStore.runMaintenance()).toMatchObject({ subscriptions: { total: 0 } });
+    expect(await listSubscriptions(db)).toEqual([]);
+  });
+
+  test('is still updated when derivation fails, and the failure is still the result', async () => {
+    const clock = { now: T0 };
+    const { current, dataStore } = realDataStore(clock);
+    await dataStore.runMaintenance();
+    const db = current.store!.db;
+    await fixAt(db, T0);
+    // A stay row derivation cannot read.
+    await db.execute(
+      `INSERT INTO stay (start_ts, end_ts, lat, lon, radius_m, h3_r7, sample_count, closed, source)
+       VALUES (?, ?, 'not a number', 0, 0, ?, 0, 1, 'derived')`,
+      [T0 - 60, T0, sampleCells(HOME).h3_r7],
+    );
+
+    const result = await dataStore.runMaintenance();
+    expect(result.ran).toBe(false);
+    expect(result).toMatchObject({ error: expect.any(StoreRowError) });
+    expect(result.subscriptions?.added).toEqual(watchSetForCells([HOME_SHARD]));
+    expect(await listWatchedShards(db)).toContain(HOME_SHARD);
+  });
+
+  test('a watch list that cannot be updated is the result, not a crash', async () => {
+    const runs: number[] = [];
+    const store = {
+      db: {
+        execute: async () => {
+          throw new Error('database is locked');
+        },
+      },
+      runMaintenance: async (nowTs: number) => void runs.push(nowTs),
+    } as unknown as EncryptedStore;
+    const dataStore = createDataStore(neverOpens, { store }, () => T0);
+    const result = await dataStore.runMaintenance();
+    expect(result).toMatchObject({ ran: false, error: { message: 'database is locked' } });
+    expect(result.subscriptions).toBeUndefined();
+    // The purge was not held up by it.
+    expect(runs).toEqual([T0]);
   });
 });
 
@@ -319,7 +458,7 @@ describe('the weekly VACUUM', () => {
     const dataStore = createDataStore(real.options, current, () => T0);
     cleanups.push(() => current.store?.close());
 
-    expect(await dataStore.runMaintenance()).toEqual({ ran: true });
+    expect(await dataStore.runMaintenance()).toMatchObject({ ran: true });
     const db = current.store!.db;
     return {
       asked,

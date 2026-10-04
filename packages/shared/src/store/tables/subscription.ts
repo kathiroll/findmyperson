@@ -5,14 +5,25 @@ import { num, oneOf, text, type SqlExecutor, type SqlRow } from '../driver';
 /**
  * `subscription`: the shard and push topics this device follows (plan 7.2).
  *
- * WRITER: the subscription manager, and nobody else. It recomputes the wanted set from the last
- * 30 days of history and applies the difference here and to the push service.
+ * WRITER: the subscription manager (syncSubscriptions in subscription/sync.ts), and nobody
+ * else. It recomputes the wanted set from the last 30 days of history and applies the
+ * difference here. Applying it to the push service as well is the push task's, not yet built.
  *
  * `reason` records why a topic is in the set:
  *   visited    a res-5 cell holding a stay or sample
  *   ring       a res-5 neighbour of a visited cell
  *   ancestor   the res-3 parent of a subscribed res-5 cell
  *   coarsened  a res-3 cell standing in for res-5 cells beyond SUBSCRIPTION_RES5_CAP
+ *
+ * A topic is one row with one reason: `visited` over `ring`, `coarsened` over `ancestor`.
+ *
+ * What a row is followed as:
+ *   a shard        every res-5 row, and a res-3 row with reason `coarsened`. These are what the
+ *                  bundle fetcher downloads (listWatchedShards).
+ *   a push topic   every res-3 row, whatever its reason. An `ancestor` row is only this.
+ *
+ * `refreshed_at` is when the row was last written: added, or given a new reason. A run of the
+ * manager that finds a row still wanted for the same reason does not touch it.
  */
 export const SUBSCRIPTION_REASONS = ['visited', 'ring', 'ancestor', 'coarsened'] as const;
 export type SubscriptionReason = (typeof SUBSCRIPTION_REASONS)[number];
@@ -42,6 +53,18 @@ export async function listSubscriptions(db: SqlExecutor): Promise<Subscription[]
     'SELECT topic, res, reason, added_at, refreshed_at FROM subscription ORDER BY topic',
   );
   return rows.map(fromRow);
+}
+
+/**
+ * THE SHARD-KEY LIST of the bundle fetcher (`watch` of runFetchCycle): the topics followed as
+ * shards, sorted. An `ancestor` row is left out. Its bundle holds every report of its res-3
+ * region, which the res-5 rows beside it already bring for the cells the device needs.
+ */
+export async function listWatchedShards(db: SqlExecutor): Promise<H3Cell[]> {
+  const rows = await db.execute(
+    "SELECT topic FROM subscription WHERE reason <> 'ancestor' ORDER BY topic",
+  );
+  return rows.map((row) => text(row, 'topic'));
 }
 
 /**

@@ -89,6 +89,17 @@ export {
   type VacuumOutcome,
 } from './retention/maintenance';
 
+// Subscription manager: the watch set of a device's history, and the writer of `subscription`.
+export {
+  computeWatchSet,
+  visitedShardCells,
+  watchSetForCells,
+  type WatchHistory,
+  type WatchSetOptions,
+  type WatchTopic,
+} from './subscription/watchSet';
+export { syncSubscriptions, type SubscriptionSyncResult } from './subscription/sync';
+
 // Bundle fetcher: the signed shard index and bundles, into `report_cache`.
 export {
   runFetchCycle,
