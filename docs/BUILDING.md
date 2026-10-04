@@ -13,9 +13,9 @@ Plain-language guide to getting an installable Android or iOS build of the real 
 
 Definition: `.github/workflows/build.yml`. Built files are attached to the run as artifacts. The existing `ci.yml` (typecheck, lint, tests) is unchanged.
 
-Two more checks in the same workflow need no app project and run today. `store-android` (every pull request) runs the Kotlin unit tests of `packages/encrypted-store`. The `ios-capture-module` job also runs that package's Swift host check on the Mac, on `main` only.
+Three more checks in the same workflow need no app project and run today. `store-android` (every pull request) runs the Kotlin unit tests of `packages/encrypted-store`, including its store and JNI code on real SQLCipher built for the runner. `android-linkcheck` (every pull request) runs `build/android-linkcheck.sh`: it builds a small APK of the native modules that touch the store and reads it, as described below. The `ios-capture-module` job also runs that package's Swift host check on the Mac, on `main` only.
 
-`build/build-android.sh` ends by checking the manifest Gradle merged: if it would let Android back up or transfer the app's data, the build fails. See "Backup exclusion" in `packages/encrypted-store/README.md`.
+`build/build-android.sh` ends with two checks on what Gradle produced, and either fails the build. The merged manifest must not let Android back up or transfer the app's data ("Backup exclusion" in `packages/encrypted-store/README.md`). The APK and bundle must hold exactly one SQLite, the SQLCipher inside op-sqlite's library, with the Kotlin store linked to it ("One SQLite library in the Android process" there). `build/android-linkcheck.sh` makes the same two checks on the link check's APK, which is the only APK there is until `app/android` exists; `packages/encrypted-store/android-linkcheck/README.md` describes it.
 
 ## Build on your own machine (the captain's path)
 

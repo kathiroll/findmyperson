@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing to launch: the link check is built, read and never installed. It says nothing about
+  backup on purpose; the store library's manifest merges the rule in, and the build checks the
+  merged result (scripts/check-merged-manifest.ts).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:label="fmp link check" />
+</manifest>

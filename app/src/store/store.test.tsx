@@ -343,8 +343,9 @@ describe('the weekly VACUUM', () => {
   });
 
   test('Android: switched off by ANDROID_VACUUM_ENABLED, whatever the phone is doing; the purge still runs', async () => {
-    // The flag is the fmp-android-sqlite-contention decision. Turning it on is deliberate, and
-    // this test then changes with it.
+    // The flag waits for the one-SQLite-library link to be verified on a phone
+    // (fmp-android-sqlite-contention). Turning it on is deliberate, and this test then changes
+    // with it.
     expect(ANDROID_VACUUM_ENABLED).toBe(false);
     const capture = createFakeLocationCapture();
     expect(retentionOptions(capture, 'android').vacuum).toBe('disabled');

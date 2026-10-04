@@ -1,0 +1,43 @@
+// The link check: a React Native Android app with no screen and no JavaScript, which exists so
+// that the three native modules that touch the store are built and packaged together the way
+// the app will build them. See ../README.md.
+//
+// React Native's Gradle plugin is taken from node_modules, found from the store package the way
+// Node finds it, so `pnpm install` has to have run.
+pluginManagement {
+    def reactNativeGradlePlugin = new File(
+        providers.exec {
+            workingDir(rootDir)
+            commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
+        }.standardOutput.asText.get().trim()
+    ).parent
+    // A path, not a File: only then is it a build that may supply plugins.
+    includeBuild(reactNativeGradlePlugin)
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+plugins { id("com.facebook.react.settings") }
+
+// The modules to link, from ../autolinking.mjs instead of the community CLI, which this
+// repository does not install. Run again whenever one of the files below changes.
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand(
+        ["node", "autolinking.mjs"],
+        new File(rootDir, ".."),
+        files("../autolinking.mjs", "../package.json", "../../package.json", "../../../../pnpm-lock.yaml"),
+    )
+}
+
+rootProject.name = "fmp-android-linkcheck"
+include ":app"
+includeBuild(
+    new File(
+        providers.exec {
+            workingDir(rootDir)
+            commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
+        }.standardOutput.asText.get().trim()
+    ).parentFile
+)

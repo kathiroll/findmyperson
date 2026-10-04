@@ -1,0 +1,8 @@
+{
+  "name": "findmyperson-android-linkcheck",
+  "private": true,
+  "description": "Not a workspace member and never installed. op-sqlite's Android build reads its settings from the package.json beside the Android project, which for android/ here is this file.",
+  "op-sqlite": {
+    "sqlcipher": true
+  }
+}

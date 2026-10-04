@@ -182,10 +182,10 @@ It describes `main` at commit `0a1bbb4` (2026-10-04, pull request #30). [ARCHITE
 
 ### 24. One SQLCipher in the Android process
 
-- **Decision:** On Android the Kotlin writer should use the SQLCipher inside op-sqlite's library through a small JNI shim, instead of a second copy from Zetetic's library.
-- **Status:** Chosen and implemented in open PR #31; not merged at the commit this file describes. On `main` two copies still coexist, the problem is described under "Open decision" in the encrypted-store README, and the weekly `VACUUM` is switched off on Android because of it (`ANDROID_VACUUM_ENABLED`).
+- **Decision:** On Android the Kotlin side uses the SQLCipher inside op-sqlite's library through a small JNI shim, instead of a second copy from Zetetic's library.
+- **Status:** Documented (README, PR #31): "One SQLite library in the Android process" in the encrypted-store README. Built, checked on the packaged libraries of an APK and run on a JVM; not run on a phone, so the weekly `VACUUM` is still switched off on Android (`ANDROID_VACUUM_ENABLED`) until the device checks that section lists have been made.
 - **Why:** SQLite's file locks belong to the process, so two library copies in one process do not see each other's locks and can both believe they hold the write lock. One copy removes the problem and makes Android match iOS.
-- **Alternatives:** Both considered in that README: run capture in its own process (`android:process`), where file locks work but the module's link to JavaScript changes; or a lock that both sides take, with TypeScript opening the store per unit of work.
+- **Alternatives:** Both were weighed before the choice: run capture in its own process (`android:process`), where file locks work but the module's link to JavaScript changes; or a lock that both sides take, with TypeScript opening the store per unit of work.
 
 ### 25. Retention is one stateless purge that runs in three places
 

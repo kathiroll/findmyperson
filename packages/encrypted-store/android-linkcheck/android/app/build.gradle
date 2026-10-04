@@ -1,0 +1,44 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+// node_modules is pnpm's, so React Native and its codegen are not at the paths the plugin
+// assumes. They are found from the store package, as Node finds them.
+def resolveFromStorePackage = { String expression ->
+    providers.exec {
+        workingDir(rootDir)
+        commandLine("node", "--print", expression)
+    }.standardOutput.asText.get().trim()
+}
+def reactNative = new File(resolveFromStorePackage("require.resolve('react-native/package.json')")).parentFile
+def codegen = new File(resolveFromStorePackage(
+    "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })")).parentFile
+
+react {
+    root = file("../../")
+    reactNativeDir = reactNative
+    codegenDir = codegen
+    cliFile = new File(reactNative, "cli.js")
+    autolinkLibrariesWithApp()
+}
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "dev.findmyperson.linkcheck"
+    defaultConfig {
+        applicationId "dev.findmyperson.linkcheck"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "0"
+    }
+}
+
+dependencies {
+    // The version of react-native is set by the React Native Gradle Plugin.
+    implementation("com.facebook.react:react-android")
+    implementation("com.facebook.react:hermes-android")
+}

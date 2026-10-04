@@ -25,6 +25,11 @@ buildscript {
 }
 
 def standalone = project == rootProject
+if (standalone) {
+  // Read by the store package's build, which settings.gradle includes as a subproject: there is
+  // no React Native build here for it to plug into, and no op-sqlite project to link against.
+  ext.fmpWithoutReactNative = true
+}
 
 apply plugin: 'com.android.library'
 apply plugin: 'org.jetbrains.kotlin.android'
@@ -173,10 +178,11 @@ dependencies {
   implementation 'androidx.work:work-runtime:2.10.0'
   implementation 'com.google.android.gms:play-services-location:21.3.0'
 
-  // SQLCipher for the native writer. The same release as the M0 store proof, which showed this
-  // library and op-sqlite's SQLCipher open one file. Bump it together with op-sqlite.
-  implementation 'net.zetetic:sqlcipher-android:4.19.0'
-  implementation 'androidx.sqlite:sqlite:2.4.0'
+  // The store package (packages/encrypted-store/android), for its SqlcipherConnection: the one
+  // way to SQLite on Android, through the SQLCipher inside op-sqlite's library. This module must
+  // not depend on a library that carries a SQLite of its own. The project name is the one React
+  // Native's autolinking gives @findmyperson/encrypted-store; settings.gradle uses the same.
+  implementation project(':findmyperson_encrypted-store')
 
   testImplementation 'junit:junit:4.13.2'
   testImplementation 'org.json:json:20240303'

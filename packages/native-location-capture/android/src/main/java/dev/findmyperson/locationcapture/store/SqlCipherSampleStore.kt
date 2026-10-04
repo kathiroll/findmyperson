@@ -1,18 +1,14 @@
 package dev.findmyperson.locationcapture.store
 
 import android.content.Context
-import android.database.sqlite.SQLiteException
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import dev.findmyperson.encryptedstore.SqlcipherConnection
 import dev.findmyperson.locationcapture.core.PurgeCounts
 import dev.findmyperson.locationcapture.core.SampleStore
 import dev.findmyperson.locationcapture.core.StoreUnusableException
 import dev.findmyperson.locationcapture.core.StoredSample
-import net.zetetic.database.DatabaseErrorHandler
-import net.zetetic.database.sqlcipher.SQLiteConnection
-import net.zetetic.database.sqlcipher.SQLiteDatabase
-import net.zetetic.database.sqlcipher.SQLiteDatabaseHook
 import java.io.File
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -135,7 +131,6 @@ class SqlCipherSampleStore(context: Context, private val key: KeystoreStoreKey) 
 
     /** Opens the existing store with the pinned parameters and verifies them before returning. */
     private fun open(): SqlDatabase {
-        loadLibrary()
         val file = StoreLocation.file(appContext)
         if (!file.exists()) {
             // The native side never creates the store: TypeScript creates and migrates it.
@@ -146,33 +141,27 @@ class SqlCipherSampleStore(context: Context, private val key: KeystoreStoreKey) 
         } catch (e: Exception) {
             throw StoreOpenException("KEY_UNAVAILABLE", "the store key could not be read (${e.javaClass.simpleName})", e)
         }
-        val hook = object : SQLiteDatabaseHook {
-            override fun preKey(connection: SQLiteConnection) {}
-
-            // After the key is set and before the first read: when cipher_* pragmas must be applied.
-            override fun postKey(connection: SQLiteConnection) {
-                for (pragma in CipherPragmas.APPLY) {
-                    connection.execute(pragma, null, null)
-                }
-            }
-        }
         val database = try {
-            SQLiteDatabase.openDatabase(
-                file.path,
-                StoreKeys.keyLiteral(keyHex).toByteArray(Charsets.US_ASCII),
-                null,
-                // Without the WAL flag this wrapper sets its own default journal mode on open,
-                // which would take the store out of WAL under the TypeScript reader.
-                SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING,
-                KEEP_THE_FILE,
-                hook,
-            )
+            // The one SQLCipher of the app, the copy inside op-sqlite's library, reached through
+            // the store package. The file is opened as it is: nothing here changes its journal
+            // mode, which TypeScript set to WAL and StoreRules.verify requires.
+            SqlcipherConnection.open(file, StoreKeys.keyLiteral(keyHex), create = false)
         } catch (e: Exception) {
-            // A wrong key or a page-size / HMAC / KDF mismatch surfaces here as "file is not a database".
-            throw StoreOpenException("BAD_KEY_OR_PARAMS", "store did not decrypt with the pinned parameters", e)
+            throw StoreOpenException("OPEN_FAILED", "the store file could not be opened", e)
         }
         val connection = Connection(database)
         try {
+            // After the key is set and before the first read: when cipher_* pragmas must be applied.
+            for (pragma in CipherPragmas.APPLY) {
+                database.scalar(pragma)
+            }
+            database.busyTimeout(BUSY_TIMEOUT_MS)
+            try {
+                database.scalar("SELECT count(*) FROM sqlite_master")
+            } catch (e: Exception) {
+                // A wrong key or a page-size / HMAC / KDF mismatch surfaces here as "file is not a database".
+                throw StoreOpenException("BAD_KEY_OR_PARAMS", "store did not decrypt with the pinned parameters", e)
+            }
             StoreRules.verify(connection)
         } catch (e: Exception) {
             connection.close()
@@ -181,35 +170,31 @@ class SqlCipherSampleStore(context: Context, private val key: KeystoreStoreKey) 
         return connection
     }
 
-    private class Connection(private val database: SQLiteDatabase) : SqlDatabase {
-        override fun scalar(sql: String): String? =
-            database.rawQuery(sql, null as Array<String>?).use { if (it.moveToFirst()) it.getString(0) else null }
+    private class Connection(private val database: SqlcipherConnection) : SqlDatabase {
+        override fun scalar(sql: String): String? = database.scalar(sql)
 
         override fun execute(sql: String, args: Array<Any?>) {
-            database.execSQL(sql, args)
+            database.execute(sql, args.asList())
         }
 
-        override fun update(sql: String, args: LongArray): Int {
-            val statement = database.compileStatement(sql)
-            try {
-                args.forEachIndexed { index, value -> statement.bindLong(index + 1, value) }
-                return statement.executeUpdateDelete()
-            } finally {
-                statement.close()
-            }
-        }
+        override fun update(sql: String, args: LongArray): Int = database.update(sql, args.asList())
 
         // Takes the write lock at the start, so TypeScript's connection cannot write between
         // two statements of the purge.
         override fun <T> transaction(block: () -> T): T {
-            database.beginTransaction()
-            try {
-                val result = block()
-                database.setTransactionSuccessful()
-                return result
-            } finally {
-                database.endTransaction()
+            database.execute("BEGIN IMMEDIATE")
+            val result = try {
+                block()
+            } catch (e: Throwable) {
+                try {
+                    database.execute("ROLLBACK")
+                } catch (rollback: Exception) {
+                    e.addSuppressed(rollback)
+                }
+                throw e
             }
+            database.execute("COMMIT")
+            return result
         }
 
         override fun close() {
@@ -219,21 +204,9 @@ class SqlCipherSampleStore(context: Context, private val key: KeystoreStoreKey) 
 
     private companion object {
         /**
-         * What to do when SQLite reports corruption: nothing. A wrong key looks like corruption,
-         * and a handler that deletes the file would turn a key problem into the loss of thirty
-         * days of history. The failure reaches the status as `store_unusable` instead.
+         * How long a statement waits for TypeScript's connection to finish a write before
+         * failing. Both connections go through one SQLite, so they do wait for each other.
          */
-        val KEEP_THE_FILE = DatabaseErrorHandler { _: SQLiteDatabase, _: SQLiteException -> }
-
-        @Volatile
-        private var loaded = false
-
-        /** Zetetic's sqlcipher-android ships libsqlcipher.so; it must be loaded before first use. */
-        fun loadLibrary() {
-            if (!loaded) {
-                System.loadLibrary("sqlcipher")
-                loaded = true
-            }
-        }
+        const val BUSY_TIMEOUT_MS = dev.findmyperson.encryptedstore.StoreContract.BUSY_TIMEOUT_MS
     }
 }
