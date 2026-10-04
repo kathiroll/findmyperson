@@ -3,6 +3,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { Linking } from 'react-native';
 import { createFakeLocationCapture } from '@findmyperson/native-location-capture/fake';
+import type { DataStore } from '../../store';
 import { AppNavigator } from '../AppNavigator';
 import {
   linking,
@@ -20,7 +21,7 @@ vi.mock('react-native-safe-area-context', async () => await import('./stubs'));
 
 type Ref = NavigationContainerRef<RootStackParamList>;
 
-async function mount(initialUrl: string | null = null) {
+async function mount(initialUrl: string | null = null, store: Partial<DataStore> = {}) {
   (Linking as unknown as { initialUrl: string | null }).initialUrl = initialUrl;
   const ref = { current: null as Ref | null };
   let renderer!: ReactTestRenderer;
@@ -33,6 +34,14 @@ async function mount(initialUrl: string | null = null) {
           deleteAll: async () => ({ emptyStoreConfirmed: true }),
           runMaintenance: async () => ({ ran: true }),
           runFetchCycle: () => Promise.reject(new Error('no screen fetches')),
+          deviceIdentity: {
+            getDeviceId: () => Promise.reject(new Error('not used')),
+            authHeaders: () => Promise.reject(new Error('not used')),
+            reset: () => Promise.reject(new Error('not used')),
+          },
+          enqueueReport: () => Promise.reject(new Error('this screen never submits')),
+          runReportQueue: () => Promise.reject(new Error('this screen never submits')),
+          ...store,
         }}
       />,
     );
@@ -130,6 +139,59 @@ describe('navigation shell', () => {
     expect(currentRoute(ref)?.name).toBe('Bystander');
     await press(renderer.root, 'Close');
     expect(screens(renderer)).toEqual(['screen-Home']);
+  });
+});
+
+describe('report submission', () => {
+  test('a submitted report lands on the live-report placeholder, which says it is under review', async () => {
+    const queued = { id: 1 } as Awaited<ReturnType<DataStore['enqueueReport']>>;
+    const { ref, renderer } = await mount(null, {
+      enqueueReport: async () => queued,
+      runReportQueue: async () => ({
+        acknowledged: [{ id: 1, report: { query_id: '01J9Z000000000000000000000' } as never }],
+        retrying: [],
+        failed: [],
+      }),
+    });
+    await press(renderer.root, 'Not now');
+    await press(renderer.root, 'Report a missing person');
+
+    const type = async (label: string, value: string) =>
+      act(async () => {
+        renderer.root
+          .findAll(
+            (n) =>
+              n.props.accessibilityLabel === label && typeof n.props.onChangeText === 'function',
+          )[0]!
+          .props.onChangeText(value);
+      });
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - 30);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    await type('Their name, required', 'Asha Verma');
+    await type('Your phone number, required', '+919810012345');
+    await type('Latitude', '28.6139');
+    await type('Longitude', '77.2090');
+    await type(
+      'Date, required',
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+    );
+    await type('Time, required', `${pad(now.getHours())}:${pad(now.getMinutes())}`);
+    await press(renderer.root, 'Broadcast report');
+    await act(async () => {});
+
+    expect(currentRoute(ref)).toMatchObject({
+      name: 'LiveReport',
+      params: { reportId: '01J9Z000000000000000000000' },
+    });
+    const copy = renderer.root
+      .findAll((n) => (n.type as unknown) === 'Text')
+      .map((n) => n.children.join(''))
+      .join(' ');
+    expect(copy).toContain('Submitted, under review');
+    // Back from the placeholder must not return to a form that was already sent.
+    await press(renderer.root, 'Back');
+    expect(screens(renderer)).not.toContain('screen-ReportForm');
   });
 });
 
