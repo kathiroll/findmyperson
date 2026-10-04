@@ -6,6 +6,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.net.ConnectivityManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Looper
@@ -19,6 +20,7 @@ import androidx.core.location.LocationManagerCompat
 import dev.findmyperson.locationcapture.core.DeviceConditions
 import dev.findmyperson.locationcapture.core.DeviceSnapshot
 import dev.findmyperson.locationcapture.core.Hibernation
+import dev.findmyperson.locationcapture.core.NetworkSnapshot
 import dev.findmyperson.locationcapture.core.PowerSnapshot
 import java.util.concurrent.TimeUnit
 
@@ -69,6 +71,22 @@ class AndroidDeviceConditions(private val context: Context) : DeviceConditions {
         screenOn = screenOn(),
         appInForeground = appInForeground(),
     )
+
+    /**
+     * What `getNetworkConditions` is answered from. A fact that cannot be read takes the value
+     * that makes the bundle fetcher wait: metered.
+     */
+    override fun network(): NetworkSnapshot = NetworkSnapshot(activeNetworkMetered = activeNetworkMetered())
+
+    /**
+     * Android's own answer for the active data network, which is also true with no network.
+     * Needs ACCESS_NETWORK_STATE, a permission granted at install with no prompt.
+     */
+    private fun activeNetworkMetered(): Boolean = try {
+        (context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).isActiveNetworkMetered
+    } catch (e: Exception) {
+        true
+    }
 
     /** Plugged in and supplying enough power that the battery is filling, or already full. */
     private fun onExternalPower(): Boolean = try {

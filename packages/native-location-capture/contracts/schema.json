@@ -277,6 +277,18 @@
             }
           ]
         },
+        "NetworkConditions": {
+          "type": "ObjectTypeAnnotation",
+          "properties": [
+            {
+              "name": "metered",
+              "optional": false,
+              "typeAnnotation": {
+                "type": "BooleanTypeAnnotation"
+              }
+            }
+          ]
+        },
         "SampleWrittenEvent": {
           "type": "ObjectTypeAnnotation",
           "properties": [
@@ -551,6 +563,21 @@
                 "elementType": {
                   "type": "TypeAliasTypeAnnotation",
                   "name": "DeviceConditions"
+                }
+              },
+              "params": []
+            }
+          },
+          {
+            "name": "getNetworkConditions",
+            "optional": false,
+            "typeAnnotation": {
+              "type": "FunctionTypeAnnotation",
+              "returnTypeAnnotation": {
+                "type": "PromiseTypeAnnotation",
+                "elementType": {
+                  "type": "TypeAliasTypeAnnotation",
+                  "name": "NetworkConditions"
                 }
               },
               "params": []

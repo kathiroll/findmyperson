@@ -19,6 +19,9 @@
     <!-- Restart the selected mode after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Whether the active connection is metered (getNetworkConditions). Granted at install, no prompt. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!--
       Deliberately absent:
         POST_NOTIFICATIONS  belongs to whatever owns notifications (the match notification needs it

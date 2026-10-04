@@ -164,6 +164,19 @@ export type DeviceConditions = {
   idle: boolean;
 };
 
+/**
+ * What the phone says about its connection: `NetworkConditions` of @findmyperson/shared
+ * (fetch/transport.ts), which the bundle fetcher asks before it spends the user's data.
+ */
+export type NetworkConditions = {
+  /**
+   * Data on the active connection costs the user money or is rationed: mobile data, a hotspot
+   * the OS marks as limited, a network the user put in a low-data mode. Also true when there is
+   * no connection, or the platform will not say.
+   */
+  metered: boolean;
+};
+
 /** Sent after a sample is committed to the store. Deliberately has no coordinates. */
 export type SampleWrittenEvent = {
   /** Time of the fix, Unix seconds: the row's `ts_utc`. */
@@ -259,6 +272,15 @@ export interface Spec extends TurboModule {
    * not capture is started.
    */
   getDeviceConditions(): Promise<DeviceConditions>;
+
+  /**
+   * Whether the active connection is metered, read at the moment of the call. It is the
+   * `network` source of the bundle fetcher in @findmyperson/shared, which puts a cycle off on a
+   * metered connection. Never rejects: no connection, or a fact the platform will not give,
+   * counts as metered, which is also how the fetcher reads no answer at all. Works whether or
+   * not capture is started.
+   */
+  getNetworkConditions(): Promise<NetworkConditions>;
 
   /**
    * Debug builds only: stores a synthetic fix with source `manual` exactly as a real one is

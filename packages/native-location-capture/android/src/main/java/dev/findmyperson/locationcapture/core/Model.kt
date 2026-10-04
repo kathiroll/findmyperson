@@ -204,6 +204,13 @@ data class MaintenanceConditions(val charging: Boolean, val idle: Boolean) {
     )
 }
 
+/** `NetworkConditions` of the spec: what `getNetworkConditions` answers. */
+data class NetworkConditions(val metered: Boolean) {
+    fun toWire(): Map<String, Any?> = linkedMapOf(
+        "metered" to metered,
+    )
+}
+
 /** One line of the local capture-health log. Never transmitted, and never holds a coordinate. */
 data class DiagnosticEntry(val tsUtc: Long, val event: String, val detail: String) {
     fun toWire(): Map<String, Any?> = linkedMapOf(

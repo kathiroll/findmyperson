@@ -29,7 +29,7 @@ class ManifestAndSettingsTest {
     private fun Element.attr(name: String): String = getAttributeNS(android, name)
 
     @Test
-    fun `the manifest asks for exactly the permissions capture needs`() {
+    fun `the manifest asks for exactly the permissions the module needs`() {
         assertEquals(
             setOf(
                 "android.permission.ACCESS_FINE_LOCATION",
@@ -38,6 +38,9 @@ class ManifestAndSettingsTest {
                 "android.permission.FOREGROUND_SERVICE",
                 "android.permission.FOREGROUND_SERVICE_LOCATION",
                 "android.permission.RECEIVE_BOOT_COMPLETED",
+                // Not capture's: without it `isActiveNetworkMetered` throws, and every
+                // connection would count as metered.
+                "android.permission.ACCESS_NETWORK_STATE",
             ),
             elements("uses-permission").map { it.attr("name") }.toSet(),
         )

@@ -76,6 +76,14 @@ protocol LocationSystemEvents: AnyObject {
     func exitedMonitoredRegion()
 }
 
+/// What iOS says about a usable network path: the two facts behind `getNetworkConditions`.
+struct NetworkPath: Equatable {
+    /// Mobile data, or a personal hotspot: iOS's "expensive".
+    var expensive: Bool
+    /// The user switched on Low Data Mode for this network: iOS's "constrained".
+    var constrained: Bool
+}
+
 /// The conditions outside Core Location that degrade capture, and the Settings app.
 protocol DeviceConditions: AnyObject {
     /// False when Background App Refresh is off for the app or the phone, or restricted.
@@ -89,6 +97,9 @@ protocol DeviceConditions: AnyObject {
     /// The app is on screen and receiving events. False in the background, and while the phone
     /// is locked or its screen is off.
     var appActive: Bool { get }
+    /// The path a request would take now. nil when there is no usable connection, or iOS has
+    /// not said yet.
+    var networkPath: NetworkPath? { get }
     /// Opens the app's page in Settings.
     func openAppSettings(completion: @escaping (Bool) -> Void)
 }

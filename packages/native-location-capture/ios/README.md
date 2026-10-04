@@ -63,6 +63,8 @@ The full purge is TypeScript and runs when the app does. A phone on which the ap
 
 `getDeviceConditions`: `charging` is `UIDevice.batteryState` being `.charging` or `.full` (battery monitoring is switched on when the module is built), and `idle` is `UIApplication.applicationState` not being `.active`, which covers the background, a locked phone and a dark screen alike.
 
+`getNetworkConditions` answers the bundle fetcher (TypeScript, `packages/shared`, `src/fetch/`), which puts a cycle off on a metered connection. `SystemDeviceConditions` runs one `NWPathMonitor` for the life of the process, on the main queue, and keeps the path it last reported; the engine calls a satisfied path metered when it is expensive (mobile data, a personal hotspot) or constrained (Low Data Mode). With no satisfied path, or before the monitor's first report, the answer is metered, so the fetcher waits. `NetworkTests` covers the answers against the fake phone. Not verified on a phone: what the path reports on each kind of connection, and that the first report has arrived by the time JavaScript first asks.
+
 `RetentionTests` covers when the purge is asked for and the getter; `StoreTests` runs the purge on the real schema, and under `scripts/test-sqlcipher.sh` on an encrypted one.
 
 ## Health flags
@@ -108,8 +110,8 @@ The store key is in the Keychain (`AfterFirstUnlockThisDeviceOnly`), as in `m0/s
 
 ```sh
 cd packages/native-location-capture/ios
-swift test                     # the state machine, 148 tests; Mac or Linux, no simulator
-sh scripts/test-sqlcipher.sh   # the same on an encrypted store, against real SQLCipher, 152 tests; Mac
+swift test                     # the state machine, 155 tests; Mac or Linux, no simulator
+sh scripts/test-sqlcipher.sh   # the same on an encrypted store, against real SQLCipher, 159 tests; Mac
 sh scripts/check-ios.sh        # compiles every source for arm64 iOS, the Turbo Module shim included; Mac
 ```
 
@@ -151,8 +153,8 @@ These tests fix what the module does when iOS behaves as the trial observed. The
 
 Verified on a Mac, with no phone and no simulator:
 
-- The state machine, with fakes for the phone: `swift test`, 148 tests.
-- The store against real SQLCipher built from the C source op-sqlite vendors: opens an encrypted file with the pinned parameters, writes samples and visit stays into the real schema (`migration-v1.sql`), purges what is past retention from it, refuses a wrong key, other cipher parameters and a plaintext file, and leaves no plaintext on disk (`scripts/test-sqlcipher.sh`, 152 tests). That build uses CommonCrypto where the app uses OpenSSL.
+- The state machine, with fakes for the phone: `swift test`, 155 tests.
+- The store against real SQLCipher built from the C source op-sqlite vendors: opens an encrypted file with the pinned parameters, writes samples and visit stays into the real schema (`migration-v1.sql`), purges what is past retention from it, refuses a wrong key, other cipher parameters and a plaintext file, and leaves no plaintext on disk (`scripts/test-sqlcipher.sh`, 159 tests). That build uses CommonCrypto where the app uses OpenSSL.
 - Cells and distances against `geo-vectors.json`, with the same H3 version h3-js bundles.
 - Every source file compiles for arm64 iOS 15.1 against the iPhoneOS 18.2 SDK: Swift, the vendored C, the launch observer, and the Turbo Module shim against React Native 0.87.1's headers and the committed codegen header (`scripts/check-ios.sh`).
 

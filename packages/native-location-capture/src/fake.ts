@@ -26,6 +26,7 @@ import type {
   DeviceConditions,
   DiagnosticEntry,
   HealthFlag,
+  NetworkConditions,
   PermissionState,
   PermissionStep,
   SampleWrittenEvent,
@@ -102,6 +103,12 @@ export interface FakeControls {
    * `getDeviceConditions` answers; at the start the phone is on battery and in use.
    */
   setDeviceConditions(conditions: Partial<DeviceConditions>): void;
+  /**
+   * The phone joined Wi-Fi, went back to mobile data or lost its connection. What
+   * `getNetworkConditions` answers; at the start the connection is metered, which is also what
+   * a real module answers when the platform will not say.
+   */
+  setNetworkConditions(conditions: NetworkConditions): void;
   /** The platform hands the module a fix. This is the capture path, filter included. */
   deliverFix(fix: FakeFix): Promise<FixOutcome>;
   /** The OS will refuse the next `start` that has to start a mechanism. */
@@ -217,6 +224,7 @@ export function createFakeLocationCapture(
   };
   const conditions = new Set<ConditionFlag>();
   const deviceConditions: DeviceConditions = { charging: false, idle: false };
+  const networkConditions: NetworkConditions = { metered: true };
 
   let selection: Selection | null = null;
   let mechanismAlive = false;
@@ -394,6 +402,9 @@ export function createFakeLocationCapture(
     setDeviceConditions(next) {
       Object.assign(deviceConditions, next);
     },
+    setNetworkConditions(next) {
+      networkConditions.metered = next.metered;
+    },
     deliverFix: (fix) =>
       serial(async () => {
         if (selection === null || !mechanismAlive || !hasLocationPermission()) {
@@ -551,6 +562,8 @@ export function createFakeLocationCapture(
       ),
 
     getDeviceConditions: () => serial(async () => ({ ...deviceConditions })),
+
+    getNetworkConditions: () => serial(async () => ({ ...networkConditions })),
 
     debugInjectSample: (lat, lon, tsUtc, accuracyM) =>
       serial(async () => {
