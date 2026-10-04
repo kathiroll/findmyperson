@@ -19,6 +19,7 @@ It is pure TypeScript with no I/O, no clock and no randomness of its own, so the
 | On-device store         | `src/store/`                                         | Cipher parameters, migration v1, one typed access module per table, the table-ownership list       |
 | Stay derivation         | `src/stay/`                                          | `deriveStays`, the writer of 'derived' rows in `stay`, and the pure `extractStays`. See below      |
 | Retention               | `src/retention/`                                     | `purgeExpired`, the weekly `VACUUM`, and `createRetentionMaintenance`, the store's hook. See below |
+| Bundle fetcher          | `src/fetch/`                                         | `runFetchCycle`: the signed index and shard bundles, verified, into `report_cache`. See below      |
 | Cross-language files    | `contracts/`                                         | Golden vectors and generated copies for Kotlin, Swift and third parties. See its README            |
 
 `src/testing/` is test support (in-memory SQLite, Ed25519 from Node's crypto, sample documents). It is not exported and may use Node freely; nothing else in `src/` may, and `src/purity.test.ts` enforces that.
@@ -99,6 +100,41 @@ Limits a consumer should know:
 - **A `match` can outlive its evidence.** Its `stay_id` or `sample_id` may name a row the purge has deleted while the report is still live. The match is kept, because deleting it would allow a second notification for the same report.
 - **A time in milliseconds is refused** (`RangeError`), since it would put the cutoff after every row.
 
+## Bundle fetcher
+
+`runFetchCycle(db, input)` is one fetch cycle: read the signed `/index.json`, fetch the shard bundles whose generation moved, verify them, and write them to `report_cache`. It keeps nothing in memory and needs no UI, so a cold background wake can call it. The top of `src/fetch/cycle.ts` is the full account.
+
+```ts
+const result = await runFetchCycle(store.db, {
+  watch, // the shard-key list: H3 cell ids at res 5 or res 3, e.g. every `subscription.topic`
+  nowTs, // Unix seconds
+  transport, // FetchTransport: one GET per call (the app's is app/src/fetch/httpTransport.ts)
+  trustedKeys, // the publisher's public keys, pinned in the app
+  verify, // Ed25519Verify
+  random, // () => number in [0, 1)
+  network, // optional: () => Promise<{ metered: boolean }>
+});
+if (result.rematch > 0) {
+  /* run the retrospective match pass */
+}
+```
+
+- **The shard-key list is an input.** `watch` is a plain array of shard cells, the whole list on every call. Computing it is the subscription manager's job.
+- **Nothing unverified is stored.** A bundle with a bad or missing signature, an untrusted key, or the signature of another shard or generation is dropped, reported through `log` only, and counted as a failed cycle so that backoff spaces out the next try.
+- **One write per cycle.** Reports, removals, what is held of each shard and the index go into one transaction at the end. A cycle that fails before it has changed nothing; a bundle is stored whole or not at all. Reports a shard no longer lists are removed once no followed shard lists them.
+- **Constant request count.** A cycle that reads an index makes exactly `FETCH_SHARD_REQUESTS_PER_CYCLE` shard requests after it, whatever the watch list or the changes. Changed shards beyond that wait (`result.deferred`); spare slots revalidate unchanged shards with `If-None-Match`, which costs one 304 each.
+- **Cover shards.** The device also follows `FETCH_COVER_SHARDS` shards it does not need, chosen from its own res-3 regions by a secret in the store, and treats them exactly as watched ones. Their reports are in `report_cache` too, so nothing may present that table as "near you".
+- **Metered connections.** With `network` reporting metered, or not answering, a cycle is put off until `FETCH_METERED_INTERVAL_SEC` after the last complete one, unless shards are still waiting or none ever completed.
+- **Backoff.** After a failed cycle, calls return `skipped` without a request for `FETCH_BACKOFF_BASE_SEC`, doubling per failure up to `FETCH_BACKOFF_MAX_SEC`.
+
+Limits a consumer should know:
+
+- **Padding hides which followed shards the device was in, not that it fetched.** The CDN operator still sees the followed set as a whole, and so roughly the region. What else it does not hide is listed in `src/fetch/cycle.ts`.
+- **How often to call is the caller's decision** on an unmetered connection. Each cycle is `1 + FETCH_SHARD_REQUESTS_PER_CYCLE` requests.
+- **A shard dropped from the watch list keeps its reports** until they expire. Nothing deletes them on the way out, so a watch list that is briefly wrong cannot empty the cache.
+- **The five `FETCH_*` constants are provisional.** None has been measured against real traffic.
+- **Not built here:** the Ed25519 primitive for Hermes, the pinned key list, the CDN origin and the native answer to "is this connection metered". Each is an input.
+
 ## Exported types
 
 Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported types are:
@@ -111,6 +147,7 @@ Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported typ
 - Identity: `DeviceId`, `DeviceIdentity`, `DeviceAuthenticator`, `AuthenticatedDevice`
 - Stay derivation: `StaySample`, `CoveringStay`, `StayDerivationResult`
 - Retention: `PurgeResult`, `DeviceConditions`, `RetentionOptions`, `RetentionRun`, `VacuumOutcome`
+- Bundle fetcher: `FetchCycleInput`, `FetchCycleResult`, `FetchFailure`, `FetchLogEntry`, `FetchTransport`, `FetchRequest`, `FetchResponse`, `NetworkConditions`
 - Store: `SqlValue`, `SqlRow`, `SqlExecutor`, `SqlDatabase`, `CipherParams`, `Migration`, `StoreTable`, `WritePath`, `LocationSample`, `NewLocationSample`, `SampleSource`, `Stay`, `NewStay`, `StayUpdate`, `StaySource`, `CachedReport`, `UpsertOutcome`, `Match`, `NewMatch`, `MatchState`, `Subscription`, `SubscriptionReason`, `OutboundResponse`, `NewOutboundResponse`, `OutboundResponseState`, `OwnReport`, `OwnReportState`, `StoredResponse`
 
 ## Commands

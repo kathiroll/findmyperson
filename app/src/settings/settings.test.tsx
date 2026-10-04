@@ -40,7 +40,11 @@ const press = async (renderer: ReactTestRenderer, label: string) => {
 };
 
 async function mountSettings(capture: FakeLocationCapture, store: Pick<DataStore, 'deleteAll'>) {
-  const dataStore: DataStore = { ...store, runMaintenance: async () => ({ ran: true }) };
+  const dataStore: DataStore = {
+    ...store,
+    runMaintenance: async () => ({ ran: true }),
+    runFetchCycle: () => Promise.reject(new Error('the settings screen never fetches')),
+  };
   const handlers = { onOpenCaptureHealth: vi.fn(), onOpenPermissionFlow: vi.fn() };
   let renderer!: ReactTestRenderer;
   await act(async () => {
