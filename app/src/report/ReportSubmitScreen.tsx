@@ -1,4 +1,4 @@
-import type { PersonPhoto } from '@findmyperson/shared';
+import { MAX_PERSON_PHOTOS } from '@findmyperson/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,13 +10,17 @@ import {
   ScreenHeader,
   Text,
   colors,
+  radii,
   sizes,
   spacing,
 } from '../design-system';
 import { useDataStore } from '../store';
 import {
+  addPhoto,
   buildRequest,
+  canAddPhoto,
   emptyForm,
+  PHOTO_LIMIT_ERROR,
   validateForm,
   type FormErrors,
   type ReportFormValues,
@@ -33,6 +37,8 @@ export const REVIEW_NOTICE =
 
 export const QUEUED_COPY =
   "Your report is saved on this phone but has not been sent yet. There's no connection to the service right now. We'll keep trying and send it as soon as we can. Keep this screen open or come back to the app later.";
+
+export const PHOTO_HINT = `A recent, clear photo of their face helps most. You can add up to ${MAX_PERSON_PHOTOS}. Each is shrunk on this phone first.`;
 
 export const REJECTED_COPY =
   'The service could not accept this report. Check the details below and try again.';
@@ -76,6 +82,8 @@ export function ReportSubmitScreen({
   const [phase, setPhase] = useState<Phase>({ kind: 'editing' });
   const mounted = useRef(true);
   const passing = useRef(false);
+  // One picker at a time, so two quick presses cannot both add a photo.
+  const picking = useRef(false);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -123,16 +131,36 @@ export function ReportSubmitScreen({
   }, [queuedRow, retryIntervalMs, runQueue]);
 
   const pickPhoto = async () => {
-    if (photoPort === null) return;
+    if (photoPort === null || picking.current) return;
+    // A third photo is refused before the library opens, with the reason on screen.
+    if (!canAddPhoto(values.photos)) {
+      setPhotoError(PHOTO_LIMIT_ERROR);
+      return;
+    }
     setPhotoError(null);
+    picking.current = true;
     try {
       const picked = await photoPort.pick();
       if (picked === null) return;
       const thumbnail = await makeThumbnail(photoPort, picked);
-      if (mounted.current) set('photo', thumbnail);
+      if (!mounted.current) return;
+      setValues((current) => {
+        const added = addPhoto(current.photos, thumbnail);
+        return added.ok ? { ...current, photos: added.photos } : current;
+      });
     } catch {
       if (mounted.current) setPhotoError("That photo couldn't be used. Try another one.");
+    } finally {
+      picking.current = false;
     }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotoError(null);
+    setValues((current) => ({
+      ...current,
+      photos: current.photos.filter((_, i) => i !== index),
+    }));
   };
 
   const pickLocation = async () => {
@@ -169,7 +197,7 @@ export function ReportSubmitScreen({
   };
 
   const locked = phase.kind === 'sending' || phase.kind === 'queued';
-  const thumbnail: PersonPhoto | null = values.photo;
+  const shownPhotoError = photoError ?? errors.photos ?? null;
 
   return (
     <View
@@ -203,41 +231,51 @@ export function ReportSubmitScreen({
 
         {photoPort === null ? null : (
           <View style={{ gap: spacing[8] }}>
-            <Text variant="label">Photo</Text>
-            {thumbnail === null ? (
-              <Button
-                label="Add photo"
-                icon="plus"
-                variant="ghost"
-                fullWidth={false}
-                disabled={locked}
-                onPress={() => void pickPhoto()}
-              />
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[12] }}>
+            <Text variant="label">Photos</Text>
+            {values.photos.map((thumbnail, index) => (
+              <View
+                // A list this short is keyed by position; removing one re-renders the rest.
+                key={index}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[12] }}
+              >
                 <Image
-                  testID="photo-thumbnail"
-                  accessibilityLabel="Photo of the missing person"
+                  testID={`photo-thumbnail-${index}`}
+                  accessibilityLabel={`Photo ${index + 1} of the missing person`}
                   source={{ uri: `data:${thumbnail.mime};base64,${thumbnail.b64}` }}
-                  style={{ width: 96, height: 96, borderRadius: 18 }}
+                  style={{ width: 96, height: 96, borderRadius: radii.photo }}
                 />
                 <Button
                   label="Remove photo"
+                  accessibilityLabel={`Remove photo ${index + 1}`}
                   variant="ghost"
                   size="compact"
                   fullWidth={false}
                   disabled={locked}
-                  onPress={() => set('photo', null)}
+                  onPress={() => removePhoto(index)}
                 />
               </View>
-            )}
-            {photoError ? (
-              <Text variant="caption" color="danger" accessibilityLiveRegion="polite">
-                {photoError}
+            ))}
+            {/* Stays pressable at the cap: pressing it then says why no more can be added. */}
+            <Button
+              label={values.photos.length === 0 ? 'Add photo' : 'Add another photo'}
+              icon="plus"
+              variant="ghost"
+              fullWidth={false}
+              disabled={locked}
+              onPress={() => void pickPhoto()}
+            />
+            {shownPhotoError ? (
+              <Text
+                testID="photo-error"
+                variant="caption"
+                color="danger"
+                accessibilityLiveRegion="polite"
+              >
+                {shownPhotoError}
               </Text>
             ) : (
               <Text variant="caption" color="muted">
-                A recent, clear photo of their face helps most. It is shrunk on this phone first.
+                {PHOTO_HINT}
               </Text>
             )}
           </View>

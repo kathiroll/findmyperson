@@ -246,7 +246,7 @@ Limits and retention rules: "Retention" in [packages/shared/README.md](../packag
 
 Defined with zod in `packages/shared/src/payload/` and exported as JSON Schema under `packages/shared/contracts/`.
 
-- **`BroadcastQuery`**: one report as every device receives it. Version, `query_id` (a ULID), `revision`, `key_id`, `issued_at`, `expires_at`, the match criteria (`center`, `radius_m`, `window`), `cells` (the res-7 cover of the search area), `person` (name, description, optional inline thumbnail of at most 256 px), `reporter_phone`, `respond.endpoint`, and `sig`. Everything the match screen shows is inside it, so a matching phone fetches nothing more.
+- **`BroadcastQuery`**: one report as every device receives it. Version, `query_id` (a ULID), `revision`, `key_id`, `issued_at`, `expires_at`, the match criteria (`center`, `radius_m`, `window`), `cells` (the res-7 cover of the search area), `person` (name, description, and `photos`: up to two inline thumbnails of at most 256 px each, left out when there are none), `reporter_phone`, `respond.endpoint`, and `sig`. Everything the match screen shows is inside it, so a matching phone fetches nothing more.
 - **`ShardBundle`**: the signed list of queries filed under one H3 shard (res 5, or res 3 when coarsened), with a `generation`.
 - **`ShardIndex`**: the signed list of every shard that has reports and its current generation.
 

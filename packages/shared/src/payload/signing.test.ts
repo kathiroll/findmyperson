@@ -49,6 +49,38 @@ describe('golden vectors', () => {
   });
 });
 
+describe('a query with two photos', () => {
+  const photos = (first.signed.person as { photos: unknown[] }).photos;
+
+  test('the first vector carries two, so every golden check above covers them', () => {
+    expect(photos).toHaveLength(2);
+    expect(first.signingInputText).toContain('"photos":[{"b64":');
+  });
+
+  test('signs, crosses the wire and verifies', async () => {
+    const { sig, ...unsigned } = first.signed;
+    const signed = await signDocument('query', { ...unsigned, revision: 2 }, key.sign);
+    expect(signed.sig).not.toBe(sig);
+    const received: unknown = JSON.parse(JSON.stringify(signed));
+    expect(await verifyDocument('query', received, trusted, ed25519Verify)).toEqual({
+      ok: true,
+      keyId: fixture.key_id,
+    });
+    expect((received as typeof first.signed).person).toEqual(first.signed.person);
+  });
+
+  test.each([
+    ['in the other order', [...photos].reverse()],
+    ['with one dropped', photos.slice(0, 1)],
+    ['with one repeated', [photos[0], photos[0]]],
+  ])('the photos %s do not verify under the same signature', async (_label, changed) => {
+    const person = { ...(first.signed.person as object), photos: changed };
+    expect(
+      await verifyDocument('query', { ...first.signed, person }, trusted, ed25519Verify),
+    ).toEqual({ ok: false, reason: 'bad_signature' });
+  });
+});
+
 describe('signingInput', () => {
   test('ignores `sig`, so signer and verifier compute the same bytes', () => {
     const { sig, ...unsigned } = first.signed;

@@ -2,6 +2,7 @@ import {
   E164_PATTERN,
   MAX_PERSON_DESCRIPTION_CHARS,
   MAX_PERSON_NAME_CHARS,
+  MAX_PERSON_PHOTOS,
   MAX_SEARCH_RADIUS_M,
   RETENTION_SEC,
   ReportSubmitRequestSchema,
@@ -27,7 +28,8 @@ export interface ReportFormValues {
   time: string;
   description: string;
   location: { lat: number; lon: number } | null;
-  photo: PersonPhoto | null;
+  /** Thumbnails in the order they were added: none, one, or at most MAX_PERSON_PHOTOS. */
+  photos: readonly PersonPhoto[];
 }
 
 export const emptyForm: ReportFormValues = {
@@ -37,11 +39,32 @@ export const emptyForm: ReportFormValues = {
   time: '',
   description: '',
   location: null,
-  photo: null,
+  photos: [],
 };
 
-export type FieldName = 'name' | 'phone' | 'location' | 'date' | 'time' | 'description';
+export type FieldName = 'name' | 'phone' | 'location' | 'date' | 'time' | 'description' | 'photos';
 export type FormErrors = Partial<Record<FieldName, string>>;
+
+/** Shown when a photo is added to a form that already holds MAX_PERSON_PHOTOS. */
+export const PHOTO_LIMIT_ERROR = `A report can have ${MAX_PERSON_PHOTOS} photos at most. Remove one to add a different photo.`;
+
+/** True while the form can take another photo. */
+export function canAddPhoto(photos: readonly PersonPhoto[]): boolean {
+  return photos.length < MAX_PERSON_PHOTOS;
+}
+
+/**
+ * The photo list after `photo` is added to it, or the reason it was not: a form at the cap is
+ * left as it is, never trimmed, so the reporter chooses which photo to give up.
+ */
+export function addPhoto(
+  photos: readonly PersonPhoto[],
+  photo: PersonPhoto,
+): { ok: true; photos: PersonPhoto[] } | { ok: false; error: string } {
+  return canAddPhoto(photos)
+    ? { ok: true, photos: [...photos, photo] }
+    : { ok: false, error: PHOTO_LIMIT_ERROR };
+}
 
 /** "+1 (415) 555-0123" becomes "+14155550123". Anything else is left for the pattern to refuse. */
 export function normalizePhone(input: string): string {
@@ -116,6 +139,8 @@ export function validateForm(values: ReportFormValues, nowSec: number): FormErro
   if (values.description.length > MAX_PERSON_DESCRIPTION_CHARS) {
     errors.description = `Keep the details under ${MAX_PERSON_DESCRIPTION_CHARS} characters.`;
   }
+  // The screen cannot get here (addPhoto refuses the extra one); a form filled any other way can.
+  if (values.photos.length > MAX_PERSON_PHOTOS) errors.photos = PHOTO_LIMIT_ERROR;
   return errors;
 }
 
@@ -137,7 +162,8 @@ export function buildRequest(values: ReportFormValues, nowSec: number): ReportSu
     person: {
       name: values.name.trim(),
       description: values.description.trim(),
-      ...(values.photo === null ? {} : { photo: values.photo }),
+      // No photos is no member at all: the contract has no empty list.
+      ...(values.photos.length === 0 ? {} : { photos: [...values.photos] }),
     },
     reporter_phone: normalizePhone(values.phone),
   });

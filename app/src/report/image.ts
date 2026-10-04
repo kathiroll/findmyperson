@@ -12,7 +12,7 @@ export interface PhotoPicked {
 }
 
 export interface PhotoPort {
-  /** Opens the photo library. Resolves null when the person backs out. */
+  /** Opens the photo library for one photo. Resolves null when the person backs out. */
   pick(): Promise<PhotoPicked | null>;
   /**
    * Scales the picked image to exactly `width` x `height`, encodes it (`image/webp` where the
@@ -47,7 +47,8 @@ export class PhotoTooLargeError extends Error {}
 
 /**
  * Downscales a picked photo to the upload thumbnail, on the phone, before anything is sent. The
- * original never leaves the device: only this 256 px thumbnail goes in the report.
+ * original never leaves the device: only this 256 px thumbnail goes in the report. Each photo of
+ * a report goes through here on its own; how many a report may carry is form.ts's rule.
  */
 export async function makeThumbnail(port: PhotoPort, picked: PhotoPicked): Promise<PersonPhoto> {
   if (!(picked.width > 0 && picked.height > 0)) {

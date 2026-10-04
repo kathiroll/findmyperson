@@ -1,6 +1,11 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { PersonPhotoSchema, QueryIdSchema, ResponseIdSchema } from '@findmyperson/shared';
+import {
+  MAX_PERSON_PHOTOS,
+  PersonPhotoSchema,
+  QueryIdSchema,
+  ResponseIdSchema,
+} from '@findmyperson/shared';
 import type { ReportRow, ResponseRow, ServerDb } from './db';
 import type { ReviewAction } from './lifecycle';
 import { decideHeldResponse, type ModerationReason } from './moderation';
@@ -111,7 +116,8 @@ h1 { font-size: 1.3rem; }
 h2 { font-size: 1.1rem; margin-top: 2rem; }
 .card { border: 1px solid #8886; border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; overflow-wrap: anywhere; }
 .card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
-.card img { float: right; width: 96px; height: 96px; object-fit: cover; border-radius: 6px; margin: 0 0 0.5rem 0.75rem; }
+.card .photos { float: right; display: flex; gap: 0.5rem; margin: 0 0 0.5rem 0.75rem; }
+.card img { width: 96px; height: 96px; object-fit: cover; border-radius: 6px; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.75rem; margin: 0; }
 dt { opacity: 0.7; }
 dd { margin: 0; white-space: pre-wrap; }
@@ -180,12 +186,24 @@ function actionButton(target: string, action: ReviewAction): Html {
   return markup`<form method="post" action="${OPERATOR_PAGE_PATH}/${target}/${action}"><button class="${action}" type="submit">${label}</button></form>`;
 }
 
-function thumbnail(report: ReportRow): Html {
-  const photo = PersonPhotoSchema.safeParse(report.person.photo);
-  if (!photo.success) {
+/**
+ * Every photo sent with the report, in the reporter's order. The row is read as stored, not as
+ * typed: an entry that is not a base64 image is left out, and no more than the cap is shown.
+ */
+function thumbnails(report: ReportRow): Html {
+  const stored: unknown = report.person.photos;
+  if (!Array.isArray(stored)) {
     return EMPTY;
   }
-  return markup`<img alt="Photo sent with the report" src="data:${photo.data.mime};base64,${photo.data.b64}">`;
+  const images = stored.slice(0, MAX_PERSON_PHOTOS).flatMap((entry: unknown, i) => {
+    const photo = PersonPhotoSchema.safeParse(entry);
+    return photo.success
+      ? [
+          markup`<img alt="Photo ${i + 1} sent with the report" src="data:${photo.data.mime};base64,${photo.data.b64}">`,
+        ]
+      : [];
+  });
+  return images.length === 0 ? EMPTY : markup`<div class="photos">${images}</div>`;
 }
 
 function reportCard(report: ReportRow, now: number): Html {
@@ -196,7 +214,7 @@ function reportCard(report: ReportRow, now: number): Html {
       ? markup`${actionButton(target, 'release')}${actionButton(target, 'reject')}`
       : markup`${actionButton(target, 'reject')}<span class="muted">This report is ${report.status}; it can no longer be released.</span>`;
   return markup`<article class="card">
-${thumbnail(report)}
+${thumbnails(report)}
 <h3>${report.person.name}</h3>
 <dl>
 <dt>Reporter phone</dt><dd>${phoneLink(report.reporter_phone)}</dd>

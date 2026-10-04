@@ -6,7 +6,7 @@
   "documents": [
     {
       "kind": "query",
-      "signing_input": "findmyperson.query.v1\n{\"cells\":[\"8760145b4ffffff\"],\"center\":{\"lat\":12.9716,\"lon\":77.5946},\"expires_at\":1792492000,\"issued_at\":1789900000,\"key_id\":\"test-2026\",\"person\":{\"description\":\"Blue jacket, grey backpack. Last seen near the metro entrance.\",\"name\":\"Alex Rivera\",\"photo\":{\"b64\":\"UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\",\"h\":2,\"mime\":\"image/webp\",\"w\":2}},\"query_id\":\"01JB3Z6Q7W8X9Y0ZABCDEFGHJK\",\"radius_m\":0,\"reporter_phone\":\"+15550000000\",\"respond\":{\"endpoint\":\"https://api.findmyperson.example/v1/responses\"},\"revision\":1,\"v\":1,\"window\":{\"from\":1789880000,\"to\":1789881800}}",
+      "signing_input": "findmyperson.query.v1\n{\"cells\":[\"8760145b4ffffff\"],\"center\":{\"lat\":12.9716,\"lon\":77.5946},\"expires_at\":1792492000,\"issued_at\":1789900000,\"key_id\":\"test-2026\",\"person\":{\"description\":\"Blue jacket, grey backpack. Last seen near the metro entrance.\",\"name\":\"Alex Rivera\",\"photos\":[{\"b64\":\"UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\",\"h\":1,\"mime\":\"image/webp\",\"w\":1},{\"b64\":\"UklGRhwAAABXRUJQVlA4TBAAAAAvAUAAADgY7EHgDwPc/yA3\",\"h\":2,\"mime\":\"image/webp\",\"w\":2}]},\"query_id\":\"01JB3Z6Q7W8X9Y0ZABCDEFGHJK\",\"radius_m\":0,\"reporter_phone\":\"+15550000000\",\"respond\":{\"endpoint\":\"https://api.findmyperson.example/v1/responses\"},\"revision\":1,\"v\":1,\"window\":{\"from\":1789880000,\"to\":1789881800}}",
       "signed": {
         "v": 1,
         "query_id": "01JB3Z6Q7W8X9Y0ZABCDEFGHJK",
@@ -27,23 +27,31 @@
         "person": {
           "name": "Alex Rivera",
           "description": "Blue jacket, grey backpack. Last seen near the metro entrance.",
-          "photo": {
-            "mime": "image/webp",
-            "w": 2,
-            "h": 2,
-            "b64": "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
-          }
+          "photos": [
+            {
+              "mime": "image/webp",
+              "w": 1,
+              "h": 1,
+              "b64": "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+            },
+            {
+              "mime": "image/webp",
+              "w": 2,
+              "h": 2,
+              "b64": "UklGRhwAAABXRUJQVlA4TBAAAAAvAUAAADgY7EHgDwPc/yA3"
+            }
+          ]
         },
         "reporter_phone": "+15550000000",
         "respond": {
           "endpoint": "https://api.findmyperson.example/v1/responses"
         },
-        "sig": "ed25519:t7dLbJUJoTTfCxPyBoWM66B47sANF3z8I8fEYk3JZbqmYJ8GFKEV0HVKRi3SLapXoxwG_PetH87u1-KkbVp-DA"
+        "sig": "ed25519:j__u9jbBrvUe_UcXTzK60VBLTr1uVBgGhbptgby4FeogSIKnSpF5Lur-d2-8UJnPsgs-ENl8l-NfAVFoJ3UTAQ"
       }
     },
     {
       "kind": "query",
-      "signing_input": "findmyperson.query.v1\n{\"cells\":[\"8760145b4ffffff\"],\"center\":{\"lat\":12.9716,\"lon\":77.5946},\"expires_at\":1792492000,\"future_field\":{\"nested\":[1,2,3]},\"issued_at\":1789900000,\"key_id\":\"test-2026\",\"person\":{\"description\":\"Blue jacket, grey backpack. Last seen near the metro entrance.\",\"name\":\"Alex Rivera\",\"photo\":{\"b64\":\"UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\",\"h\":2,\"mime\":\"image/webp\",\"w\":2}},\"query_id\":\"01JB3Z6Q7W8X9Y0ZABCDEFGHJM\",\"radius_m\":0,\"reporter_phone\":\"+15550000000\",\"respond\":{\"endpoint\":\"https://api.findmyperson.example/v1/responses\"},\"revision\":1,\"v\":1,\"window\":{\"from\":1789880000,\"to\":1789881800}}",
+      "signing_input": "findmyperson.query.v1\n{\"cells\":[\"8760145b4ffffff\"],\"center\":{\"lat\":12.9716,\"lon\":77.5946},\"expires_at\":1792492000,\"future_field\":{\"nested\":[1,2,3]},\"issued_at\":1789900000,\"key_id\":\"test-2026\",\"person\":{\"description\":\"Blue jacket, grey backpack. Last seen near the metro entrance.\",\"name\":\"Alex Rivera\",\"photos\":[{\"b64\":\"UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\",\"h\":1,\"mime\":\"image/webp\",\"w\":1}]},\"query_id\":\"01JB3Z6Q7W8X9Y0ZABCDEFGHJM\",\"radius_m\":0,\"reporter_phone\":\"+15550000000\",\"respond\":{\"endpoint\":\"https://api.findmyperson.example/v1/responses\"},\"revision\":1,\"v\":1,\"window\":{\"from\":1789880000,\"to\":1789881800}}",
       "signed": {
         "v": 1,
         "query_id": "01JB3Z6Q7W8X9Y0ZABCDEFGHJM",
@@ -64,12 +72,14 @@
         "person": {
           "name": "Alex Rivera",
           "description": "Blue jacket, grey backpack. Last seen near the metro entrance.",
-          "photo": {
-            "mime": "image/webp",
-            "w": 2,
-            "h": 2,
-            "b64": "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
-          }
+          "photos": [
+            {
+              "mime": "image/webp",
+              "w": 1,
+              "h": 1,
+              "b64": "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+            }
+          ]
         },
         "reporter_phone": "+15550000000",
         "respond": {
@@ -78,12 +88,12 @@
         "future_field": {
           "nested": [1, 2, 3]
         },
-        "sig": "ed25519:pEanmQvsjMqb_jPNOshLuieCjzYY90M6UhCDKlL7jMzQw9bpo_joMUiy8EQtoJPuLj0ffKAuaO9fo9UV_cFSAQ"
+        "sig": "ed25519:XwN3q65w64b6Vg4egI3-XjQVqZ2vT2gTcXZ8DWzJP7VnIqQ4I6hsU7IwxUvg0ZKfeHs87SriAbqEK0_SYXwmBA"
       }
     },
     {
       "kind": "bundle",
-      "signing_input": "findmyperson.bundle.v1\n{\"generation\":3,\"issued_at\":1789900100,\"key_id\":\"test-2026\",\"queries\":[{\"cells\":[\"8760145b4ffffff\"],\"center\":{\"lat\":12.9716,\"lon\":77.5946},\"expires_at\":1792492000,\"issued_at\":1789900000,\"key_id\":\"test-2026\",\"person\":{\"description\":\"Blue jacket, grey backpack. Last seen near the metro entrance.\",\"name\":\"Alex Rivera\",\"photo\":{\"b64\":\"UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\",\"h\":2,\"mime\":\"image/webp\",\"w\":2}},\"query_id\":\"01JB3Z6Q7W8X9Y0ZABCDEFGHJK\",\"radius_m\":0,\"reporter_phone\":\"+15550000000\",\"respond\":{\"endpoint\":\"https://api.findmyperson.example/v1/responses\"},\"revision\":1,\"sig\":\"ed25519:t7dLbJUJoTTfCxPyBoWM66B47sANF3z8I8fEYk3JZbqmYJ8GFKEV0HVKRi3SLapXoxwG_PetH87u1-KkbVp-DA\",\"v\":1,\"window\":{\"from\":1789880000,\"to\":1789881800}},{\"cells\":[\"8760145b4ffffff\"],\"center\":{\"lat\":12.9716,\"lon\":77.5946},\"expires_at\":1792492000,\"future_field\":{\"nested\":[1,2,3]},\"issued_at\":1789900000,\"key_id\":\"test-2026\",\"person\":{\"description\":\"Blue jacket, grey backpack. Last seen near the metro entrance.\",\"name\":\"Alex Rivera\",\"photo\":{\"b64\":\"UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\",\"h\":2,\"mime\":\"image/webp\",\"w\":2}},\"query_id\":\"01JB3Z6Q7W8X9Y0ZABCDEFGHJM\",\"radius_m\":0,\"reporter_phone\":\"+15550000000\",\"respond\":{\"endpoint\":\"https://api.findmyperson.example/v1/responses\"},\"revision\":1,\"sig\":\"ed25519:pEanmQvsjMqb_jPNOshLuieCjzYY90M6UhCDKlL7jMzQw9bpo_joMUiy8EQtoJPuLj0ffKAuaO9fo9UV_cFSAQ\",\"v\":1,\"window\":{\"from\":1789880000,\"to\":1789881800}}],\"shard\":\"8560145bfffffff\",\"v\":1}",
+      "signing_input": "findmyperson.bundle.v1\n{\"generation\":3,\"issued_at\":1789900100,\"key_id\":\"test-2026\",\"queries\":[{\"cells\":[\"8760145b4ffffff\"],\"center\":{\"lat\":12.9716,\"lon\":77.5946},\"expires_at\":1792492000,\"issued_at\":1789900000,\"key_id\":\"test-2026\",\"person\":{\"description\":\"Blue jacket, grey backpack. Last seen near the metro entrance.\",\"name\":\"Alex Rivera\",\"photos\":[{\"b64\":\"UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\",\"h\":1,\"mime\":\"image/webp\",\"w\":1},{\"b64\":\"UklGRhwAAABXRUJQVlA4TBAAAAAvAUAAADgY7EHgDwPc/yA3\",\"h\":2,\"mime\":\"image/webp\",\"w\":2}]},\"query_id\":\"01JB3Z6Q7W8X9Y0ZABCDEFGHJK\",\"radius_m\":0,\"reporter_phone\":\"+15550000000\",\"respond\":{\"endpoint\":\"https://api.findmyperson.example/v1/responses\"},\"revision\":1,\"sig\":\"ed25519:j__u9jbBrvUe_UcXTzK60VBLTr1uVBgGhbptgby4FeogSIKnSpF5Lur-d2-8UJnPsgs-ENl8l-NfAVFoJ3UTAQ\",\"v\":1,\"window\":{\"from\":1789880000,\"to\":1789881800}},{\"cells\":[\"8760145b4ffffff\"],\"center\":{\"lat\":12.9716,\"lon\":77.5946},\"expires_at\":1792492000,\"future_field\":{\"nested\":[1,2,3]},\"issued_at\":1789900000,\"key_id\":\"test-2026\",\"person\":{\"description\":\"Blue jacket, grey backpack. Last seen near the metro entrance.\",\"name\":\"Alex Rivera\",\"photos\":[{\"b64\":\"UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==\",\"h\":1,\"mime\":\"image/webp\",\"w\":1}]},\"query_id\":\"01JB3Z6Q7W8X9Y0ZABCDEFGHJM\",\"radius_m\":0,\"reporter_phone\":\"+15550000000\",\"respond\":{\"endpoint\":\"https://api.findmyperson.example/v1/responses\"},\"revision\":1,\"sig\":\"ed25519:XwN3q65w64b6Vg4egI3-XjQVqZ2vT2gTcXZ8DWzJP7VnIqQ4I6hsU7IwxUvg0ZKfeHs87SriAbqEK0_SYXwmBA\",\"v\":1,\"window\":{\"from\":1789880000,\"to\":1789881800}}],\"shard\":\"8560145bfffffff\",\"v\":1}",
       "signed": {
         "v": 1,
         "shard": "8560145bfffffff",
@@ -111,18 +121,26 @@
             "person": {
               "name": "Alex Rivera",
               "description": "Blue jacket, grey backpack. Last seen near the metro entrance.",
-              "photo": {
-                "mime": "image/webp",
-                "w": 2,
-                "h": 2,
-                "b64": "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
-              }
+              "photos": [
+                {
+                  "mime": "image/webp",
+                  "w": 1,
+                  "h": 1,
+                  "b64": "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+                },
+                {
+                  "mime": "image/webp",
+                  "w": 2,
+                  "h": 2,
+                  "b64": "UklGRhwAAABXRUJQVlA4TBAAAAAvAUAAADgY7EHgDwPc/yA3"
+                }
+              ]
             },
             "reporter_phone": "+15550000000",
             "respond": {
               "endpoint": "https://api.findmyperson.example/v1/responses"
             },
-            "sig": "ed25519:t7dLbJUJoTTfCxPyBoWM66B47sANF3z8I8fEYk3JZbqmYJ8GFKEV0HVKRi3SLapXoxwG_PetH87u1-KkbVp-DA"
+            "sig": "ed25519:j__u9jbBrvUe_UcXTzK60VBLTr1uVBgGhbptgby4FeogSIKnSpF5Lur-d2-8UJnPsgs-ENl8l-NfAVFoJ3UTAQ"
           },
           {
             "v": 1,
@@ -144,12 +162,14 @@
             "person": {
               "name": "Alex Rivera",
               "description": "Blue jacket, grey backpack. Last seen near the metro entrance.",
-              "photo": {
-                "mime": "image/webp",
-                "w": 2,
-                "h": 2,
-                "b64": "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
-              }
+              "photos": [
+                {
+                  "mime": "image/webp",
+                  "w": 1,
+                  "h": 1,
+                  "b64": "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+                }
+              ]
             },
             "reporter_phone": "+15550000000",
             "respond": {
@@ -158,10 +178,10 @@
             "future_field": {
               "nested": [1, 2, 3]
             },
-            "sig": "ed25519:pEanmQvsjMqb_jPNOshLuieCjzYY90M6UhCDKlL7jMzQw9bpo_joMUiy8EQtoJPuLj0ffKAuaO9fo9UV_cFSAQ"
+            "sig": "ed25519:XwN3q65w64b6Vg4egI3-XjQVqZ2vT2gTcXZ8DWzJP7VnIqQ4I6hsU7IwxUvg0ZKfeHs87SriAbqEK0_SYXwmBA"
           }
         ],
-        "sig": "ed25519:lCrbI_I4aLkD6V-EzoXQlvedFQExH07WQwFJNGiX-nuVUBNDh73TmwF6SaBQVPYUZJl54UG2E0FF5fN7Qw_GAw"
+        "sig": "ed25519:zU4U_UXR1EEWNgeyJcx-9LXYp1536Cf7UN-WO_KnsxlWwipR4s0ZJ4eIltVEZzO4vX0wvnUe3foaW0kV9alGAw"
       }
     },
     {

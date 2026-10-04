@@ -103,6 +103,35 @@ describe('report_cache', () => {
     expect(cached?.query.person.description).toBe('Now wearing a red cap.');
   });
 
+  test('both photos are kept in order, and a revision that changes them keeps the cursor', async () => {
+    await upsertCachedReport(db, await verifiedQueryWith({}), 5000);
+    const [first, second] = base.person.photos ?? [];
+    expect(first === undefined || second === undefined).toBe(false);
+    expect((await getCachedReport(db, base.query_id))?.query.person.photos).toEqual([
+      first,
+      second,
+    ]);
+
+    await setLastMatchedAt(db, base.query_id, 6000);
+    const swapped = await verifiedQueryWith({
+      revision: 2,
+      person: { ...base.person, photos: [second, first] },
+    });
+    expect(await upsertCachedReport(db, swapped, 7000)).toEqual({
+      outcome: 'revised',
+      rematch: false,
+    });
+    const noPhotos = { name: base.person.name, description: base.person.description };
+    const removed = await verifiedQueryWith({ revision: 3, person: noPhotos });
+    expect(await upsertCachedReport(db, removed, 8000)).toEqual({
+      outcome: 'revised',
+      rematch: false,
+    });
+    const cached = await getCachedReport(db, base.query_id);
+    expect(cached?.last_matched_at).toBe(6000);
+    expect(cached !== null && 'photos' in cached.query.person).toBe(false);
+  });
+
   test('a narrowing revision is stored and re-matched, never trusted to be harmless', async () => {
     await upsertCachedReport(db, await verifiedQueryWith({ radius_m: 500 }), 5000);
     await setLastMatchedAt(db, base.query_id, 6000);

@@ -242,10 +242,10 @@ It describes `main` at commit `0a1bbb4` (2026-10-04, pull request #30). [ARCHITE
 
 ### 32. Everything a match screen needs is inside the broadcast payload
 
-- **Decision:** The photo thumbnail (at most 256 px, inline base64) and the reporter's phone number are part of the signed query. Nothing is fetched lazily.
+- **Decision:** The photo thumbnails (at most two a report, `MAX_PERSON_PHOTOS`, decided by the captain on 2026-10-05; each at most 256 px, inline base64) and the reporter's phone number are part of the signed query. Nothing is fetched lazily.
 - **Status:** Documented (source): the header of `packages/shared/src/payload/query.ts`, citing plan section 6.2.
 - **Why:** A fetch made only by devices that matched would tell the server who matched.
-- **Alternatives:** A photo URL, which is smaller but leaks the match. The cost is recorded in `server/README.md`: the photo is nearly all of a bundle's size, and a device re-downloads a whole bundle when any report in its shard changes.
+- **Alternatives:** A photo URL, which is smaller but leaks the match. The cost is recorded in `server/README.md`: the photos are nearly all of a bundle's size, a report with two typical ones is about 18 KB over the wire against the plan's 15 KB, and a device re-downloads a whole bundle when any report in its shard changes.
 
 ### 33. Ed25519 signatures over canonical JSON, with keys pinned in the app
 

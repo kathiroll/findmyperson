@@ -88,6 +88,18 @@ describe('readShardBundle', () => {
     expect(result).toMatchObject({ queries: [], skipped: 1 });
   });
 
+  test('skips a correctly signed entry with three photos and keeps the one with two', async () => {
+    const photos = (rawQuery().person as { photos: unknown[] }).photos;
+    expect(photos).toHaveLength(2);
+    const three = await signedQueryWith({
+      query_id: '01JB3Z6Q7W8X9Y0ZABCDEFGHJN',
+      person: { ...(rawQuery().person as object), photos: [...photos, photos[0]] },
+    });
+    const result = await read(await bundleOf([three, rawQuery()]));
+    expect(result?.skipped).toBe(1);
+    expect(result?.queries.map((entry) => entry.query.person.photos)).toEqual([photos]);
+  });
+
   test('an empty bundle is valid', async () => {
     expect(await read(await bundleOf([]))).toMatchObject({ queries: [], skipped: 0 });
   });

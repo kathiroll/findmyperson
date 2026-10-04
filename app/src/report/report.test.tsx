@@ -7,9 +7,12 @@ import {
   API_ENDPOINTS,
   DEVICE_AUTH_HEADER,
   IDEMPOTENCY_KEY_HEADER,
+  MAX_PERSON_PHOTOS,
   MAX_PHOTO_BASE64_CHARS,
   ReportSubmitRequestSchema,
+  type PersonPhoto,
   type Report,
+  type ReportSubmitRequest,
 } from '@findmyperson/shared';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, test, vi } from 'vitest';
@@ -17,9 +20,12 @@ import { CaptureProvider } from '../permissions';
 import { createDataStore, DataStoreProvider, type DataStore } from '../store';
 import { createReportApi, type ApiFetch, type ReportApi, type SubmitOutcome } from './api';
 import {
+  addPhoto,
   buildRequest,
+  canAddPhoto,
   emptyForm,
   normalizePhone,
+  PHOTO_LIMIT_ERROR,
   validateForm,
   type ReportFormValues,
 } from './form';
@@ -92,6 +98,58 @@ describe('form validation', () => {
     expect(buildRequest(validValues({ time: '18:30' }), now).window).toEqual(
       buildRequest(validValues({ time: '6:30 pm' }), now).window,
     );
+  });
+});
+
+describe('photos on the form', () => {
+  const now = lastSeen(validValues()) + 3600;
+  const photo = (n: number): PersonPhoto => ({
+    mime: 'image/jpeg',
+    w: 256,
+    h: 192,
+    b64: `QUJ${'ABCD'[n]}`,
+  });
+
+  test('the cap is two, and the message says so', () => {
+    expect(MAX_PERSON_PHOTOS).toBe(2);
+    expect(PHOTO_LIMIT_ERROR).toBe(
+      'A report can have 2 photos at most. Remove one to add a different photo.',
+    );
+  });
+
+  test('a form with no photo builds a request with no photos member', () => {
+    expect(validateForm(validValues(), now)).toEqual({});
+    const request = buildRequest(validValues(), now);
+    expect('photos' in request.person).toBe(false);
+    expect(ReportSubmitRequestSchema.safeParse(request).success).toBe(true);
+  });
+
+  test('one photo and two are accepted and sent in the order they were added', () => {
+    for (const photos of [[photo(0)], [photo(0), photo(1)]]) {
+      expect(validateForm(validValues({ photos }), now)).toEqual({});
+      const request = buildRequest(validValues({ photos }), now);
+      expect(request.person.photos).toEqual(photos);
+      expect(ReportSubmitRequestSchema.safeParse(request).success).toBe(true);
+    }
+  });
+
+  test('a third photo is refused with the message and the two already there are kept', () => {
+    const one = addPhoto([], photo(0));
+    expect(one).toEqual({ ok: true, photos: [photo(0)] });
+    const two = addPhoto([photo(0)], photo(1));
+    expect(two).toEqual({ ok: true, photos: [photo(0), photo(1)] });
+    expect(canAddPhoto([photo(0)])).toBe(true);
+    expect(canAddPhoto([photo(0), photo(1)])).toBe(false);
+    expect(addPhoto([photo(0), photo(1)], photo(2))).toEqual({
+      ok: false,
+      error: PHOTO_LIMIT_ERROR,
+    });
+  });
+
+  test('a form holding three photos does not validate and builds nothing', () => {
+    const photos = [photo(0), photo(1), photo(2)];
+    expect(validateForm(validValues({ photos }), now)).toEqual({ photos: PHOTO_LIMIT_ERROR });
+    expect(() => buildRequest(validValues({ photos }), now)).toThrow(RangeError);
   });
 });
 
@@ -224,10 +282,16 @@ function realDataStore(clock: { now: number }) {
 
 /** A backend that is down until `up`, then stores each distinct idempotency key once. */
 function fakeBackend() {
-  const state = { up: false, calls: [] as string[], stored: new Map<string, Report>() };
+  const state = {
+    up: false,
+    calls: [] as string[],
+    requests: [] as ReportSubmitRequest[],
+    stored: new Map<string, Report>(),
+  };
   const api: ReportApi = {
     async submitReport(request, key) {
       state.calls.push(key);
+      state.requests.push(request);
       if (!state.up) return { kind: 'retry', code: 'network' };
       if (!state.stored.has(key)) {
         state.stored.set(key, {
@@ -328,14 +392,19 @@ const settle = (until: () => boolean = () => false) =>
   });
 
 describe('the report screen', () => {
-  async function mount(dataStore: DataStore, api: ReportApi, now: () => number) {
+  async function mount(
+    dataStore: DataStore,
+    api: ReportApi,
+    now: () => number,
+    photo: PhotoPort | null = null,
+  ) {
     const onSubmitted = vi.fn();
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(
         <CaptureProvider capture={createFakeLocationCapture()}>
           <DataStoreProvider dataStore={dataStore}>
-            <ReportServicesProvider services={{ photo: null, location: null, api }}>
+            <ReportServicesProvider services={{ photo, location: null, api }}>
               <ReportSubmitScreen
                 onBack={vi.fn()}
                 onSubmitted={onSubmitted}
@@ -449,6 +518,126 @@ describe('the report screen', () => {
     expect(onSubmitted).toHaveBeenCalledOnce();
     expect(new Set(backend.state.calls).size).toBe(1);
     expect(backend.state.stored.size).toBe(1);
+  });
+
+  /** A photo library whose n-th pick is a different picture, encoded as a different thumbnail. */
+  function fakePhotoPort() {
+    const state = { picks: 0 };
+    const port: PhotoPort = {
+      pick: async () => {
+        state.picks += 1;
+        return { uri: `file://picked-${state.picks}.jpg`, width: 4000, height: 3000 };
+      },
+      resize: async (picked) => ({
+        mime: 'image/jpeg',
+        b64: picked.uri.endsWith('-1.jpg')
+          ? 'QUJD'
+          : picked.uri.endsWith('-2.jpg')
+            ? 'REVG'
+            : 'R0hJ',
+      }),
+    };
+    return { state, port };
+  }
+  const press = (renderer: ReactTestRenderer, label: string) =>
+    act(async () => {
+      const button = renderer.root.findAll(
+        (n) => n.props.accessibilityLabel === label && typeof n.props.onPress === 'function',
+      )[0]!;
+      (button.props.onPress as () => void)();
+    });
+  const thumbnails = (renderer: ReactTestRenderer) =>
+    renderer.root
+      .findAll(
+        (n) =>
+          (n.type as unknown) === 'Image' && String(n.props.testID).startsWith('photo-thumbnail-'),
+      )
+      .map((n) => (n.props.source as { uri: string }).uri);
+
+  test('with no photo port the photo section is not shown', async () => {
+    const { renderer } = await mount(
+      realDataStore({ now: clockNow() }),
+      fakeBackend().api,
+      clockNow,
+    );
+    expect(text(renderer.root)).not.toContain('Add photo');
+  });
+
+  test('takes two photos, refuses a third with a clear message, and sends the two', async () => {
+    const backend = fakeBackend();
+    backend.state.up = true;
+    const photos = fakePhotoPort();
+    const { renderer, onSubmitted } = await mount(
+      realDataStore({ now: clockNow() }),
+      backend.api,
+      clockNow,
+      photos.port,
+    );
+    expect(text(renderer.root)).toContain('You can add up to 2.');
+
+    await press(renderer, 'Add photo');
+    expect(thumbnails(renderer)).toEqual(['data:image/jpeg;base64,QUJD']);
+    await press(renderer, 'Add another photo');
+    expect(thumbnails(renderer)).toEqual([
+      'data:image/jpeg;base64,QUJD',
+      'data:image/jpeg;base64,REVG',
+    ]);
+    expect(text(renderer.root)).not.toContain(PHOTO_LIMIT_ERROR);
+
+    // The third: the library is not opened, nothing is replaced, and the reason is on screen.
+    await press(renderer, 'Add another photo');
+    expect(photos.state.picks).toBe(2);
+    expect(thumbnails(renderer)).toHaveLength(2);
+    expect(text(renderer.root)).toContain(PHOTO_LIMIT_ERROR);
+
+    await fill(renderer);
+    await pressBroadcast(renderer);
+    await settle(() => onSubmitted.mock.calls.length === 1);
+    expect(backend.state.requests).toHaveLength(1);
+    expect(backend.state.requests[0]!.person.photos).toEqual([
+      { mime: 'image/jpeg', w: 256, h: 192, b64: 'QUJD' },
+      { mime: 'image/jpeg', w: 256, h: 192, b64: 'REVG' },
+    ]);
+  });
+
+  test('removing a photo clears the message and makes room for another', async () => {
+    const photos = fakePhotoPort();
+    const { renderer } = await mount(
+      realDataStore({ now: clockNow() }),
+      fakeBackend().api,
+      clockNow,
+      photos.port,
+    );
+    await press(renderer, 'Add photo');
+    await press(renderer, 'Add another photo');
+    await press(renderer, 'Add another photo');
+    expect(text(renderer.root)).toContain(PHOTO_LIMIT_ERROR);
+
+    await press(renderer, 'Remove photo 1');
+    expect(text(renderer.root)).not.toContain(PHOTO_LIMIT_ERROR);
+    expect(thumbnails(renderer)).toEqual(['data:image/jpeg;base64,REVG']);
+
+    await press(renderer, 'Add another photo');
+    expect(photos.state.picks).toBe(3);
+    expect(thumbnails(renderer)).toEqual([
+      'data:image/jpeg;base64,REVG',
+      'data:image/jpeg;base64,R0hJ',
+    ]);
+  });
+
+  test('a report sent with no photo carries no photos member', async () => {
+    const backend = fakeBackend();
+    backend.state.up = true;
+    const { renderer, onSubmitted } = await mount(
+      realDataStore({ now: clockNow() }),
+      backend.api,
+      clockNow,
+      fakePhotoPort().port,
+    );
+    await fill(renderer);
+    await pressBroadcast(renderer);
+    await settle(() => onSubmitted.mock.calls.length === 1);
+    expect('photos' in backend.state.requests[0]!.person).toBe(false);
   });
 
   test('a refused report shows the failure and lets the reporter edit again', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { MAX_RESPONSE_TEXT_CHARS } from '../constants';
+import { PersonSchema, type PersonPhoto } from '../payload/query';
 import { classifyCriteriaEdit } from '../payload/widening';
 import { DeviceRegistrationRequestSchema, DeviceRegistrationResponseSchema } from './devices';
 import { API_ENDPOINTS, reportPath } from './endpoints';
@@ -34,6 +35,9 @@ import {
 
 const QUERY_ID = '01JB3Z6Q7W8X9Y0ZABCDEFGHJK';
 const RESPONSE_ID = '01JB3Z6Q7W8X9Y0ZABCDEFGHJR';
+
+const PHOTO: PersonPhoto = { mime: 'image/webp', w: 2, h: 2, b64: 'AAAA' };
+const OTHER_PHOTO: PersonPhoto = { mime: 'image/jpeg', w: 4, h: 4, b64: 'BBBB' };
 
 const submit = {
   center: { lat: 12.9716, lon: 77.5946 },
@@ -208,8 +212,18 @@ describe('report submit', () => {
     ['a reversed window', { window: { from: 2, to: 1 } }],
     ['a radius over the cap', { radius_m: 5_001 }],
     ['no centre', { center: undefined }],
+    ['three photos', { person: { ...submit.person, photos: [PHOTO, OTHER_PHOTO, PHOTO] } }],
+    ['an empty photo list', { person: { ...submit.person, photos: [] } }],
   ])('rejects %s', (_label, changes) => {
     expect(ReportSubmitRequestSchema.safeParse({ ...submit, ...changes }).success).toBe(false);
+  });
+
+  test('accepts no photo, one and two', () => {
+    expect('photos' in ReportSubmitRequestSchema.parse(submit).person).toBe(false);
+    for (const photos of [[PHOTO], [PHOTO, OTHER_PHOTO]]) {
+      const withPhotos = { ...submit, person: { ...submit.person, photos } };
+      expect(ReportSubmitRequestSchema.parse(withPhotos)).toEqual(withPhotos);
+    }
   });
 
   test('the client does not choose ids, cells, expiry or revision', () => {
@@ -245,7 +259,7 @@ describe('report patch', () => {
     person: {
       name: 'Alex Rivera',
       description: 'Blue jacket.',
-      photo: { mime: 'image/webp', w: 2, h: 2, b64: 'AAAA' },
+      photos: [PHOTO],
     },
   };
 
@@ -283,24 +297,56 @@ describe('report patch', () => {
     expect(next.person).toEqual({ ...current.person, description: 'Blue jacket, red cap.' });
   });
 
-  test('photo: left out keeps it, null removes it, a value replaces it', () => {
+  test('photos: left out keeps them, a list replaces the whole list', () => {
     const kept = applyReportPatch(current, { expected_revision: 1, person: { name: 'A. Rivera' } });
-    expect(kept.person.photo).toEqual(current.person.photo);
+    expect(kept.person.photos).toEqual(current.person.photos);
 
-    const removed = applyReportPatch(current, { expected_revision: 1, person: { photo: null } });
-    expect('photo' in removed.person).toBe(false);
-
-    const replacement = { mime: 'image/jpeg' as const, w: 4, h: 4, b64: 'BBBB' };
-    const replaced = applyReportPatch(current, {
+    // Adding a second photo is sending both; the list is not appended to.
+    const two = applyReportPatch(current, {
       expected_revision: 1,
-      person: { photo: replacement },
+      person: { photos: [OTHER_PHOTO, PHOTO] },
     });
-    expect(replaced.person.photo).toEqual(replacement);
+    expect(two.person.photos).toEqual([OTHER_PHOTO, PHOTO]);
+    const one = applyReportPatch(two, { expected_revision: 2, person: { photos: [OTHER_PHOTO] } });
+    expect(one.person.photos).toEqual([OTHER_PHOTO]);
+    expect(PersonSchema.safeParse(two.person).success).toBe(true);
+  });
+
+  test.each([
+    ['null', null],
+    ['an empty list', []],
+  ])('photos: %s removes them, leaving no member', (_label, photos) => {
+    const patch = ReportPatchRequestSchema.parse({ expected_revision: 1, person: { photos } });
+    const removed = applyReportPatch(current, patch);
+    expect('photos' in removed.person).toBe(false);
+    // What is stored and signed is a person the payload schema accepts.
+    expect(PersonSchema.parse(removed.person)).toEqual(removed.person);
+  });
+
+  test('a patch may carry two photos and not three', () => {
+    const patchWith = (photos: unknown[]) =>
+      ReportPatchRequestSchema.safeParse({ expected_revision: 1, person: { photos } }).success;
+    expect(patchWith([PHOTO, OTHER_PHOTO])).toBe(true);
+    expect(patchWith([PHOTO, OTHER_PHOTO, PHOTO])).toBe(false);
+    expect(patchWith([{ ...PHOTO, mime: 'image/png' }])).toBe(false);
+  });
+
+  test('changing only the photos is a descriptive edit, not a change of criteria', () => {
+    const next = applyReportPatch(current, {
+      expected_revision: 1,
+      person: { photos: [PHOTO, OTHER_PHOTO] },
+    });
+    expect(classifyCriteriaEdit(current, next)).toEqual({ kind: 'unchanged' });
   });
 
   test('does not modify the report it is given', () => {
     const before = JSON.stringify(current);
-    applyReportPatch(current, { expected_revision: 1, radius_m: 300, person: { photo: null } });
+    applyReportPatch(current, { expected_revision: 1, radius_m: 300, person: { photos: null } });
+    const replaced = applyReportPatch(current, {
+      expected_revision: 1,
+      person: { photos: [OTHER_PHOTO] },
+    });
+    replaced.person.photos?.push(PHOTO);
     expect(JSON.stringify(current)).toBe(before);
   });
 

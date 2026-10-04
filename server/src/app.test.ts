@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   formatDeviceAuthorization,
+  MAX_PERSON_PHOTOS,
+  type PersonPhoto,
   type Report,
   type ReportSubmitRequest,
 } from '@findmyperson/shared';
@@ -24,6 +26,11 @@ const submitBody: ReportSubmitRequest = {
   person: { name: 'Alex Rivera', description: 'Blue jacket.' },
   reporter_phone: '+15550000000',
 };
+
+const PHOTO_A: PersonPhoto = { mime: 'image/webp', w: 256, h: 192, b64: 'AAAA' };
+const PHOTO_B: PersonPhoto = { mime: 'image/jpeg', w: 192, h: 256, b64: 'BBBB' };
+const withPhotos = (photos: unknown): ReportSubmitRequest =>
+  ({ ...submitBody, person: { ...submitBody.person, photos } }) as ReportSubmitRequest;
 
 let db: ServerDb;
 let app: FastifyInstance;
@@ -291,6 +298,97 @@ describe('report lifecycle: the manual-review gate', () => {
     expect(() =>
       db.setReviewState('01JB3Z6Q7W8X9Y0ZABCDEFGHJK', 'active' as never, 'x', NOW),
     ).toThrow();
+  });
+});
+
+describe('photos of the missing person', () => {
+  test('the cap is two', () => {
+    expect(MAX_PERSON_PHOTOS).toBe(2);
+  });
+
+  test('a report with no photo is stored with no photos member', async () => {
+    const report = await submitReport();
+    expect('photos' in report.person).toBe(false);
+    expect('photos' in (db.getReport(report.query_id)?.person ?? {})).toBe(false);
+  });
+
+  test.each([
+    ['one photo', [PHOTO_A]],
+    ['two photos', [PHOTO_A, PHOTO_B]],
+  ])('a report with %s is accepted and stored as sent', async (_label, photos) => {
+    const report = await submitReport(withPhotos(photos));
+    expect(report.person.photos).toEqual(photos);
+    expect(db.getReport(report.query_id)?.person.photos).toEqual(photos);
+  });
+
+  test.each([
+    ['three photos', [PHOTO_A, PHOTO_B, PHOTO_A]],
+    ['an empty list', []],
+    ['null', null],
+    ['a second photo that is not an image', [PHOTO_A, { ...PHOTO_B, mime: 'image/png' }]],
+  ])('a report with %s is refused and nothing is stored', async (_label, photos) => {
+    const res = await call(REPORTER, 'POST', '/v1/reports', withPhotos(photos), newKey());
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('invalid_request');
+    expect(db.listReportsByReviewState('pending')).toEqual([]);
+    expect(alerts).toEqual([]);
+  });
+
+  const patchPhotos = (report: Report, photos: unknown, revision = report.revision) =>
+    call(
+      REPORTER,
+      'PATCH',
+      `/v1/reports/${report.query_id}`,
+      { expected_revision: revision, person: { photos } },
+      newKey(),
+    );
+
+  test('a patch replaces the list: a second photo is added by sending both', async () => {
+    const report = await submitReport(withPhotos([PHOTO_A]));
+    const res = await patchPhotos(report, [PHOTO_A, PHOTO_B]);
+    expect(res.status).toBe(200);
+    expect(res.body.report.revision).toBe(2);
+    expect(res.body.report.person.photos).toEqual([PHOTO_A, PHOTO_B]);
+
+    const swapped = await patchPhotos(report, [PHOTO_B], 2);
+    expect(swapped.body.report.person.photos).toEqual([PHOTO_B]);
+    expect(db.getReport(report.query_id)?.person.photos).toEqual([PHOTO_B]);
+  });
+
+  test('a patch with three photos is refused and the report is unchanged', async () => {
+    const report = await submitReport(withPhotos([PHOTO_A, PHOTO_B]));
+    const res = await patchPhotos(report, [PHOTO_A, PHOTO_B, PHOTO_A]);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('invalid_request');
+    expect(db.getReport(report.query_id)).toMatchObject({
+      revision: 1,
+      person: { photos: [PHOTO_A, PHOTO_B] },
+    });
+  });
+
+  test.each([
+    ['null', null],
+    ['an empty list', []],
+  ])('a patch with %s removes the photos', async (_label, photos) => {
+    const report = await submitReport(withPhotos([PHOTO_A, PHOTO_B]));
+    const res = await patchPhotos(report, photos);
+    expect(res.status).toBe(200);
+    expect('photos' in res.body.report.person).toBe(false);
+    expect('photos' in (db.getReport(report.query_id)?.person ?? {})).toBe(false);
+    expect(res.body.report.person.name).toBe(submitBody.person.name);
+  });
+
+  test('photos are not match criteria: changing them is never a narrowing edit', async () => {
+    const report = await submitReport(withPhotos([PHOTO_A, PHOTO_B]));
+    await release(report.query_id);
+    for (const [revision, photos] of [
+      [1, [PHOTO_B]],
+      [2, null],
+      [3, [PHOTO_A, PHOTO_B]],
+    ] as const) {
+      expect((await patchPhotos(report, photos, revision)).status).toBe(200);
+    }
+    expect(db.getReport(report.query_id)).toMatchObject({ revision: 4, radius_m: 100 });
   });
 });
 
