@@ -30,6 +30,8 @@ export const KV_KEYS = {
   fetchBackoff: 'fetch.backoff',
   /** Bundle fetcher: when a cycle last completed and how many changed shards it left waiting. */
   fetchLastCompleted: 'fetch.last_completed',
+  /** Device identity (R4.1): the client-generated device id, a UUID v4, created on first use. */
+  deviceId: 'identity.device_id',
 } as const;
 
 /** Every shardGenerationKey starts with this. */

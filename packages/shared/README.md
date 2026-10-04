@@ -18,6 +18,7 @@ It is pure TypeScript with no I/O, no clock and no randomness of its own, so the
 | Device identity seam    | `src/identity/deviceIdentity.ts`                     | `DeviceIdentity`, `DeviceAuthenticator`, and in-memory stubs                                       |
 | On-device store         | `src/store/`                                         | Cipher parameters, migration v1, one typed access module per table, the table-ownership list       |
 | Stay derivation         | `src/stay/`                                          | `deriveStays`, the writer of 'derived' rows in `stay`, and the pure `extractStays`. See below      |
+| Matching                | `src/match/`                                         | `matchReport`, the rule that decides whether a device's history crossed a report. See below        |
 | Retention               | `src/retention/`                                     | `purgeExpired`, the weekly `VACUUM`, and `createRetentionMaintenance`, the store's hook. See below |
 | Bundle fetcher          | `src/fetch/`                                         | `runFetchCycle`: the signed index and shard bundles, verified, into `report_cache`. See below      |
 | Cross-language files    | `contracts/`                                         | Golden vectors and generated copies for Kotlin, Swift and third parties. See its README            |
@@ -51,6 +52,33 @@ Limits a consumer should know:
 - A stay has no maximum time between fixes, so it also bridges a stretch in which capture was off altogether, if the device is at the same place on both sides. The plan gives no gap threshold; adding one is a decision for whoever owns matching quality.
 - Every stored fix counts, whatever its `accuracy_m`. One wild fix closes a stay; if the device is back within the merge gap the stay continues, otherwise there are two.
 - Fixes are taken in stored order. If the clock was set back their times are not in order, and stays derived either side of the change can overlap in time.
+
+## Matching
+
+`matchReport(query, history, params)` returns the evidence in a device's history that it crossed the path of the person in a report: every matching stay, or, when no stay matches, every matching sample. The strongest evidence is first and the list is empty when there is none. It opens no store and reads no clock; the caller passes the rows and the time.
+
+```ts
+const results = matchReport(report.query, { stays, samples }, matchParamsAt(nowSeconds));
+if (results[0] !== undefined) {
+  await insertMatchIfAbsent(db, { ...results[0], created_at: nowSeconds });
+}
+```
+
+The rule is at the top of `src/match/matchReport.ts`, and `contracts/match-vectors.json` holds a worked case for each branch and each boundary. In short: evidence is a stay that overlaps, or a sample taken inside, `[window.from - 30 min, window.to + 30 min]`, within `radius_m + 150 m` of the report's centre.
+
+- **The criteria are read on a grid, and that is a security property.** Before the rule is applied the radius is rounded up to a multiple of 150 m and the two ends of the window are rounded outward to 30-minute marks (`coarsenCriteria`). Plan 8.3 relies on a reporter gaining nothing from precision finer than the two constants. The rule as plan 8.1 writes it does not give that: a 5 m radius reaches 155 m and a 140 m radius reaches 290 m, so the two reports differ on anyone in between. Read on the grid they are the same report. Two reports that agree on the grid return identical results on any history; the tests under "anti-oracle" check that, and check that the rule without the rounding would tell the reports apart. Do not add a way to match more finely.
+- **The rounding is outward only.** Nothing the rule finds on the report as written is lost, and a report already on the grid (radius 0, 150, 300 and so on, window ends on a half hour) is matched exactly as written. The price is reach: up to 150 m and 30 minutes beyond the report as written, which is more notifications. `server/README.md` has the measured cost.
+- **Pick rows with `matchBounds`, not with the report as written.** It gives the time range and the distance outside which nothing is evidence, and it is null when nothing can be. The res-7 cover to read is `searchAreaCells(coarse.center, coarse.radius_m)` for `coarse = coarsenCriteria(query, params)`; the report's own `cells` is the cover of the radius as written and can be a cell short.
+- **`now` decides two things.** A report at or past `expires_at` matches nothing. History older than `RETENTION_SEC` is not evidence, exactly as if the purge had just run, so a phone whose purge is late matches the same as one whose purge is not.
+- **A result is a `match` row without its time.** `{ ...result, created_at }` is a `NewMatch`.
+
+Limits a consumer should know:
+
+- Nothing calls `matchReport` yet. The match runner (retrospective and prospective passes, the `last_matched_at` cursor) is a separate task.
+- `dt_sec` is measured from the window as read on the grid, so it is never more than 30 minutes; it is not the distance in time from the window as written.
+- Every row counts, whatever its `accuracy_m` and whichever writer made it. A fix from a cell tower can be hundreds of metres off and match or miss on that error. An open visit row counts as the instant of its arrival.
+- The centre is not rounded. Moving the pin between reports is the attack the one-report-a-day limit bounds.
+- The widen-only rule (`src/payload/widening.ts`) judges criteria as written. An edit it permits can move the pin inside one 150 m step, and on the grid that moves the search disc without growing it, so evidence at the far edge matches the old revision and not the new one. A reporter cannot see this happen: a device that already matched keeps its `match` row and nothing is reported back. Rounding the radius at intake, before the edit rule looks at it, would close it; that is not done.
 
 ## Retention
 
@@ -146,6 +174,7 @@ Runtime exports are listed, and pinned, in `src/index.test.ts`. The exported typ
 - API: `ApiErrorCode`, `ApiErrorBody`, `ApiErrorDetail`, `ApiEndpointName`, `IdempotencyKey`, `PushToken`, `DeviceRegistrationRequest`, `DeviceRegistrationResponse`, `ReportSubmitRequest`, `Report`, `ReportStatus`, `ReviewState`, `ReportResponse`, `ReportPatchRequest`, `PersonPatch`, `ReportEndRequest`, `EditableReport`, `ResponseSubmitRequest`, `ResponseSubmitResponse`, `ReceivedResponse`, `ResponseListQuery`, `ResponseListResponse`
 - Identity: `DeviceId`, `DeviceIdentity`, `DeviceAuthenticator`, `AuthenticatedDevice`
 - Stay derivation: `StaySample`, `CoveringStay`, `StayDerivationResult`
+- Matching: `MatchQuery`, `MatchHistory`, `MatchStay`, `MatchSample`, `MatchParams`, `MatchResult`, `MatchBounds`
 - Retention: `PurgeResult`, `DeviceConditions`, `RetentionOptions`, `RetentionRun`, `VacuumOutcome`
 - Bundle fetcher: `FetchCycleInput`, `FetchCycleResult`, `FetchFailure`, `FetchLogEntry`, `FetchTransport`, `FetchRequest`, `FetchResponse`, `NetworkConditions`
 - Store: `SqlValue`, `SqlRow`, `SqlExecutor`, `SqlDatabase`, `CipherParams`, `Migration`, `StoreTable`, `WritePath`, `LocationSample`, `NewLocationSample`, `SampleSource`, `Stay`, `NewStay`, `StayUpdate`, `StaySource`, `CachedReport`, `UpsertOutcome`, `Match`, `NewMatch`, `MatchState`, `Subscription`, `SubscriptionReason`, `OutboundResponse`, `NewOutboundResponse`, `OutboundResponseState`, `OwnReport`, `OwnReportState`, `StoredResponse`

@@ -44,6 +44,13 @@ async function mountSettings(capture: FakeLocationCapture, store: Pick<DataStore
     ...store,
     runMaintenance: async () => ({ ran: true }),
     runFetchCycle: () => Promise.reject(new Error('the settings screen never fetches')),
+    deviceIdentity: {
+      getDeviceId: () => Promise.reject(new Error('not used')),
+      authHeaders: () => Promise.reject(new Error('not used')),
+      reset: () => Promise.reject(new Error('not used')),
+    },
+    enqueueReport: () => Promise.reject(new Error('this screen never submits')),
+    runReportQueue: () => Promise.reject(new Error('this screen never submits')),
   };
   const handlers = { onOpenCaptureHealth: vi.fn(), onOpenPermissionFlow: vi.fn() };
   let renderer!: ReactTestRenderer;

@@ -9,7 +9,7 @@ import { shardOptionsFromEnv, startShardWorker, type ShardWorker } from './shard
  *   FMP_PORT                  default 8080
  *   FMP_OPERATOR_DEVICE_IDS   comma-separated device ids allowed to release/reject reports.
  *                             Empty means nobody can, so no report can ever be released.
- *   FMP_SHARD_OUT_DIR, ...    the shard compiler; see shards/worker.ts. Unset means released
+ *   FMP_SHARD_OUT_DIR or FMP_R2_BUCKET, ...  the shard compiler; see shards/worker.ts. Unset means released
  *                             reports are not published to devices.
  */
 const operatorIds = (process.env['FMP_OPERATOR_DEVICE_IDS'] ?? '')
@@ -34,7 +34,10 @@ app.addHook('onClose', async () => {
 await app.listen({ host: '0.0.0.0', port: Number(process.env['FMP_PORT'] ?? 8080) });
 
 if (shardOptions === null) {
-  app.log.warn({ event: 'shards.disabled' }, 'FMP_SHARD_OUT_DIR is not set; nothing is published');
+  app.log.warn(
+    { event: 'shards.disabled' },
+    'neither FMP_SHARD_OUT_DIR nor FMP_R2_BUCKET is set; nothing is published',
+  );
 } else {
   shardWorker = startShardWorker(shardOptions);
 }

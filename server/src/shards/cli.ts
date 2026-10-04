@@ -45,7 +45,7 @@ export async function runCli(
     try {
       const options = shardOptionsFromEnv(env, db, jsonLineLog(err));
       if (options === null) {
-        err('FMP_SHARD_OUT_DIR is not set');
+        err('neither FMP_SHARD_OUT_DIR nor FMP_R2_BUCKET is set');
         return 2;
       }
       const result = await compileShards(options);

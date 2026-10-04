@@ -6,6 +6,7 @@ import { Button } from '../design-system';
 import { CaptureHealthDiagnostics, CaptureHealthStatus } from '../capture-health';
 import { OnboardingScreen } from '../onboarding';
 import { PermissionFlowScreen } from '../permissions';
+import { ReportSubmitScreen } from '../report';
 import { SettingsScreen } from '../settings';
 import { PlaceholderScreen } from './PlaceholderScreen';
 import type { RootStackParamList, TabParamList } from './routes';
@@ -105,27 +106,23 @@ export function PermissionFlowRoute({ navigation }: RootProps<'PermissionFlow'>)
 
 export function ReportFormScreen({ navigation }: RootProps<'ReportForm'>) {
   return (
-    <PlaceholderScreen
-      testID="screen-ReportForm"
-      header={{
-        variant: 'back',
-        title: 'Report a missing person',
-        onBackPress: navigation.goBack,
-        trailing: 'Step 1 of 2',
-      }}
-      title="Report a missing person"
-      description="Report form: your details, then the missing person."
+    <ReportSubmitScreen
+      onBack={navigation.goBack}
+      // replace: Back from the live report must not return to a form that was already sent.
+      onSubmitted={(reportId) => navigation.replace('LiveReport', { reportId })}
     />
   );
 }
 
 export function LiveReportScreen({ navigation, route }: RootProps<'LiveReport'>) {
+  // Placeholder until the active-report screen (R4.3) lands. The only truthful thing to say is
+  // that the report is held for review: nothing is broadcast until the operator releases it.
   return (
     <PlaceholderScreen
       testID="screen-LiveReport"
       header={{ variant: 'back', title: 'Your report', onBackPress: navigation.goBack }}
-      title="Live report"
-      description={`Live report ${route.params.reportId}: status, replies, options and deactivate.`}
+      title="Submitted, under review"
+      description={`Your report (${route.params.reportId}) has been submitted and is being reviewed. Nothing is shared with anyone until it is approved, and we may call you first. You'll see its status here once the full report screen is ready.`}
     />
   );
 }

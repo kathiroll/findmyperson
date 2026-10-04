@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useReportApi } from '../report/services';
 import { useDataStore } from './DataStoreContext';
 import { useAppWake } from './useAppWake';
 
@@ -9,6 +10,7 @@ import { useAppWake } from './useAppWake';
  *   at start             opens the store and purges whatever went past retention while the
  *                        app was closed, in one pass however long that was
  *   on every foreground  the same, each time the app comes back to the screen
+ *   (both of those also send any report still queued from being offline)
  *   on a capture wake    the only moment a VACUUM that is due can find the phone idle
  *
  * A wake that stores a fix with no JavaScript running is not seen here. The capture modules
@@ -17,7 +19,22 @@ import { useAppWake } from './useAppWake';
  */
 export function StoreMaintenance() {
   const dataStore = useDataStore();
-  // runMaintenance never rejects, and calls made while a run is in progress join it.
-  useAppWake(useCallback(() => void dataStore.runMaintenance(), [dataStore]));
+  const reportApi = useReportApi();
+
+  useAppWake(
+    useCallback(
+      (wake) => {
+        // runMaintenance never rejects, and calls made while a run is in progress join it.
+        void dataStore.runMaintenance();
+        // A report queued offline is sent as soon as the app is open again. It never rejects
+        // the app: a row that cannot be sent stays queued for the next trigger.
+        if (wake !== 'capture') {
+          void dataStore.runReportQueue(reportApi).catch(() => undefined);
+        }
+      },
+      [dataStore, reportApi],
+    ),
+  );
+
   return null;
 }

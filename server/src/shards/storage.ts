@@ -17,11 +17,9 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
  * stops being served; a device holding a stale index that gets a 404 for a bundle re-reads the
  * index.
  *
- * VENDOR ADAPTERS ARE NOT BUILT. No object-storage or CDN provider has been chosen (neither the
- * plan nor the repo names one), so this file has the two interfaces, a store over a directory
- * (which is what a single box serving static files needs), and a CDN stub that only logs. A
- * bucket adapter implements ObjectStore; a CDN adapter implements CdnInvalidator; nothing else
- * in the compiler changes.
+ * Providers: the Cloudflare R2 store and cache purge are in r2.ts. This file has the two
+ * interfaces, a store over a directory (what a single box serving static files needs), and a CDN
+ * stub that only logs, used when R2 is not configured.
  */
 
 /** Cache lifetimes the origin or bucket should serve. The directory store cannot carry them. */
@@ -57,9 +55,8 @@ export interface PublishLog {
 }
 
 /**
- * STUB. Writes one `shards.cdn_invalidate` log event and purges nothing. THIS IS WHERE A REAL
- * CDN PLUGS IN: implement `CdnInvalidator` against the provider's purge API and pass it to
- * `compileShards`. Until then a replaced index.json is stale at the edge for INDEX_CACHE_CONTROL,
+ * STUB, for deployments without R2 (see r2.ts). Writes one `shards.cdn_invalidate` log event and
+ * purges nothing. Until a real invalidator is used a replaced index.json is stale at the edge for INDEX_CACHE_CONTROL,
  * and a deleted bundle stays cached at the edge until the CDN's own expiry.
  */
 export function createLoggingCdnInvalidator(log: PublishLog): CdnInvalidator {

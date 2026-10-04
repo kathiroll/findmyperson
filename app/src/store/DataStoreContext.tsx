@@ -10,13 +10,19 @@ import {
   createRetentionMaintenance,
   listSubscriptions,
   runFetchCycle,
+  type DeviceIdentity,
   type FetchCycleInput,
   type FetchCycleResult,
+  type OwnReport,
+  type ReportSubmitRequest,
   type SqlDatabase,
 } from '@findmyperson/shared';
 import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { useCapture } from '../permissions';
+import type { ReportApi } from '../report/api';
+import { createStoreDeviceIdentity, platformRandomBytes } from '../report/identity';
+import { enqueueReport, runSubmitQueue, type QueueRunResult } from '../report/queue';
 import { retentionOptions } from './retention';
 
 /** What one maintenance run came to. `error` is why the store could not be opened or purged. */
@@ -58,6 +64,15 @@ export interface DataStore {
    * reports) into the new store.
    */
   runFetchCycle(input: StoreFetchInput): Promise<FetchCycleResult>;
+  /** This phone's device id, kept in the store (`kv`). Hand it to `createReportApi`. */
+  deviceIdentity: DeviceIdentity;
+  /**
+   * Durably queues a report for submission (`own_report`, `queued`). Written before any network
+   * call, so a confirmed report survives no signal and a kill. Follow with `runReportQueue`.
+   */
+  enqueueReport(request: ReportSubmitRequest): Promise<OwnReport>;
+  /** One pass over the queued submits that are due. Never rejects for a network failure. */
+  runReportQueue(api: ReportApi): Promise<QueueRunResult>;
 }
 
 /** A fetch cycle's input, less what the store supplies: the time, and the watch list if absent. */
@@ -90,6 +105,7 @@ export function createDataStore(
   options: () => OpenStoreOptions,
   current: { store: EncryptedStore | null } = { store: null },
   now: () => number = () => Math.floor(Date.now() / 1000),
+  randomBytes: (length: number) => Uint8Array = platformRandomBytes,
 ): DataStore {
   // One piece of work on the store at a time: a delete must not close the connection under a
   // purge, and a purge must not open the file a delete is about to remove.
@@ -109,6 +125,10 @@ export function createDataStore(
   };
 
   return {
+    deviceIdentity: createStoreDeviceIdentity(db, randomBytes),
+    enqueueReport: (request) => enqueueReport(db, request, randomBytes, now()),
+    runReportQueue: (api) => runSubmitQueue(db, api, now),
+
     deleteAll: () =>
       serial(async () => {
         const fresh = await deleteAllData(options(), current.store);

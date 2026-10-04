@@ -1,0 +1,618 @@
+{
+  "_comment": "Golden vectors for the match rule (matchReport in packages/shared/src/match/matchReport.ts), run with matchParamsAt(now): 150 m, 30 minutes, 30 days. `expect` is the whole result in order; `id` is the stay_id of a 'stay' result and the sample_id of a 'sample' result. kind, id and dt_sec must match exactly, distance_m within distance_tolerance_m. The expected values were worked out by hand from the rule, with the arithmetic in `why`; they are not output copied from the code. Every position is due north of the centre, so its distance is the length of the meridian arc, earth_radius_m times the difference in latitude in radians, which does not use the haversine formula. 1791000000 is on a 30-minute mark. See contracts/README.md.",
+  "match_radius_m": 150,
+  "match_window_sec": 1800,
+  "retention_sec": 2592000,
+  "distance_tolerance_m": 0.001,
+  "vectors": [
+    {
+      "name": "a stay inside the window and the search area",
+      "why": "The stay lies inside the window and is 100 m from the centre; the reach is 150 + 150 = 300 m.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 7,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [{ "kind": "stay", "id": 7, "dt_sec": 0, "distance_m": 100.0 }]
+    },
+    {
+      "name": "a stay is preferred to the samples it was built from",
+      "why": "The stay and all three samples satisfy the rule. Samples are returned only when no stay matches, so the result is the stay alone.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 7,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [
+        { "id": 31, "ts_utc": 1791000300, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 32, "ts_utc": 1791000900, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 33, "ts_utc": 1791001500, "lat": 12.97249932, "lon": 77.5946 }
+      ],
+      "expect": [{ "kind": "stay", "id": 7, "dt_sec": 0, "distance_m": 100.0 }]
+    },
+    {
+      "name": "samples are the fallback when there is no stay",
+      "why": "Somebody passing through leaves samples and no stay. Samples 41 (200 m) and 42 (100 m) are inside the window and the 300 m reach; 43 is 2000 m away. Both matches have dt 0, so the nearer one is first.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [],
+      "samples": [
+        { "id": 41, "ts_utc": 1791000600, "lat": 12.973398641, "lon": 77.5946 },
+        { "id": 42, "ts_utc": 1791001500, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 43, "ts_utc": 1791000900, "lat": 12.989586407, "lon": 77.5946 }
+      ],
+      "expect": [
+        { "kind": "sample", "id": 42, "dt_sec": 0, "distance_m": 100.0 },
+        { "kind": "sample", "id": 41, "dt_sec": 0, "distance_m": 200.0 }
+      ]
+    },
+    {
+      "name": "a stay somewhere else does not hide a matching sample",
+      "why": "The stay covers the window but is 2000 m away, so no stay matches and the samples are looked at. Sample 44 is 100 m away inside the window.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 8,
+          "start_ts": 1791000000,
+          "end_ts": 1791001800,
+          "lat": 12.989586407,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [{ "id": 44, "ts_utc": 1791000600, "lat": 12.97249932, "lon": 77.5946 }],
+      "expect": [{ "kind": "sample", "id": 44, "dt_sec": 0, "distance_m": 100.0 }]
+    },
+    {
+      "name": "a stay that ended exactly 30 minutes before the window",
+      "why": "The window is on the grid, so it is read as written. The stay ends at from - 1800, which is the first second of [from - 1800, to + 1800]: the intervals touch, dt is 1800.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 9,
+          "start_ts": 1790994600,
+          "end_ts": 1790998200,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [{ "kind": "stay", "id": 9, "dt_sec": 1800, "distance_m": 100.0 }]
+    },
+    {
+      "name": "a stay that ended 30 minutes and one second before the window",
+      "why": "The same stay ending one second earlier, at from - 1801, is outside the time range.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 9,
+          "start_ts": 1790994600,
+          "end_ts": 1790998199,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": []
+    },
+    {
+      "name": "a stay that began exactly 30 minutes after the window",
+      "why": "The stay begins at to + 1800 = 1791003600, the last second of the time range. dt is 1800.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 10,
+          "start_ts": 1791003600,
+          "end_ts": 1791007200,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [{ "kind": "stay", "id": 10, "dt_sec": 1800, "distance_m": 100.0 }]
+    },
+    {
+      "name": "a stay that began 30 minutes and one second after the window",
+      "why": "The same stay beginning one second later, at to + 1801, is outside the time range.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 10,
+          "start_ts": 1791003601,
+          "end_ts": 1791007200,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": []
+    },
+    {
+      "name": "samples exactly 30 minutes from the window, and one second further",
+      "why": "Samples 51 (from - 1800) and 52 (to + 1800) are on the two ends of the time range, dt 1800 each; 53 (from - 1801) and 54 (to + 1801) are outside it. 51 and 52 tie on dt and on distance, so the lower id is first.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [],
+      "samples": [
+        { "id": 54, "ts_utc": 1791003601, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 52, "ts_utc": 1791003600, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 53, "ts_utc": 1790998199, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 51, "ts_utc": 1790998200, "lat": 12.97249932, "lon": 77.5946 }
+      ],
+      "expect": [
+        { "kind": "sample", "id": 51, "dt_sec": 1800, "distance_m": 100.0 },
+        { "kind": "sample", "id": 52, "dt_sec": 1800, "distance_m": 100.0 }
+      ]
+    },
+    {
+      "name": "a stay one centimetre inside radius_m + 150 m",
+      "why": "The radius is 150, on the grid, so the reach is 150 + 150 = 300 m. The centroid is 299.990 m away.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 7,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.974297871,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [{ "kind": "stay", "id": 7, "dt_sec": 0, "distance_m": 299.99 }]
+    },
+    {
+      "name": "a stay one centimetre outside radius_m + 150 m",
+      "why": "The centroid is 300.010 m away, beyond the 300 m reach.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 7,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.974298051,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": []
+    },
+    {
+      "name": "samples one centimetre either side of radius_m + 150 m",
+      "why": "Sample 61 is 299.990 m away and sample 62 is 300.010 m away; the reach is 300 m.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [],
+      "samples": [
+        { "id": 61, "ts_utc": 1791000600, "lat": 12.974297871, "lon": 77.5946 },
+        { "id": 62, "ts_utc": 1791000600, "lat": 12.974298051, "lon": 77.5946 }
+      ],
+      "expect": [{ "kind": "sample", "id": 61, "dt_sec": 0, "distance_m": 299.99 }]
+    },
+    {
+      "name": "a report of radius 0 reaches 150 m",
+      "why": "0 is on the grid, so the reach is 0 + 150 = 150 m. Stay 11 is 149.990 m away and stay 12 is 150.010 m away.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 0,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 11,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.972948891,
+          "lon": 77.5946
+        },
+        {
+          "id": 12,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.97294907,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [{ "kind": "stay", "id": 11, "dt_sec": 0, "distance_m": 149.99 }]
+    },
+    {
+      "name": "a radius of 100 m is read as 150 m",
+      "why": "100 rounds up to 150, so the reach is 300 m and not the 250 m of the report as written. Stay 13 at 280.000 m matches; stay 14 at 300.010 m does not.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 100,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 13,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.974118097,
+          "lon": 77.5946
+        },
+        {
+          "id": 14,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.974298051,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [{ "kind": "stay", "id": 13, "dt_sec": 0, "distance_m": 280.0 }]
+    },
+    {
+      "name": "a pin dropped with 5 m precision",
+      "why": "5 rounds up to 150: reach 300 m. Stay 15 at 200.000 m is beyond the 155 m of the report as written and still matches; 16 at 299.990 m matches; 17 at 300.010 m does not. The next vector must give the same result.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 5,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 15,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.973398641,
+          "lon": 77.5946
+        },
+        {
+          "id": 16,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.974297871,
+          "lon": 77.5946
+        },
+        {
+          "id": 17,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.974298051,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [
+        { "kind": "stay", "id": 15, "dt_sec": 0, "distance_m": 200.0 },
+        { "kind": "stay", "id": 16, "dt_sec": 0, "distance_m": 299.99 }
+      ]
+    },
+    {
+      "name": "the same pin dropped with 140 m precision",
+      "why": "140 rounds up to 150 as well, so this is the same report as the one before it and the result is identical (plan 8.3).",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 140,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 15,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.973398641,
+          "lon": 77.5946
+        },
+        {
+          "id": 16,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.974297871,
+          "lon": 77.5946
+        },
+        {
+          "id": 17,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.974298051,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [
+        { "kind": "stay", "id": 15, "dt_sec": 0, "distance_m": 200.0 },
+        { "kind": "stay", "id": 16, "dt_sec": 0, "distance_m": 299.99 }
+      ]
+    },
+    {
+      "name": "last seen at one instant, a minute past the half hour",
+      "why": "The instant 1791000060 is read as the half hour [1791000000, 1791001800], so the time range is [1790998200, 1791003600]. Samples 71 and 73 are on its two ends, dt 1800 from the window as read; 72 is one second past it. As written the range would end at 1791001860 and 71 would not match. The next vector must give the same result.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000060, "to": 1791000060 }
+      },
+      "stays": [],
+      "samples": [
+        { "id": 71, "ts_utc": 1791003600, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 72, "ts_utc": 1791003601, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 73, "ts_utc": 1790998200, "lat": 12.97249932, "lon": 77.5946 }
+      ],
+      "expect": [
+        { "kind": "sample", "id": 71, "dt_sec": 1800, "distance_m": 100.0 },
+        { "kind": "sample", "id": 73, "dt_sec": 1800, "distance_m": 100.0 }
+      ]
+    },
+    {
+      "name": "last seen at one instant, a quarter past the same half hour",
+      "why": "1791000900 lies in the same half hour, so this is the same report as the one before it and the result is identical (plan 8.3).",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000900, "to": 1791000900 }
+      },
+      "stays": [],
+      "samples": [
+        { "id": 71, "ts_utc": 1791003600, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 72, "ts_utc": 1791003601, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 73, "ts_utc": 1790998200, "lat": 12.97249932, "lon": 77.5946 }
+      ],
+      "expect": [
+        { "kind": "sample", "id": 71, "dt_sec": 1800, "distance_m": 100.0 },
+        { "kind": "sample", "id": 73, "dt_sec": 1800, "distance_m": 100.0 }
+      ]
+    },
+    {
+      "name": "the strongest evidence is first",
+      "why": "The radius is 300, reach 450 m. Stay 21 begins 3000 s after `from`, 1200 s after the window ends: dt 1200. Stays 22 (320 m) and 23 (100 m) are inside the window, dt 0. Order: smallest dt, then nearest.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 3,
+        "expires_at": 1792728000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 300,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 21,
+          "start_ts": 1791003000,
+          "end_ts": 1791005000,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        },
+        {
+          "id": 22,
+          "start_ts": 1791000300,
+          "end_ts": 1791000900,
+          "lat": 12.974477825,
+          "lon": 77.5946
+        },
+        {
+          "id": 23,
+          "start_ts": 1791001000,
+          "end_ts": 1791001700,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [
+        { "kind": "stay", "id": 23, "dt_sec": 0, "distance_m": 100.0 },
+        { "kind": "stay", "id": 22, "dt_sec": 0, "distance_m": 320.0 },
+        { "kind": "stay", "id": 21, "dt_sec": 1200, "distance_m": 100.0 }
+      ]
+    },
+    {
+      "name": "an expired report matches nothing",
+      "why": "expires_at equals now. A report is live only while expires_at is after now, the same test listLiveReports makes.",
+      "now": 1791086400,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1791086400,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 7,
+          "start_ts": 1791000300,
+          "end_ts": 1791001500,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [{ "id": 31, "ts_utc": 1791000900, "lat": 12.97249932, "lon": 77.5946 }],
+      "expect": []
+    },
+    {
+      "name": "a sample older than retention is not evidence",
+      "why": "now is 1793593000, so the cutoff is now - 2592000 = 1791001000. Sample 81 at 1791000900 is before it and is ignored, although it is inside the window; sample 82 at 1791001200 is after it.",
+      "now": 1793593000,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1793600000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [],
+      "samples": [
+        { "id": 81, "ts_utc": 1791000900, "lat": 12.97249932, "lon": 77.5946 },
+        { "id": 82, "ts_utc": 1791001200, "lat": 12.97249932, "lon": 77.5946 }
+      ],
+      "expect": [{ "kind": "sample", "id": 82, "dt_sec": 0, "distance_m": 100.0 }]
+    },
+    {
+      "name": "a stay running across the retention cutoff counts from the cutoff",
+      "why": "now is 1793595000, cutoff 1791003000. The stay began a day before the window and is still running, but what is before the cutoff is past retention, so it counts as beginning at 1791003000: 1200 s after the window ends, inside the 1800 s allowed.",
+      "now": 1793595000,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1793600000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 24,
+          "start_ts": 1790913600,
+          "end_ts": 1791090000,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": [{ "kind": "stay", "id": 24, "dt_sec": 1200, "distance_m": 100.0 }]
+    },
+    {
+      "name": "the same stay when the cutoff is past the time range",
+      "why": "now is 1793595700, cutoff 1791003700, which is after to + 1800 = 1791003600. Nothing the device still holds is inside the time range, so there is no match although the stay as stored covers the whole window.",
+      "now": 1793595700,
+      "query": {
+        "query_id": "01J8ZQ4T9W3F5K7M2N6P8R0S1V",
+        "revision": 1,
+        "expires_at": 1793600000,
+        "center": { "lat": 12.9716, "lon": 77.5946 },
+        "radius_m": 150,
+        "window": { "from": 1791000000, "to": 1791001800 }
+      },
+      "stays": [
+        {
+          "id": 24,
+          "start_ts": 1790913600,
+          "end_ts": 1791090000,
+          "lat": 12.97249932,
+          "lon": 77.5946
+        }
+      ],
+      "samples": [],
+      "expect": []
+    }
+  ]
+}
