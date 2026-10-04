@@ -16,6 +16,7 @@ Inputs chosen by hand, expected outputs recorded once. A test never rewrites the
 | `widening-vectors.json`       | The verdict of the widen-only edit rule for a pair of match criteria                                         | TypeScript (server and app)        |
 | `cipher-params.json`          | The SQLCipher parameters of the on-device store                                                              | TypeScript, Kotlin, Swift          |
 | `stay-vectors.json`           | The 'derived' stay rows for a trace of fixes and visit rows, in one run and across restarts                  | TypeScript (app and harness)       |
+| `match-vectors.json`          | The evidence `matchReport` returns for a report and a history: both branches, every boundary, the grid       | TypeScript (app and harness)       |
 
 Notes for a native implementer:
 
@@ -26,7 +27,7 @@ Notes for a native implementer:
 - **The signing key in `signing-vectors.json` is public** (test vector 1 of RFC 8032). It must never be in a real build's trusted keys.
 - `cipher-params.json` mirrors the cipher fields of `m0/store-proof/shared/cipher-params.json`, which proved the values on real SQLCipher builds. A test fails if the two disagree.
 
-To add a vector: add the input, run the tests, and take the expected value from the failure only after checking it against a second implementation or by hand. `widening-vectors.json` and `stay-vectors.json` record the reasoning for each case in `why`; the stay values were produced by a separate implementation that keeps the member fixes and takes plain means.
+To add a vector: add the input, run the tests, and take the expected value from the failure only after checking it against a second implementation or by hand. `widening-vectors.json`, `stay-vectors.json` and `match-vectors.json` record the reasoning for each case in `why`; the match distances are meridian arcs, worked out without the haversine formula, and the stay values were produced by a separate implementation that keeps the member fixes and takes plain means.
 
 ## Generated files (derived from the TypeScript source)
 

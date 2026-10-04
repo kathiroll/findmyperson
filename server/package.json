@@ -8,6 +8,7 @@
   "scripts": {
     "build": "node build.mjs",
     "start": "node dist/main.js",
+    "harness": "node build.mjs && node dist/match-harness.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },

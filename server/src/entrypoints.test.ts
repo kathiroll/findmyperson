@@ -38,6 +38,12 @@ describe('built entry points under plain node', () => {
     expect(status).toBe(2);
   });
 
+  it('match-harness.js runs a scenario and prints its table', () => {
+    const args = ['--scenario', 'rural', '--devices', '200', '--reports', '10'];
+    const out = execFileSync(node, ['dist/match-harness.js', ...args], { cwd: serverDir });
+    expect(out.toString()).toMatch(/shipped\s+\d+\.\d%/);
+  });
+
   it('main.js starts, listens and answers HTTP', async () => {
     const child = spawn(node, ['dist/main.js'], {
       cwd: serverDir,
