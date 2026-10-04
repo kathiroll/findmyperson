@@ -170,8 +170,7 @@ describe('report submission', () => {
     const pad = (n: number) => String(n).padStart(2, '0');
     await type('Their name, required', 'Asha Verma');
     await type('Your phone number, required', '+919810012345');
-    await type('Latitude', '28.6139');
-    await type('Longitude', '77.2090');
+    await type('Last known location, required', '28.6139, 77.2090');
     await type(
       'Date, required',
       `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,

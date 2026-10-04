@@ -350,11 +350,13 @@ describe('the report screen', () => {
     cleanups.push(() => act(async () => renderer.unmount()));
     return { renderer, onSubmitted };
   }
-  const fill = async (renderer: ReactTestRenderer, over: { phone?: string } = {}) => {
+  const fill = async (
+    renderer: ReactTestRenderer,
+    over: { phone?: string; coords?: string } = {},
+  ) => {
     await type(renderer, 'Their name, required', 'Asha Verma');
     await type(renderer, 'Your phone number, required', over.phone ?? '+919810012345');
-    await type(renderer, 'Latitude', '28.6139');
-    await type(renderer, 'Longitude', '77.2090');
+    await type(renderer, 'Last known location, required', over.coords ?? '28.6139, 77.2090');
     await type(renderer, 'Date, required', '2026-10-03');
     await type(renderer, 'Time, required', '6:30 PM');
   };
@@ -369,6 +371,30 @@ describe('the report screen', () => {
     await pressBroadcast(renderer);
     await settle();
     expect(text(renderer.root)).toContain('Your phone number is required');
+    expect(backend.state.calls).toHaveLength(0);
+    expect(onSubmitted).not.toHaveBeenCalled();
+    expect((await store.runReportQueue(backend.api)).acknowledged).toEqual([]);
+  });
+
+  test('pasted coordinates are shown back as the point that will be sent', async () => {
+    const { renderer } = await mount(
+      realDataStore({ now: clockNow() }),
+      fakeBackend().api,
+      clockNow,
+    );
+    await type(renderer, 'Last known location, required', '28.6139°, 77.2090°');
+    expect(text(renderer.root)).toContain('Will be sent as 28.61390, 77.20900');
+  });
+
+  test('unreadable coordinates block submission with the error shown and nothing sent', async () => {
+    const backend = fakeBackend();
+    backend.state.up = true;
+    const store = realDataStore({ now: clockNow() });
+    const { renderer, onSubmitted } = await mount(store, backend.api, clockNow);
+    await fill(renderer, { coords: '95, 77.2' });
+    await pressBroadcast(renderer);
+    await settle();
+    expect(text(renderer.root)).toContain('Latitude must be between -90 and 90.');
     expect(backend.state.calls).toHaveLength(0);
     expect(onSubmitted).not.toHaveBeenCalled();
     expect((await store.runReportQueue(backend.api)).acknowledged).toEqual([]);

@@ -21,6 +21,7 @@ import {
   type FormErrors,
   type ReportFormValues,
 } from './form';
+import { formatPoint, parseCoordinates } from './coordinates';
 import { makeThumbnail } from './image';
 import { useReportApi, useReportServices } from './services';
 
@@ -55,8 +56,6 @@ type Phase =
 
 const DEFAULT_RETRY_MS = 15_000;
 
-const toNumber = (text: string) => (text.trim() === '' ? NaN : Number(text.trim()));
-
 export function ReportSubmitScreen({
   onBack,
   onSubmitted,
@@ -69,9 +68,9 @@ export function ReportSubmitScreen({
   const { photo: photoPort, location: locationPort } = useReportServices();
 
   const [values, setValues] = useState<ReportFormValues>(emptyForm);
-  // Typed coordinates, used only when the build has no map picker.
-  const [latText, setLatText] = useState('');
-  const [lonText, setLonText] = useState('');
+  // Pasted coordinates, used only when the build has no map picker.
+  const [coordText, setCoordText] = useState('');
+  const typedPoint = parseCoordinates(coordText);
   const [errors, setErrors] = useState<FormErrors>({});
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'editing' });
@@ -143,19 +142,14 @@ export function ReportSubmitScreen({
   };
 
   const submit = async () => {
-    // Coordinates typed by hand become the location before validation.
+    // Pasted coordinates become the location before validation.
     let checked = values;
     if (locationPort === null) {
-      const lat = toNumber(latText);
-      const lon = toNumber(lonText);
-      checked = {
-        ...values,
-        location: Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null,
-      };
+      checked = { ...values, location: typedPoint.ok ? typedPoint.point : null };
     }
     const found = validateForm(checked, now());
-    if (locationPort === null && checked.location === null && (latText !== '' || lonText !== '')) {
-      found.location = 'Enter latitude and longitude as numbers, like 28.6139 and 77.2090.';
+    if (locationPort === null && !typedPoint.ok && coordText.trim() !== '') {
+      found.location = typedPoint.error;
     }
     setErrors(found);
     if (Object.keys(found).length > 0) return;
@@ -267,33 +261,22 @@ export function ReportSubmitScreen({
         </Text>
 
         {locationPort === null ? (
-          <View style={{ gap: spacing[12] }}>
-            <Text variant="label">Last known location</Text>
-            <View style={{ flexDirection: 'row', gap: spacing[12] }}>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="Latitude"
-                  placeholder="28.6139"
-                  value={latText}
-                  onChangeText={setLatText}
-                  editable={!locked}
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="Longitude"
-                  placeholder="77.2090"
-                  value={lonText}
-                  onChangeText={setLonText}
-                  editable={!locked}
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-            </View>
-            {errors.location ? (
-              <Text variant="caption" color="danger" accessibilityLiveRegion="polite">
-                {errors.location}
+          <View style={{ gap: spacing[8] }}>
+            <Field
+              label="Last known location"
+              required
+              placeholder="28.6139, 77.2090"
+              hint="In Google Maps, press and hold to drop a pin, then tap the coordinates to copy them and paste them here."
+              value={coordText}
+              onChangeText={setCoordText}
+              editable={!locked}
+              autoCorrect={false}
+              keyboardType="numbers-and-punctuation"
+              {...(errors.location ? { error: errors.location } : {})}
+            />
+            {typedPoint.ok ? (
+              <Text testID="accepted-location" variant="bodySmall" color="ink">
+                {`Will be sent as ${formatPoint(typedPoint.point)}`}
               </Text>
             ) : null}
           </View>
