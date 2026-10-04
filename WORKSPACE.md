@@ -10,7 +10,7 @@ A monorepo workspace is one git repository holding several packages that can dep
 
 | Path                                | What it is                                                                            |
 | ----------------------------------- | ------------------------------------------------------------------------------------- |
-| `app/`                              | React Native app (New Architecture, TypeScript). Native projects are added later      |
+| `app/`                              | React Native app (New Architecture, TypeScript), with its Android project; no iOS yet |
 | `packages/shared/`                  | Payload schemas (zod) and pure logic such as H3 sharding math. Used by app and server |
 | `packages/native-location-capture/` | Turbo Native Module package for background location capture                           |
 | `packages/encrypted-store/`         | The on-device encrypted store: open, migrate, key, backup exclusion, native writer    |
@@ -26,7 +26,7 @@ Package names are `@findmyperson/app`, `@findmyperson/shared`, `@findmyperson/na
 - **Test runner: Vitest.** TypeScript works with no extra setup, and its `projects` option runs every workspace member from one root config.
 - **TypeScript strict** with one `tsconfig.base.json` at the root; each member has a small `tsconfig.json` that extends it.
 - **ESLint** (flat config, `eslint.config.js`) and **Prettier** (`.prettierrc.json`) are configured once at the root and cover every member.
-- Pre-installed for later tasks: `react-native` 0.87 (New Architecture is the default), `zod`, `h3-js`, and `@op-engineering/op-sqlite`. No Android or iOS native dependencies are added yet.
+- `react-native` is 0.87 (New Architecture is the default). The Android project is `app/android` ([docs/BUILDING.md](docs/BUILDING.md)); there is no iOS project yet.
 
 ## Install
 
