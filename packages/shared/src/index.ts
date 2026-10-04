@@ -62,6 +62,21 @@ export type { StaySample } from './stay/cluster';
 export { extractStays, type CoveringStay } from './stay/extract';
 export { deriveStays, REWIND_STAY_CURSOR_SQL, type StayDerivationResult } from './stay/derive';
 
+// Matching: the rule that decides whether this device's history crossed a report.
+export {
+  coarsenCriteria,
+  matchBounds,
+  matchParamsAt,
+  matchReport,
+  type MatchBounds,
+  type MatchHistory,
+  type MatchParams,
+  type MatchQuery,
+  type MatchResult,
+  type MatchSample,
+  type MatchStay,
+} from './match/matchReport';
+
 // Retention: the purge, the weekly VACUUM and the store's maintenance hook.
 export { purgeExpired, type PurgeResult } from './retention/purge';
 export {
