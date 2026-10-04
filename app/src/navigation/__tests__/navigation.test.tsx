@@ -32,6 +32,7 @@ async function mount(initialUrl: string | null = null) {
         dataStore={{
           deleteAll: async () => ({ emptyStoreConfirmed: true }),
           runMaintenance: async () => ({ ran: true }),
+          runFetchCycle: () => Promise.reject(new Error('no screen fetches')),
         }}
       />,
     );

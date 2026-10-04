@@ -6,7 +6,13 @@ import {
   type OpenStoreOptions,
 } from '@findmyperson/encrypted-store';
 import type { LocationCapture } from '@findmyperson/native-location-capture';
-import { createRetentionMaintenance } from '@findmyperson/shared';
+import {
+  createRetentionMaintenance,
+  runFetchCycle,
+  type FetchCycleInput,
+  type FetchCycleResult,
+  type SqlDatabase,
+} from '@findmyperson/shared';
 import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { useCapture } from '../permissions';
@@ -35,6 +41,18 @@ export interface DataStore {
    * call tries again from the start.
    */
   runMaintenance(): Promise<MaintenanceResult>;
+  /**
+   * One cycle of the bundle fetcher (`runFetchCycle` of @findmyperson/shared) against the
+   * store, opening it first if this is a cold wake: no screen, no provider and no earlier call
+   * is needed. `input.watch` is the shard-key list; the time is this store's clock.
+   *
+   * For background work, never for a screen. It rejects only for a malformed argument; a store
+   * that cannot be opened is a `failed` result with `store_failed`, and the next call tries
+   * again. The cycle's network requests do not hold the store: maintenance and a delete can run
+   * between its statements, and a cycle that ends after a delete writes what it fetched (public
+   * reports) into the new store.
+   */
+  runFetchCycle(input: Omit<FetchCycleInput, 'nowTs'>): Promise<FetchCycleResult>;
 }
 
 const DataStoreContext = createContext<DataStore | null>(null);
@@ -59,6 +77,13 @@ export function createDataStore(
     return result;
   };
   let maintaining: Promise<MaintenanceResult> | null = null;
+  const opened = async () => (current.store ??= await openStore(options()));
+  // The store as background work sees it: whichever store is current when a statement runs,
+  // opened on first use, each statement or transaction taking its turn in the queue above.
+  const db: SqlDatabase = {
+    execute: (sql, params) => serial(async () => (await opened()).db.execute(sql, params)),
+    transaction: (work) => serial(async () => (await opened()).db.transaction(work)),
+  };
 
   return {
     deleteAll: () =>
@@ -78,8 +103,7 @@ export function createDataStore(
       // waiting or running joins it; the purge it would have done is the one being done.
       maintaining ??= serial<MaintenanceResult>(async () => {
         try {
-          current.store ??= await openStore(options());
-          await current.store.runMaintenance(now());
+          await (await opened()).runMaintenance(now());
           return { ran: true };
         } catch (error) {
           return { ran: false, error };
@@ -89,6 +113,8 @@ export function createDataStore(
       });
       return maintaining;
     },
+
+    runFetchCycle: (input) => runFetchCycle(db, { ...input, nowTs: now() }),
   };
 }
 

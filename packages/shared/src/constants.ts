@@ -53,6 +53,32 @@ export const H3_RES_PUSH = 3;
 export const SUBSCRIPTION_RES5_CAP = 200;
 
 /**
+ * PROVISIONAL (bundle fetcher, plan 7.3). Shard requests in one fetch cycle, after the index
+ * request. Every cycle that reads an index makes exactly this many, however many shards changed.
+ * It bounds how many changed shards one cycle can take; the rest wait for the next cycle.
+ */
+export const FETCH_SHARD_REQUESTS_PER_CYCLE = 8;
+
+/**
+ * PROVISIONAL (bundle fetcher, plan 7.3). Shards a device follows that it does not need, so the
+ * CDN operator cannot tell which of the shards it fetches are the ones it has been in. Each
+ * costs the download of that shard's bundle whenever it changes. See fetch/cycle.ts.
+ */
+export const FETCH_COVER_SHARDS = 8;
+
+/**
+ * PROVISIONAL (bundle fetcher). On a metered connection a cycle is put off until this long
+ * after the last complete one. It is a bound, not a ban: a phone that is only ever on mobile
+ * data still has to hear about reports.
+ */
+export const FETCH_METERED_INTERVAL_SEC = 6 * 3_600;
+
+/** PROVISIONAL (bundle fetcher). Wait after a failed cycle: this, doubled per failure in a row. */
+export const FETCH_BACKOFF_BASE_SEC = 60;
+/** PROVISIONAL (bundle fetcher). The longest that wait gets. */
+export const FETCH_BACKOFF_MAX_SEC = 3_600;
+
+/**
  * PROVISIONAL. Largest search radius a report may carry. 5 km keeps the res-7 cover of a report
  * to a few dozen cells and inside the 1-ring of res-5 shards a device already subscribes to.
  */

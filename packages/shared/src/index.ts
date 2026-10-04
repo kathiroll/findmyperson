@@ -73,3 +73,18 @@ export {
   type RetentionRun,
   type VacuumOutcome,
 } from './retention/maintenance';
+
+// Bundle fetcher: the signed shard index and bundles, into `report_cache`.
+export {
+  runFetchCycle,
+  type FetchCycleInput,
+  type FetchCycleResult,
+  type FetchFailure,
+  type FetchLogEntry,
+} from './fetch/cycle';
+export type {
+  FetchRequest,
+  FetchResponse,
+  FetchTransport,
+  NetworkConditions,
+} from './fetch/transport';
