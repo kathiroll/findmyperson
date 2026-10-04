@@ -51,7 +51,10 @@ jobs:
   # into one APK, as the app will package them, then read. Fails unless the APK holds exactly
   # one SQLite, the SQLCipher in libop-sqlite.so, with the Kotlin side's library linked to it.
   # Nothing is installed or run. It stands in for the same check on the real app, which
-  # build/build-android.sh makes once app/android exists.
+  # build/build-android.sh makes once app/android exists. The runner image ships the Android SDK
+  # with its licences accepted, and the Android Gradle Plugin downloads the NDK and platform it
+  # is missing; android-actions/setup-android@v3 is not used because it fails on a package
+  # ("tools") that no longer exists.
   android-linkcheck:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -66,7 +69,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-home-cache-cleanup: true
