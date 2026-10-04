@@ -148,6 +148,11 @@ RCT_EXPORT_MODULE(NativeLocationCapture)
   [FMPCaptureBridge.shared getDeviceConditionsWithResolve:resolve reject:Rejecter(reject)];
 }
 
+- (void)getNetworkConditions:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
+{
+  [FMPCaptureBridge.shared getNetworkConditionsWithResolve:resolve reject:Rejecter(reject)];
+}
+
 - (void)debugInjectSample:(double)lat
                       lon:(double)lon
                     tsUtc:(double)tsUtc

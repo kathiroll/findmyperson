@@ -44,8 +44,11 @@ export type HttpFetch = (
 
 export const HTTP_TRANSPORT_TIMEOUT_MS = 30_000;
 
+/** A CDN origin: https, a host, and nothing after it. */
+export const CDN_ORIGIN_PATTERN = /^https:\/\/[^/?#]+$/;
+
 export function createHttpTransport(options: HttpTransportOptions): FetchTransport {
-  if (!/^https:\/\/[^/?#]+$/.test(options.origin)) {
+  if (!CDN_ORIGIN_PATTERN.test(options.origin)) {
     throw new RangeError('the CDN origin must be https://host with no path');
   }
   const { origin } = options;

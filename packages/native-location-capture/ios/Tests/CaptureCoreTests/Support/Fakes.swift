@@ -129,6 +129,8 @@ final class FakeDevice: DeviceConditions {
     /// On battery, with the app on screen: a phone in somebody's hand.
     var onExternalPower = false
     var appActive = true
+    /// On mobile data. nil is no usable connection, or iOS not having said yet.
+    var networkPath: NetworkPath? = NetworkPath(expensive: true, constrained: false)
     var settingsOpenResult = true
     private(set) var settingsOpened = 0
 

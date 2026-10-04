@@ -24,6 +24,7 @@ export type {
   DeviceConditions,
   DiagnosticEntry,
   HealthFlag,
+  NetworkConditions,
   PermissionState,
   PermissionStep,
   SampleWrittenEvent,

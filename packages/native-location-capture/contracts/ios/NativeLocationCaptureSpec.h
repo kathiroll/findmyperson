@@ -78,6 +78,8 @@ namespace JS {
                 reject:(RCTPromiseRejectBlock)reject;
 - (void)getDeviceConditions:(RCTPromiseResolveBlock)resolve
                      reject:(RCTPromiseRejectBlock)reject;
+- (void)getNetworkConditions:(RCTPromiseResolveBlock)resolve
+                      reject:(RCTPromiseRejectBlock)reject;
 - (void)debugInjectSample:(double)lat
                       lon:(double)lon
                     tsUtc:(double)tsUtc

@@ -112,7 +112,7 @@ final class ContractTests: XCTestCase {
         let shim = try Repo.text(
             "packages/native-location-capture/ios/Sources/Bridge/RCTNativeLocationCapture.mm")
         let names = try methods().compactMap { $0["name"] as? String }
-        XCTAssertEqual(names.count, 11)
+        XCTAssertEqual(names.count, 12)
         for name in names {
             XCTAssertTrue(shim.contains("- (void)\(name):"), "\(name) is missing from the shim")
         }

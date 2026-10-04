@@ -99,11 +99,26 @@ data class PowerSnapshot(
     val appInForeground: Boolean,
 )
 
+/**
+ * What the bundle fetcher asks before it spends the user's data, read at one moment: the fact
+ * behind the spec's `getNetworkConditions`. [NetworkRules] turns it into the answer.
+ */
+data class NetworkSnapshot(
+    /**
+     * Android counts the active data network as metered: mobile data, or a Wi-Fi network marked
+     * as limited. Android also says so when there is no active network.
+     */
+    val activeNetworkMetered: Boolean,
+)
+
 interface DeviceConditions {
     fun snapshot(): DeviceSnapshot
 
     /** Cheap, and safe on any thread. */
     fun power(): PowerSnapshot
+
+    /** Cheap, and safe on any thread. */
+    fun network(): NetworkSnapshot
 }
 
 /** One-shot location for the periodic job. Both calls block and neither throws. */

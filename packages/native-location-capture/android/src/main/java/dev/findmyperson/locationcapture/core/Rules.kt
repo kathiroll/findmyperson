@@ -159,3 +159,18 @@ object MaintenanceRules {
     /** What is answered when Android will not say: the vacuum waits. */
     val UNKNOWN = MaintenanceConditions(charging = false, idle = false)
 }
+
+/**
+ * The answer of `getNetworkConditions`, from what Android reports.
+ *
+ * `metered` is Android's own judgement of the active network, which already covers mobile data,
+ * a hotspot the phone was told is limited and having no network at all. Nothing is added to it:
+ * the fetcher's question is whether the download costs the user, and that is the question
+ * Android answers.
+ */
+object NetworkRules {
+    fun conditions(network: NetworkSnapshot) = NetworkConditions(metered = network.activeNetworkMetered)
+
+    /** What is answered when Android will not say: the fetcher waits, as it does with no answer. */
+    val UNKNOWN = NetworkConditions(metered = true)
+}

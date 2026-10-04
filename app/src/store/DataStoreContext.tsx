@@ -8,6 +8,7 @@ import {
 import type { LocationCapture } from '@findmyperson/native-location-capture';
 import {
   createRetentionMaintenance,
+  listSubscriptions,
   runFetchCycle,
   type DeviceIdentity,
   type FetchCycleInput,
@@ -50,7 +51,11 @@ export interface DataStore {
   /**
    * One cycle of the bundle fetcher (`runFetchCycle` of @findmyperson/shared) against the
    * store, opening it first if this is a cold wake: no screen, no provider and no earlier call
-   * is needed. `input.watch` is the shard-key list; the time is this store's clock.
+   * is needed. The time is this store's clock.
+   *
+   * `input.watch` is the shard-key list. Left out, it is read from the store: every topic of
+   * the `subscription` table, which is the list the subscription manager (B3.7) keeps. Until
+   * that manager exists the table is empty and so is the list.
    *
    * For background work, never for a screen. It rejects only for a malformed argument; a store
    * that cannot be opened is a `failed` result with `store_failed`, and the next call tries
@@ -58,7 +63,7 @@ export interface DataStore {
    * between its statements, and a cycle that ends after a delete writes what it fetched (public
    * reports) into the new store.
    */
-  runFetchCycle(input: Omit<FetchCycleInput, 'nowTs'>): Promise<FetchCycleResult>;
+  runFetchCycle(input: StoreFetchInput): Promise<FetchCycleResult>;
   /** This phone's device id, kept in the store (`kv`). Hand it to `createReportApi`. */
   deviceIdentity: DeviceIdentity;
   /**
@@ -69,6 +74,24 @@ export interface DataStore {
   /** One pass over the queued submits that are due. Never rejects for a network failure. */
   runReportQueue(api: ReportApi): Promise<QueueRunResult>;
 }
+
+/** A fetch cycle's input, less what the store supplies: the time, and the watch list if absent. */
+export type StoreFetchInput = Omit<FetchCycleInput, 'nowTs' | 'watch'> & {
+  watch?: FetchCycleInput['watch'];
+};
+
+/** A cycle that asked nothing of the network and changed nothing in the store. */
+const NO_CYCLE: Omit<FetchCycleResult, 'outcome' | 'reason'> = {
+  requests: 0,
+  indexChanged: false,
+  stored: [],
+  inserted: 0,
+  revised: 0,
+  removed: 0,
+  rematch: 0,
+  deferred: 0,
+  retryAt: null,
+};
 
 const DataStoreContext = createContext<DataStore | null>(null);
 
@@ -134,7 +157,18 @@ export function createDataStore(
       return maintaining;
     },
 
-    runFetchCycle: (input) => runFetchCycle(db, { ...input, nowTs: now() }),
+    async runFetchCycle(input) {
+      let watch = input.watch;
+      if (watch === undefined) {
+        try {
+          watch = (await listSubscriptions(db)).map((row) => row.topic);
+        } catch {
+          // Not an empty list: a cycle run on one would follow no shard and say so on the wire.
+          return { ...NO_CYCLE, outcome: 'failed', reason: 'store_failed' };
+        }
+      }
+      return runFetchCycle(db, { ...input, watch, nowTs: now() });
+    },
   };
 }
 

@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { LocationCapture } from '@findmyperson/native-location-capture';
 import { useMemo } from 'react';
 import { colors, fontFamilies } from '../design-system';
+import { ReportFetch, type FetchTrigger } from '../fetch';
 import { CaptureProvider, loadNativeCapture } from '../permissions';
 import { DataStoreProvider, StoreMaintenance, type DataStore } from '../store';
 import { linking, type RootStackParamList, type TabParamList } from './routes';
@@ -55,6 +56,11 @@ export type AppNavigatorProps = {
    * start and on every foreground. Production leaves it out and gets the real one.
    */
   dataStore?: DataStore;
+  /**
+   * What fetches reports at start, on every foreground and on every capture wake. Production
+   * leaves it out and gets the real one, on the report source this build was given.
+   */
+  fetchTrigger?: FetchTrigger;
 };
 
 /** The whole app shell: root stack, bottom tabs and deep-link handling. */
@@ -63,12 +69,14 @@ export function AppNavigator({
   navigationRef,
   capture,
   dataStore,
+  fetchTrigger,
 }: AppNavigatorProps) {
   const module = useMemo(() => capture ?? loadNativeCapture(), [capture]);
   return (
     <CaptureProvider capture={module}>
       <DataStoreProvider {...(dataStore ? { dataStore } : {})}>
         <StoreMaintenance />
+        <ReportFetch {...(fetchTrigger ? { trigger: fetchTrigger } : {})} />
         <SafeAreaProvider>
           <NavigationContainer {...(navigationRef ? { ref: navigationRef } : {})} linking={linking}>
             <Stack.Navigator

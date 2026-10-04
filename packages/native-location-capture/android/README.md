@@ -152,6 +152,10 @@ The full purge is TypeScript and runs when the app does. A phone on which the ap
 
 `RetentionTest` covers when the purge is asked for and every combination of the three facts; `StoreContractTest` runs the purge on the real schema.
 
+## The connection
+
+`getNetworkConditions` answers the bundle fetcher (TypeScript, `packages/shared`, `src/fetch/`), which puts a cycle off on a metered connection. It is `NetworkRules` in `core/Rules.kt` over one fact read in `platform/AndroidDeviceConditions.kt`: `ConnectivityManager.isActiveNetworkMetered`, which Android also answers true when there is no active network. The call needs `ACCESS_NETWORK_STATE`, a permission granted at install with no prompt, which the manifest now asks for and `ManifestAndSettingsTest` pins. If Android throws instead of answering, the answer is metered, so the fetcher waits. `NetworkConditionsTest` covers the answers against the fake device.
+
 ## Privacy
 
 A coordinate exists in two types (`Fix`, `StoredSample`), neither of which prints it, and leaves them in one direction: into the encrypted store. `PrivacyTest` drives every path a fix can take, then searches every event, status, diagnostics entry and file the module wrote outside the store for the coordinates and for the H3 cells (a res-7 cell is a place too). It also checks the event payloads have exactly the fields of `../contracts/schema.json`. Leaking a longitude into one diagnostics line on purpose makes it fail.
@@ -190,7 +194,7 @@ Three things this task ran into that are not its to change:
 
 Verified here, on a Mac, with no phone:
 
-- `./gradlew testDebugUnitTest lintDebug assembleDebug` passes: 146 JVM tests, lint with no issues, a debug AAR.
+- `./gradlew testDebugUnitTest lintDebug assembleDebug` passes: 151 JVM tests, lint with no issues, a debug AAR.
 - The module class compiles against the committed generated spec and `react-android` 0.87.1, so it implements every spec method with the generated signatures.
 - The state machine behaves as the spec's comments and `../src/fake.test.ts` say (`CaptureEngineTest`), survives the S0.2 scenarios as far as its own behaviour goes (`M0ScenarioTest`), raises each health flag by its condition (`HealthFlagTest`) and keeps coordinates out of everything but the store (`PrivacyTest`).
 - The contract's insert statement, bound as this module binds it, writes the expected row into the real v1 schema on a real SQLite; the generated constants equal the contract files; the cells match the golden vectors and the reference library.
@@ -201,6 +205,7 @@ Not verified, because it needs a phone or the app's build:
 - **Any behaviour on a device.** Whether the service starts, how often WorkManager runs the job, what each vendor does. The unit tests prove what the module does when Android behaves a given way, not that Android behaves that way.
 - **The build inside the app.** `app/android` does not exist yet, so the autolinked path (the React Native Gradle plugin generating the spec, versions from the root project, the manifest merge) has not run. The first task that adds `app/android` should build with this library and fix what differs.
 - **The purge and the power facts on a phone.** That the purge's `BEGIN IMMEDIATE` transaction over `SqlcipherConnection` behaves as the JDBC stand-in in the tests does; that `isCharging`, `isInteractive` and the process importance read what this README says they do on a real device, and off the main thread.
+- **The metered answer on a phone.** What `isActiveNetworkMetered` says on mobile data, on Wi-Fi, on a hotspot and with Data Saver on.
 - **SQLCipher on Android.** `SqlCipherSampleStore` and `KeystoreStoreKey` compile and have never run. The connection under them, `SqlcipherConnection`, is run on a JVM against SQLCipher built from op-sqlite's source by the store package's tests, and the built APK is checked to hold one SQLite; neither is a phone. Open from the M0 proof: that the Keystore key is readable while locked after first unlock. Open from the move to one library: that it loads in a process with no React Native (the list in `packages/encrypted-store/README.md`).
 - **Foreground-service rules per Android version.** Whether a `location` service may start from the boot receiver and from the watchdog on each version (Android 12 restricted background starts, Android 15 changed boot-time rules). If it may not, the module logs `start_failed` and runs the fallback; that path is unit-tested, the rule itself is not.
 - **The Android 10 background-permission dialog**, and resolving `requestPermission('background')` on return from settings on Android 11+.

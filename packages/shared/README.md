@@ -158,10 +158,10 @@ if (result.rematch > 0) {
 Limits a consumer should know:
 
 - **Padding hides which followed shards the device was in, not that it fetched.** The CDN operator still sees the followed set as a whole, and so roughly the region. What else it does not hide is listed in `src/fetch/cycle.ts`.
-- **How often to call is the caller's decision** on an unmetered connection. Each cycle is `1 + FETCH_SHARD_REQUESTS_PER_CYCLE` requests.
+- **How often to call is the caller's decision** on an unmetered connection. Each cycle is `1 + FETCH_SHARD_REQUESTS_PER_CYCLE` requests. The app's answer is in `app/src/fetch/trigger.ts`.
 - **A shard dropped from the watch list keeps its reports** until they expire. Nothing deletes them on the way out, so a watch list that is briefly wrong cannot empty the cache.
 - **The five `FETCH_*` constants are provisional.** None has been measured against real traffic.
-- **Not built here:** the Ed25519 primitive for Hermes, the pinned key list, the CDN origin and the native answer to "is this connection metered". Each is an input.
+- **Supplied by the app, not here** (`app/src/fetch/`): the Ed25519 primitive for Hermes (`ed25519.ts`), the native answer to "is this connection metered" (the capture module's `getNetworkConditions`), and the trigger that calls a cycle at each wake (`trigger.ts`). The pinned key list and the CDN origin are inputs with no value yet: `REPORT_TRUSTED_KEYS` and `REPORT_CDN_ORIGIN` in `reportCdn.ts`.
 
 ## Exported types
 
