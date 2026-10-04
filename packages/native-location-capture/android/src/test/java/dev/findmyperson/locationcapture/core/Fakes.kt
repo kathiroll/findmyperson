@@ -161,9 +161,20 @@ class FakeDevice : DeviceConditions {
         standbyBucket = standbyBucket,
     )
 
+    /** On mobile data, which is also what Android says with no network at all. */
+    var activeNetworkMetered = true
+
+    /** While set, Android throws instead of answering [network]: the permission is missing. */
+    var networkUnreadable = false
+
     override fun power(): PowerSnapshot {
         if (powerUnreadable) throw SecurityException("no access to the power state")
         return PowerSnapshot(onExternalPower = onExternalPower, screenOn = screenOn, appInForeground = appInForeground)
+    }
+
+    override fun network(): NetworkSnapshot {
+        if (networkUnreadable) throw SecurityException("ACCESS_NETWORK_STATE is not granted")
+        return NetworkSnapshot(activeNetworkMetered = activeNetworkMetered)
     }
 
     fun grantNothing() {

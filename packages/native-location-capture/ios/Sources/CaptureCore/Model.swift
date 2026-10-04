@@ -135,6 +135,16 @@ struct MaintenanceConditions: Equatable {
     }
 }
 
+/// `NetworkConditions` of the spec: what `getNetworkConditions` answers.
+struct NetworkConditions: Equatable {
+    /// Data on the active connection costs the user money or is rationed.
+    var metered: Bool
+
+    var bridgeValue: [String: Any] {
+        ["metered": metered]
+    }
+}
+
 /// One line of the local capture-health log. Never holds a coordinate.
 struct DiagnosticEntry: Codable, Equatable {
     var tsUtc: Int64

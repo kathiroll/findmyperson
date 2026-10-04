@@ -83,5 +83,9 @@ public abstract class NativeLocationCaptureSpec extends ReactContextBaseJavaModu
 
   @ReactMethod
   @DoNotStrip
+  public abstract void getNetworkConditions(Promise promise);
+
+  @ReactMethod
+  @DoNotStrip
   public abstract void debugInjectSample(double lat, double lon, double tsUtc, double accuracyM, Promise promise);
 }

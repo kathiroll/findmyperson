@@ -719,6 +719,26 @@ describe('getDeviceConditions', () => {
   });
 });
 
+describe('getNetworkConditions', () => {
+  test('answers what the connection is now: metered until told otherwise', async () => {
+    const { capture, controls } = setup();
+    // What a real module says when the platform gives no answer, and what the fetcher assumes.
+    expect(await capture.getNetworkConditions()).toEqual({ metered: true });
+
+    controls.setNetworkConditions({ metered: false });
+    expect(await capture.getNetworkConditions()).toEqual({ metered: false });
+    controls.setNetworkConditions({ metered: true });
+    expect(await capture.getNetworkConditions()).toEqual({ metered: true });
+  });
+
+  test('works with capture stopped and no permission, and is not part of the status', async () => {
+    const { capture, controls, statuses } = setup({ permission: 'denied' });
+    controls.setNetworkConditions({ metered: false });
+    expect(await capture.getNetworkConditions()).toEqual({ metered: false });
+    expect(statuses).toEqual([]);
+  });
+});
+
 test('the store key and directory have the shape the real ones have', async () => {
   const { capture } = setup();
   const key = await capture.getOrCreateStoreKeyHex();

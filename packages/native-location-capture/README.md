@@ -31,7 +31,7 @@ This package holds the interface, the codegen setup that turns it into native co
 
 Runtime exports of the root: `NATIVE_MODULE_NAME`, `CAPTURE_DEFAULTS`, `CAPTURE_ERROR_CODES`, `captureErrorCode`, `DIAGNOSTIC_EVENTS`, `HEALTH_FLAGS`, `HEALTH_FLAG_PLATFORMS`, `packageName`.
 
-Types of the root: `LocationCapture` (the interface; it is `Spec` in the spec file, the name codegen requires), `CaptureConfig`, `CaptureStatus`, `CaptureMode`, `CaptureTier`, `DeviceConditions`, `HealthFlag`, `PermissionState`, `PermissionStep`, `SettingsTarget`, `Accuracy`, `SampleWrittenEvent`, `DiagnosticEntry`, `CaptureErrorCode`, `CapturePlatform`.
+Types of the root: `LocationCapture` (the interface; it is `Spec` in the spec file, the name codegen requires), `CaptureConfig`, `CaptureStatus`, `CaptureMode`, `CaptureTier`, `DeviceConditions`, `NetworkConditions`, `HealthFlag`, `PermissionState`, `PermissionStep`, `SettingsTarget`, `Accuracy`, `SampleWrittenEvent`, `DiagnosticEntry`, `CaptureErrorCode`, `CapturePlatform`.
 
 Types of `/fake`: `FakeLocationCapture`, `FakeLocationCaptureOptions`, `FakeControls`, `FakeFix`, `FixOutcome`, `ConditionFlag`, `MechanismTransition`.
 
@@ -51,6 +51,7 @@ Write application code against `LocationCapture` and take the instance as an arg
 | `openSystemSettings('app' \| 'battery' \| 'hibernation')` | Opens a settings page; `false` if the platform has none                                                 |
 | `getDiagnostics(sinceTsUtc)`                              | The local capture-health log                                                                            |
 | `getDeviceConditions()`                                   | `{ charging, idle }`, read now: what the store's weekly VACUUM waits for. Never rejects                 |
+| `getNetworkConditions()`                                  | `{ metered }`, read now: what the bundle fetcher asks before it spends data. Never rejects              |
 | `debugInjectSample(lat, lon, tsUtc, accuracyM)`           | Debug builds only: store a synthetic fix                                                                |
 | `onSampleWritten(handler)`                                | Event `{ tsUtc, accuracyM, source }`                                                                    |
 | `onStatusChanged(handler)`                                | Event carrying the whole new `CaptureStatus`                                                            |
@@ -72,6 +73,16 @@ The retention purge is TypeScript (`packages/shared`, `src/retention/`) and runs
 | `idle`     | the screen is off (`PowerManager.isInteractive`), or the app is not on it (`ActivityManager.getMyMemoryState`) | `UIApplication.applicationState` is not `.active` |
 
 A fact the platform will not give counts as false, so the vacuum waits.
+
+### The connection
+
+`getNetworkConditions` is the `network` input of the bundle fetcher (`packages/shared`, `src/fetch/`), which puts a cycle off on a metered connection. It has nothing to do with capture; it lives here because this is the app's one native module.
+
+|           | Android                                                                     | iOS                                                                                                    |
+| --------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `metered` | `ConnectivityManager.isActiveNetworkMetered` (needs `ACCESS_NETWORK_STATE`) | the `NWPathMonitor` path is expensive (mobile data, a personal hotspot) or constrained (Low Data Mode) |
+
+No connection, or a fact the platform will not give, counts as metered, so the fetcher waits. That is also how the fetcher reads no answer at all.
 
 ### Switching the Android mode at runtime
 
@@ -106,7 +117,7 @@ await capture.start({
 await capture.controls.deliverFix({ lat: 12.9716, lon: 77.5946 }); // 'stored'
 ```
 
-`capture` is a `LocationCapture`. `capture.controls` is what a real module does not have: it plays the user (`answerPermission`, `setPermission`), the operating system (`setCondition`, `setDeviceConditions`, `killMechanism`, `restartMechanism`, `refuseNextStart`, `setStoreFailure`, `deliverFix`) and lets a test look at what happened (`samples`, `transitions`, `selectedConfig`, `openedSettings`, `shownPermissionPrompts`).
+`capture` is a `LocationCapture`. `capture.controls` is what a real module does not have: it plays the user (`answerPermission`, `setPermission`), the operating system (`setCondition`, `setDeviceConditions`, `setNetworkConditions`, `killMechanism`, `restartMechanism`, `refuseNextStart`, `setStoreFailure`, `deliverFix`) and lets a test look at what happened (`samples`, `transitions`, `selectedConfig`, `openedSettings`, `shownPermissionPrompts`).
 
 Pass `db` (a migrated store, any `SqlExecutor` from `@findmyperson/shared`) and the fake inserts samples into `location_sample` with the shared `insertLocationSample`, cells included, so code that reads the store sees what a phone would have written. Without `db` samples stay in memory.
 

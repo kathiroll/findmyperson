@@ -10,6 +10,7 @@ import { createTestVault, nodeSqlcipherDriver } from '@findmyperson/encrypted-st
 import {
   FETCH_SHARD_REQUESTS_PER_CYCLE,
   listLiveReports,
+  putSubscription,
   SHARD_INDEX_PATH,
   type FetchCycleInput,
   type H3Cell,
@@ -63,17 +64,19 @@ function unopenedStore() {
   return { current, options, opens: () => opens };
 }
 
-const fetchInput = (
-  cdn: FakeShardCdn,
-  watch: readonly H3Cell[],
-): Omit<FetchCycleInput, 'nowTs'> => ({
-  watch,
+/** Everything a cycle needs but the time and the watch list. */
+const sourceOf = (cdn: FakeShardCdn): Omit<FetchCycleInput, 'nowTs' | 'watch'> => ({
   transport: cdn.transport,
   trustedKeys: trustedTestKeys,
   verify: ed25519Verify,
   random: seededRandom(1),
   network: async () => ({ metered: false }),
 });
+
+const fetchInput = (
+  cdn: FakeShardCdn,
+  watch: readonly H3Cell[],
+): Omit<FetchCycleInput, 'nowTs'> => ({ watch, ...sourceOf(cdn) });
 
 const cachedIds = async (store: EncryptedStore | null) =>
   (await listLiveReports(store!.db, NOW)).map((report) => report.query.query_id).sort();
@@ -126,6 +129,63 @@ describe('the bundle fetch on a cold background wake', () => {
       outcome: 'failed',
       reason: 'store_failed',
       requests: 0,
+    });
+    expect(cdn.requests).toEqual([]);
+  });
+
+  test('with no watch list given, it follows the shards the store subscribes to', async () => {
+    const cdn = await FakeShardCdn.start();
+    await cdn.publish({ [HOME]: [await signedReport(1)] });
+    const { current, options } = unopenedStore();
+    const clock = { now: NOW };
+    const dataStore = createDataStore(options, current, () => clock.now);
+    const withoutWatch = sourceOf(cdn);
+
+    // An empty subscription table is an empty list: a whole cycle that keeps nothing.
+    const none = await dataStore.runFetchCycle(withoutWatch);
+    expect(none).toMatchObject({ outcome: 'completed', stored: [], inserted: 0 });
+    expect(none.requests).toBe(1 + FETCH_SHARD_REQUESTS_PER_CYCLE);
+
+    await putSubscription(current.store!.db, HOME, 'visited', NOW);
+    clock.now += 60;
+    expect(await dataStore.runFetchCycle(withoutWatch)).toMatchObject({
+      outcome: 'completed',
+      stored: [HOME],
+      inserted: 1,
+    });
+    // A list that is given is used as given, whatever the table holds: here, nothing.
+    await cdn.publish({ [HOME]: [await signedReport(1), await signedReport(2)] });
+    clock.now += 60;
+    expect(await dataStore.runFetchCycle({ ...withoutWatch, watch: [] })).toMatchObject({
+      outcome: 'completed',
+      stored: [],
+    });
+    clock.now += 60;
+    expect(await dataStore.runFetchCycle(withoutWatch)).toMatchObject({
+      outcome: 'completed',
+      stored: [HOME],
+      inserted: 1,
+    });
+  });
+
+  test('with no watch list given and a store that cannot be opened, nothing is requested', async () => {
+    const cdn = await FakeShardCdn.start();
+    const locked = (): OpenStoreOptions => {
+      throw new StoreError('OPEN_FAILED', 'the phone has not been unlocked since it restarted');
+    };
+    const dataStore = createDataStore(locked, { store: null }, () => NOW);
+    expect(await dataStore.runFetchCycle(sourceOf(cdn))).toEqual({
+      outcome: 'failed',
+      reason: 'store_failed',
+      requests: 0,
+      indexChanged: false,
+      stored: [],
+      inserted: 0,
+      revised: 0,
+      removed: 0,
+      rematch: 0,
+      deferred: 0,
+      retryAt: null,
     });
     expect(cdn.requests).toEqual([]);
   });

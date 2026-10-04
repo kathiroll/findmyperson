@@ -15,7 +15,7 @@ import kotlin.math.abs
  *
  * WHO CALLS IT
  *   The Turbo Module    start, stop, status, initStore, diagnosticsSince, debugInjectSample,
- *                       deviceConditions, the permission calls
+ *                       deviceConditions, networkConditions, the permission calls
  *   The periodic job    onWorkWake
  *   The service         servicePlan, onServiceFixes, onServiceHeartbeat, and the three
  *                       onService… reports of what the OS did to it
@@ -169,6 +169,16 @@ class CaptureEngine(
         MaintenanceRules.conditions(device.power())
     } catch (e: Exception) {
         MaintenanceRules.UNKNOWN
+    }
+
+    /**
+     * `getNetworkConditions`: whether the active connection is metered. Never throws; what
+     * Android will not say counts as metered, which makes the bundle fetcher wait.
+     */
+    fun networkConditions(): NetworkConditions = try {
+        NetworkRules.conditions(device.network())
+    } catch (e: Exception) {
+        NetworkRules.UNKNOWN
     }
 
     /** `debugInjectSample`: stores a synthetic fix past the filter, whether or not started. */

@@ -332,6 +332,17 @@ final class CaptureEngine {
         MaintenanceConditions(charging: deps.device.onExternalPower, idle: !deps.device.appActive)
     }
 
+    /// `getNetworkConditions`: whether the active connection is metered. Never throws.
+    ///
+    /// Metered is what iOS calls expensive (mobile data, a personal hotspot) or constrained
+    /// (Low Data Mode, which is the user asking for less traffic on that network). With no
+    /// usable connection, or before iOS has said anything, the answer is metered: the bundle
+    /// fetcher waits, as it does with no answer at all.
+    func networkConditions() -> NetworkConditions {
+        guard let path = deps.device.networkPath else { return NetworkConditions(metered: true) }
+        return NetworkConditions(metered: path.expensive || path.constrained)
+    }
+
     func debugInjectSample(lat: Double, lon: Double, tsUtc: Double, accuracyM: Double) throws {
         guard deps.debugBuild else {
             throw CaptureError(

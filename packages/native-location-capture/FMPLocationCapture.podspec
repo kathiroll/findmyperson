@@ -38,7 +38,7 @@ Pod::Spec.new do |s|
     "ios/Sources/Bridge/*.h",
   ]
 
-  s.frameworks = "CoreLocation", "UIKit", "Security"
+  s.frameworks = "CoreLocation", "UIKit", "Security", "Network"
   s.pod_target_xcconfig = {
     # A Swift pod built as a static library needs a module to import its own C headers.
     "DEFINES_MODULE" => "YES",
