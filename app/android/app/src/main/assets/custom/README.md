@@ -8,4 +8,4 @@ Static instances cut from the Google Fonts variable masters (SIL OFL 1.1, licenc
 | `AtkinsonHyperlegibleNext-Regular.ttf` | wght 400                    | body                 |
 | `AtkinsonHyperlegibleNext-Bold.ttf`    | wght 700                    | labels, buttons      |
 
-Family names in code are the PostScript names (file name without extension); see `src/design-system/fonts.ts`. They are linked into the native projects through `react-native.config.js` (`assets`) with `npx react-native-asset`, run in `app/`. That has been done for Android: the copies are in `android/app/src/main/assets/` (`fonts/` for the three files, `custom/` for the rest of this folder, licences included), recorded in `android/link-assets-manifest.json`. Run it again after changing a file here, and for iOS once `app/ios` exists.
+Family names in code are the PostScript names (file name without extension); see `src/design-system/fonts.ts`. They are linked into the native projects through `react-native.config.js` (`assets`) with `npx react-native-asset` once `app/android` and `app/ios` exist.

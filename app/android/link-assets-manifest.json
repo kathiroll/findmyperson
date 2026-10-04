@@ -1,0 +1,29 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/AtkinsonHyperlegibleNext-Bold.ttf",
+      "sha1": "4af7e87794335d06624ee9aab11f6190474b1418"
+    },
+    {
+      "path": "assets/fonts/AtkinsonHyperlegibleNext-Regular.ttf",
+      "sha1": "c8c3a1e04f85d271120f8a146ba6e8173fc07d45"
+    },
+    {
+      "path": "assets/fonts/BricolageGrotesque-Bold.ttf",
+      "sha1": "4247f383ed38d4d0b40f7923a5859457b41acb82"
+    },
+    {
+      "path": "assets/fonts/OFL-AtkinsonHyperlegibleNext.txt",
+      "sha1": "61f10cf8a25e32cf562c61265bd84ba3a5da0179"
+    },
+    {
+      "path": "assets/fonts/OFL-BricolageGrotesque.txt",
+      "sha1": "f63c11ad3638f6ccc44b188755fea3db7ad4405a"
+    },
+    {
+      "path": "assets/fonts/README.md",
+      "sha1": "5e7b18b307aef42faa05012f49d9addf6fe0258c"
+    }
+  ]
+}

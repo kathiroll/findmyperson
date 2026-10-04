@@ -98,7 +98,7 @@ There is no ORM, no cloud SDK and no HTTP client library on the server: R2 is re
 ## 2. Folder structure
 
 ```
-app/                              React Native app (TypeScript only; no android/ or ios/ yet)
+app/                              React Native app: TypeScript, plus android/ (no ios/ yet)
 packages/shared/                  Contracts and pure logic, used by app and server
 packages/encrypted-store/         The on-device encrypted file: TypeScript, Kotlin, Swift
 packages/native-location-capture/ The capture Turbo Native Module: spec, fake, Kotlin, Swift
@@ -122,9 +122,9 @@ m0/                               Finished research trial apps; not part of the 
 | `store/`          | `createDataStore` and its provider, `StoreMaintenance`, `useAppWake.ts` (the moments background work runs), `retention.ts`                                                                    |
 | `report/`         | The only report submit path: `form.ts`, `queue.ts`, `api.ts`, `identity.ts`, `image.ts`, `services.tsx`, the screen                                                                           |
 | `fetch/`          | The report fetch: `trigger.ts` (when to run a cycle), `reportCdn.ts` (CDN origin and pinned keys, both unset), `ed25519.ts`, `httpTransport.ts`, `random.ts`, and the `ReportFetch` component |
-| `index.ts`        | A placeholder export. There is no `AppRegistry` entry point yet                                                                                                                               |
+| `index.ts`        | A placeholder export. The entry point React Native runs is `app/index.js`, which registers `AppNavigator`                                                                                     |
 
-`app/assets/fonts/` holds the three bundled font files and their README.
+`app/assets/fonts/` holds the three bundled font files and their README. `app/android/` is the Android project, the React Native 0.87 app template with the differences listed in [BUILDING.md](BUILDING.md); beside it are `index.js`, `app.json`, `metro.config.js` and `.babelrc`, which the JavaScript half of that build reads.
 
 ### `packages/shared/src/`
 
@@ -191,7 +191,7 @@ Root stack (initial route: Onboarding)
 
 How screens reach each other: `Onboarding` opens `PermissionFlow` and then replaces itself with `Main`. `Home` pushes `ReportForm`, `CaptureHealth`, and (through temporary preview buttons) `LiveReport` and `Bystander`. `Settings` and `CaptureHealth` open `PermissionFlow`. A successful submit replaces `ReportForm` with `LiveReport`, so Back cannot return to a form that was already sent. `matchNotificationUrl(id)` and `reportNotificationUrl(id)` in `routes.ts` build the links a notification should carry.
 
-"Real" means the screen is implemented and tested in TypeScript against the in-repo fake of the capture module and a real SQLCipher file under Node. Nothing has run on a phone, because no native project exists yet.
+"Real" means the screen is implemented and tested in TypeScript against the in-repo fake of the capture module and a real SQLCipher file under Node. Nothing has run on a phone: the Android project builds an installable APK, and nobody has installed it yet.
 
 Details per flow are in [app/src/navigation/README.md](../app/src/navigation/README.md).
 
@@ -352,7 +352,7 @@ Environment variables only; nothing secret is committed. `FMP_DB_PATH`, `FMP_POR
 | Cloudflare zone and cache purge | Serves the bucket on a custom domain; purges `index.json` | Same                                                                                                                               |
 | Google Play services (location) | Fused location provider on Android                        | Linked by the capture module. A fallback for phones without Play services (`PlatformBackend`) exists and has never run on a device |
 | Android Keystore, iOS Keychain  | Holding the store key                                     | Platform features, not network services                                                                                            |
-| GitHub Actions                  | CI and installable builds                                 | Running; app build jobs skip until native projects exist                                                                           |
+| GitHub Actions                  | CI and installable builds                                 | Running; the Android job builds and uploads a debug APK, the iOS job skips until `app/ios` exists                                  |
 | Apple Developer, Google Play    | Signing and distribution                                  | Secrets are read from CI if present; none are required to build unsigned                                                           |
 | Google Fonts (source only)      | Bricolage Grotesque, Atkinson Hyperlegible Next           | Bundled as static files; nothing is fetched at run time                                                                            |
 
@@ -362,10 +362,11 @@ Not used, deliberately or not yet: no analytics, crash reporting or advertising 
 
 Each entry was checked against the code at the commit named at the top. "Waiting on" is what has to happen before it can be finished.
 
-### No native app project
+### Nothing has run on a phone, and there is no iOS project
 
-- **`app/android` and `app/ios` do not exist**, and `app/src/index.ts` is a placeholder export with no `AppRegistry.registerComponent`. Nothing in the app has been built into an installable binary or run on a phone, a simulator or an emulator. The build scripts and CI jobs detect this and skip. Waiting on: the task that adds the native projects, which must also register the `findmyperson://` URL scheme, link the fonts (`npx react-native-asset`) and run both build scripts for the first time.
-- **Every "not verified" list in the package READMEs** follows from this: Keychain and Keystore behaviour after a reboot, real backup exclusion, op-sqlite itself (its Node build has no SQLCipher), autolinking of both native modules into the real app (the link check in `packages/encrypted-store/android-linkcheck` autolinks them into an APK that is built and read, never run), and capture behaviour on real devices.
+- **`app/android` builds a debug APK** (`build/build-android.sh debug`, and the `android` CI job, which uploads it), with both native modules, op-sqlite and the JavaScript in it. It has not been installed: launch, the permission flow, capture in the background and the store on a real file system are all unobserved. "Not verified yet" in [BUILDING.md](BUILDING.md) lists what the build proves and what needs a phone. Not done in that project: the `findmyperson://` URL scheme is not registered (no intent filter), and the signed release path has not run with a real keystore.
+- **`app/ios` does not exist.** Waiting on: an Apple developer team, then the task that adds the project, which must also register the URL scheme, link the fonts (`npx react-native-asset`) and run `build/build-ios.sh` for the first time.
+- **Every "not verified" list in the package READMEs** follows from this: Keychain and Keystore behaviour after a reboot, real backup exclusion, op-sqlite itself (its Node build has no SQLCipher), and capture behaviour on real devices.
 
 ### Unset configuration
 

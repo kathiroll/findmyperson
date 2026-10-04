@@ -34,4 +34,4 @@ It proves the build: that op-sqlite exports the SQLite functions the Kotlin side
 
 It proves nothing about a phone. The APK has no activity and is never run, so whether the libraries load in a process with no React Native, and how the two sides behave when they write at the same time, is still to be seen on a device: `../README.md`, "Before the Android vacuum is switched on".
 
-Delete this directory, `build/android-linkcheck.sh` and the `android-linkcheck` CI job once `app/android` builds in CI.
+`app/android` now exists, and `build/build-android.sh` runs the same two checks on its APK. Delete this directory, `build/android-linkcheck.sh` and the `android-linkcheck` CI job (and the lines of `../src/policy.test.ts` that name them) once the `android` job has been green on `main`.

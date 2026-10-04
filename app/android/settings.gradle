@@ -1,0 +1,37 @@
+// The React Native 0.87 app template's settings.gradle, with two changes for this repository's
+// pnpm workspace: the React Native Gradle plugin is found the way Node finds it (pnpm does not
+// put it at ../node_modules/@react-native/gradle-plugin), and the autolinking command names the
+// workspace's lockfile. `pnpm install` has to have run.
+pluginManagement {
+    def reactNativeGradlePlugin = new File(
+        providers.exec {
+            workingDir(rootDir)
+            commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
+        }.standardOutput.asText.get().trim()
+    ).parent
+    // A path, not a File: only then is it a build that may supply plugins.
+    includeBuild(reactNativeGradlePlugin)
+}
+plugins { id("com.facebook.react.settings") }
+
+// Autolinking: the modules to link are whatever `@react-native-community/cli config` finds in
+// app/package.json. This is the template's command, run with node instead of npx. The files
+// listed are the ones that change its answer; the plugin runs it again when one of them changes.
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand(
+        ["node", "node_modules/@react-native-community/cli/build/bin.js", "config"],
+        new File(rootDir, ".."),
+        files("../package.json", "../react-native.config.js", "../../pnpm-lock.yaml"),
+    )
+}
+
+rootProject.name = 'findmyperson'
+include ':app'
+includeBuild(
+    new File(
+        providers.exec {
+            workingDir(rootDir)
+            commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
+        }.standardOutput.asText.get().trim()
+    ).parentFile
+)
