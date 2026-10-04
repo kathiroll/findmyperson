@@ -82,9 +82,16 @@ jobs:
           path: packages/encrypted-store/android-linkcheck/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
+  # The real app, built by build/build-android.sh: the JavaScript bundled by Metro, every native
+  # module autolinked, the APK then read for the backup rule and the one-SQLite rule. Nothing is
+  # installed or run. Like the two jobs above it uses the Android SDK the runner image ships
+  # (licences accepted; the Android Gradle Plugin downloads the NDK, platform and CMake it is
+  # missing), not android-actions/setup-android@v3, which fails on a package that no longer
+  # exists. The debug APK is uploaded on every run: it needs no secrets and is the build to put
+  # on a phone. With the signing secrets the signed release APK and bundle are built as well.
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60 # two builds when the signing secrets are set
     env:
       # Secrets are empty on forks and for fork PRs; the job then builds an unsigned-by-us debug APK.
       KEYSTORE_B64: ${{ secrets.FMP_ANDROID_KEYSTORE_BASE64 }}
@@ -110,13 +117,21 @@ jobs:
           distribution: temurin
           java-version: 17
       - if: steps.native.outputs.present == 'true'
-        uses: android-actions/setup-android@v3
-      - if: steps.native.outputs.present == 'true'
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-home-cache-cleanup: true
       - if: steps.native.outputs.present == 'true'
         run: pnpm install --frozen-lockfile
+      - name: Debug build
+        if: steps.native.outputs.present == 'true'
+        run: build/build-android.sh debug
+      - name: Upload the debug APK
+        if: steps.native.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: findmyperson-android-debug-${{ github.sha }}
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
       - name: Release build (signed)
         if: steps.native.outputs.present == 'true' && env.KEYSTORE_B64 != ''
         run: |
@@ -124,16 +139,13 @@ jobs:
           export FMP_ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.keystore"
           build/build-android.sh release
           rm -f "$RUNNER_TEMP/release.keystore"
-      - name: Debug build (no secrets available)
-        if: steps.native.outputs.present == 'true' && env.KEYSTORE_B64 == ''
-        run: build/build-android.sh debug
-      - name: Upload artifacts
-        if: steps.native.outputs.present == 'true'
+      - name: Upload the signed release APK and bundle
+        if: steps.native.outputs.present == 'true' && env.KEYSTORE_B64 != ''
         uses: actions/upload-artifact@v4
         with:
-          name: android-${{ github.sha }}
+          name: findmyperson-android-release-${{ github.sha }}
           path: |
-            app/android/app/build/outputs/apk/**/*.apk
+            app/android/app/build/outputs/apk/release/*.apk
             app/android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
 

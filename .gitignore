@@ -25,6 +25,9 @@ pnpm-debug.log*
 # React Native (generated native projects and tooling caches)
 app/android/build/
 app/android/.gradle/
+app/android/.kotlin/
+app/android/app/.cxx/
+app/android/local.properties
 packages/*/android/.gradle/
 packages/*/android/.cxx/
 packages/*/android-linkcheck/android/.gradle/
@@ -38,6 +41,9 @@ app/ios/build/
 # Build scripts live in build/ (the generic "build/" rule above is for outputs); signing material is never committed
 !/build/
 *.keystore
+# The React Native template's debug keystore: its passwords are public (in app/build.gradle), it
+# signs debug builds only, and keeping it means every debug build installs over the last one.
+!app/android/app/debug.keystore
 *.jks
 *.p12
 *.mobileprovision

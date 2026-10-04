@@ -122,7 +122,7 @@ What enforces it:
 
 `src/nativeLibsPolicy.ts` is the rule the second check applies; it reads the symbol tables and contents of the packaged libraries and executes nothing.
 
-**The link check.** `app/android` does not exist yet, so there is no app APK to read. `android-linkcheck/` is a React Native Android app with no screen and no JavaScript that links op-sqlite, this package and the capture module the way the app will, so that the check has a real APK on every pull request (`build/android-linkcheck.sh`, CI job `android-linkcheck`). See its README. Once the app builds in CI, `build/build-android.sh` makes the same check on the real APK and the link check can go.
+**The link check.** `android-linkcheck/` is a React Native Android app with no screen and no JavaScript that links op-sqlite, this package and the capture module the way the app does. It gave the check a real APK on every pull request before `app/android` existed (`build/android-linkcheck.sh`, CI job `android-linkcheck`). See its README. `build/build-android.sh` now makes the same check on the real APK, so the link check can go once that job has been green on `main`.
 
 What changes for a consumer:
 
@@ -237,15 +237,15 @@ The key has to be readable by a background process while the phone is locked. So
 
 ## Not verified
 
-There is no phone, simulator or emulator in this work, and `app/android` and `app/ios` do not exist yet. Nothing below has been observed.
+There is no phone, simulator or emulator in this work, and `app/ios` does not exist yet. Nothing below has been observed.
 
 - **Anything on a device.** The Keychain item and the Keystore key surviving a reboot and being readable while locked; behaviour before the first unlock; `noBackupFilesDir` and `isExcludedFromBackup` actually keeping the files out of a real Google or iCloud backup; a phone maker's Keystore differing from AOSP.
 - **op-sqlite itself.** `opSqliteDriver.ts` is type-checked against op-sqlite 18.2.5. op-sqlite cannot run SQLCipher under Node, so `openStore` is exercised through `@journeyapps/sqlcipher`, which is a different SQLCipher 4 build.
 - **The Kotlin writer on Android.** `SqlcipherHostTest` runs the real Kotlin store and the real JNI code on a JVM, against SQLCipher built from op-sqlite's source for the machine the tests run on. That is the same C and Kotlin as on a phone, with another compiler, another linker and (on a Mac) another crypto provider. The Android build of it is compiled, linked and read, never executed. The five checks under "Before the Android vacuum is switched on" are what is missing.
 - **Any iOS build of this package.** The podspec, the ObjC++ module (`RCTNativeEncryptedStore.mm`) and the link against op-sqlite's SQLCipher have never been through CocoaPods or Xcode. The Swift and C are compiled for macOS, run, and type-checked against the iPhone SDK. If the app links the system `libsqlite3` instead, the open fails with `NOT_SQLCIPHER` rather than writing plaintext.
-- **The Android library inside the real app.** In the link check it is autolinked beside op-sqlite and the capture module, its Turbo Native Module is generated and compiled by React Native's plugin, its manifest is merged and a debug APK is assembled for arm64-v8a and armeabi-v7a (`compileSdk` 37, NDK 27.1). That APK is never installed, a release build with R8 has not been made, and the real `app/android` will have more libraries in it.
+- **The Android library inside the real app, on a phone.** In `app/android`, as in the link check, it is autolinked beside op-sqlite and the capture module, its Turbo Native Module is generated and compiled by React Native's plugin, its manifest is merged and a debug APK is assembled for arm64-v8a and armeabi-v7a (`compileSdk` 37, NDK 27.1). Neither APK has been installed, and a release build with R8 has not been made.
 - **Where op-sqlite finds its SQLCipher flag in this monorepo.** The flag is set in both `app/package.json` and the root `package.json` because its Android and iOS builds look in different places. If it is missed, `openStore` fails with `NOT_SQLCIPHER`.
-- **`scripts/check-merged-manifest.ts` and `scripts/check-native-libs.ts` on the real app.** Both run on the link check's merged manifest and APK, and on fixtures. `check-native-libs.ts` was also run on the M0 store proof's APK, which has both libraries, and refuses it.
+- **`scripts/check-merged-manifest.ts` and `scripts/check-native-libs.ts` on a release build of the real app.** Both run on the app's debug build (`build/build-android.sh debug`), on the link check's merged manifest and APK, and on fixtures. `check-native-libs.ts` was also run on the M0 store proof's APK, which has both libraries, and refuses it.
 - **16 KB pages.** `libfmp-store-jni.so` is built with `ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES`, as op-sqlite is. No such phone has loaded it.
 
 Verified here, on a Mac: 117 TypeScript tests (open, mismatch matrix, migrations, retention and delete-all on real SQLCipher; the policy checks; the native-library check; codegen), 46 Kotlin JVM tests of which 11 run the store and the JNI code on SQLCipher 4.19.0 built from op-sqlite's source, the link check's APK built and read (one SQLite, in `libop-sqlite.so`; the NDK's `llvm-readelf` agrees with the reader here), and the Swift store's self-test and cross-language tests against the same SQLCipher. The Linux halves of these run in CI.
