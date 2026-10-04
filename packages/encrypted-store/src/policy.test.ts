@@ -12,6 +12,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { ENGINE_LIBRARY, JNI_LIBRARY } from './nativeLibsPolicy';
 import {
   checkBackupRules,
   checkContributingManifest,
@@ -31,11 +32,13 @@ import {
  *     requiring an unlocked device or user authentication;
  *   - the iOS store moves to a directory that is backed up, stops excluding its directory, or
  *     its Keychain item gets any accessibility class but AfterFirstUnlockThisDeviceOnly;
- *   - the SQLCipher the Kotlin writer links stops being the one op-sqlite compiles.
+ *   - anything in the Android build could put a second copy of SQLite in the process, or the
+ *     Kotlin side stops being linked to the SQLCipher op-sqlite compiles.
  *
  * They run on every pull request, on Linux, with no device. They check what the code says;
- * what the built app and a phone do is checked by scripts/check-merged-manifest.ts during the
- * Android build and by the fail-closed checks in StorePaths.kt and StoreLocation.swift.
+ * what the built app and a phone do is checked by scripts/check-merged-manifest.ts and
+ * scripts/check-native-libs.ts during the Android build and by the fail-closed checks in
+ * StorePaths.kt, SqlcipherConnection.kt and StoreLocation.swift.
  */
 
 const PACKAGE_ROOT = join(import.meta.dirname, '..');
@@ -418,13 +421,11 @@ describe('one SQLCipher on both sides of the file', () => {
   const dependency = (pkg: Record<string, unknown>, group: string, name: string) =>
     (pkg[group] as Record<string, string> | undefined)?.[name];
 
-  test('the Kotlin writer links the SQLCipher release op-sqlite compiles into the app', () => {
+  test('op-sqlite vendors SQLCipher 4, the only SQLCipher either side uses', () => {
     const vendored = /#define CIPHER_VERSION_NUMBER (\d+\.\d+\.\d+)/.exec(
       read(opSqlite, 'cpp', 'sqlcipher', 'sqlite3.c'),
     )?.[1];
-    const zetetic = /net\.zetetic:sqlcipher-android:(\d+\.\d+\.\d+)/.exec(gradle)?.[1];
     expect(vendored).toMatch(/^4\./);
-    expect(zetetic).toBe(vendored);
   });
 
   test('op-sqlite is pinned to one exact version, the same in the app and here', () => {
@@ -440,6 +441,10 @@ describe('one SQLCipher on both sides of the file', () => {
     // plaintext file; openStore refuses that at run time, this refuses it at build time.
     expect(appPackage['op-sqlite']).toEqual({ sqlcipher: true });
     expect(rootPackage['op-sqlite']).toEqual({ sqlcipher: true });
+    // The link check is an Android project of its own, with its own package.json beside it.
+    expect(json(PACKAGE_ROOT, 'android-linkcheck', 'package.json')['op-sqlite']).toEqual({
+      sqlcipher: true,
+    });
   });
 
   test('the app depends on this package directly, which is what autolinking follows', () => {
@@ -464,5 +469,176 @@ describe('one SQLCipher on both sides of the file', () => {
     expect(read(PACKAGE_ROOT, 'ios', 'RCTNativeEncryptedStore.mm')).toContain(
       'FindMyPersonEncryptedStore-Swift.h',
     );
+  });
+});
+
+/**
+ * ONE SQLITE IN THE ANDROID PROCESS. JavaScript uses the store through op-sqlite, Kotlin through
+ * libfmp-store-jni.so, and SQLite's file locks only work between connections made by one copy
+ * of the library. These tests hold the source to that; scripts/check-native-libs.ts holds the
+ * built APK to it, and nativeLibsPolicy.test.ts tests that check.
+ */
+describe('android: one SQLite library, the one inside op-sqlite', () => {
+  const resolve = createRequire(join(PACKAGE_ROOT, 'package.json')).resolve;
+  const opSqlite = dirname(resolve('@op-engineering/op-sqlite/package.json'));
+  const STORE_ANDROID = join(PACKAGE_ROOT, 'android');
+  const CAPTURE_ANDROID = join(REPO_ROOT, 'packages', 'native-location-capture', 'android');
+  const isTestSource = (path: string) =>
+    /[\\/]src[\\/](test|androidTest)[\\/]/.test(path) || path.includes('HostCheck');
+
+  // Every Gradle build file that takes part in the real app. m0/ is the finished spike.
+  const buildFiles = [join(REPO_ROOT, 'app'), join(REPO_ROOT, 'packages')]
+    .flatMap(filesUnder)
+    .filter((path) => /\.gradle(\.kts)?$|libs\.versions\.toml$/.test(path));
+  const kotlin = [STORE_ANDROID, CAPTURE_ANDROID]
+    .flatMap((directory) => filesUnder(join(directory, 'src')))
+    .filter((path) => /\.(kt|java)$/.test(path) && !isTestSource(path))
+    .map((path) => ({ name: relative(REPO_ROOT, path), code: code(path) }));
+  const cmake = read(STORE_ANDROID, 'src', 'main', 'cpp', 'CMakeLists.txt').replace(
+    /^\s*#.*$/gm,
+    '',
+  );
+  const jniSource = read(STORE_ANDROID, 'src', 'main', 'cpp', 'fmp_store_jni.c');
+
+  test('there are build files and sources to check', () => {
+    const names = buildFiles.map((path) => relative(REPO_ROOT, path));
+    expect(names).toContain('packages/encrypted-store/android/build.gradle');
+    expect(names).toContain('packages/native-location-capture/android/build.gradle');
+    expect(names).toContain('packages/encrypted-store/android-linkcheck/android/app/build.gradle');
+    expect(kotlin.length).toBeGreaterThan(20);
+  });
+
+  test('no build file depends on a library that carries its own SQLite', () => {
+    // Zetetic's sqlcipher-android was the second copy. Any dependency with SQLite or SQLCipher
+    // in its coordinates is refused unless it is test-only, where it never reaches the APK.
+    const dependency =
+      /^\s*(?!test|androidTest)\w*(?:implementation|api|compileOnly|runtimeOnly|classpath)\s*\(?\s*['"]([^'"]+:[^'"]+)['"]/i;
+    const declared = buildFiles.flatMap((path) =>
+      code(path)
+        .split('\n')
+        .flatMap((line) => dependency.exec(line)?.[1] ?? [])
+        .map((coordinates) => `${relative(REPO_ROOT, path)}: ${coordinates}`),
+    );
+    expect(declared).toContain(
+      'packages/native-location-capture/android/build.gradle: androidx.work:work-runtime:2.10.0',
+    );
+    expect(declared.filter((line) => /sqlite|sqlcipher|zetetic|requery/i.test(line))).toEqual([]);
+    expect(buildFiles.map((path) => code(path)).join('\n')).not.toMatch(
+      /net\.zetetic|sqlcipher-android/,
+    );
+  });
+
+  test('no Kotlin source reaches a SQLite other than through SqlcipherConnection', () => {
+    for (const source of kotlin) {
+      // Zetetic's wrapper, and the framework's android.database.sqlite, which is the system's
+      // libsqlite.so: a different copy again.
+      expect(source.code, source.name).not.toMatch(
+        /net\.zetetic|android\.database\.sqlite|androidx\.sqlite|androidx\.room|java\.sql\./,
+      );
+    }
+    const loads = kotlin.flatMap((source) =>
+      [...source.code.matchAll(/System\.load(?:Library)?\(([^)]*)\)/g)].map(
+        ([, argument]) => `${source.name.split('/').at(-1)}: ${argument}`,
+      ),
+    );
+    expect(loads).toEqual(['SqlcipherNative.kt: LIBRARY']);
+  });
+
+  test('the capture module opens the store through the store package', () => {
+    const gradle = code(join(CAPTURE_ANDROID, 'build.gradle'));
+    expect(gradle).toContain("implementation project(':findmyperson_encrypted-store')");
+    const store = kotlin.find((source) => source.name.endsWith('SqlCipherSampleStore.kt'))?.code;
+    expect(store).toContain('import dev.findmyperson.encryptedstore.SqlcipherConnection');
+    expect(store?.match(/SqlcipherConnection\.open\(/g)).toHaveLength(1);
+  });
+
+  test('the JNI library is one C file with no SQLite in it, linked to op-sqlite', () => {
+    expect(readdirSync(join(STORE_ANDROID, 'src', 'main', 'cpp')).sort()).toEqual([
+      'CMakeLists.txt',
+      'fmp_store_jni.c',
+    ]);
+    expect(cmake).toContain('add_library(fmp-store-jni SHARED fmp_store_jni.c)');
+    expect(cmake).toContain(
+      'target_link_libraries(fmp-store-jni PRIVATE op-engineering_op-sqlite::op-sqlite)',
+    );
+    expect(cmake).toContain('-Wl,--no-undefined');
+    expect(cmake).not.toMatch(/sqlite3\.c|STATIC|add_subdirectory|target_sources/);
+    expect([...jniSource.matchAll(/^#include [<"]([^>"]+)[>"]/gm)].map(([, file]) => file)).toEqual(
+      ['sqlite3.h', 'dlfcn.h', 'jni.h', 'stdint.h', 'stdlib.h', 'string.h'],
+    );
+
+    const gradle = code(join(STORE_ANDROID, 'build.gradle'));
+    expect(gradle).toContain('def opSqliteProject = ":op-engineering_op-sqlite"');
+    expect(gradle).toContain('implementation project(opSqliteProject)');
+    expect(gradle).toContain('path "src/main/cpp/CMakeLists.txt"');
+    expect(gradle).toContain('prefab true');
+  });
+
+  test('the names the build, the Kotlin and this package use for the two libraries agree', () => {
+    const native = kotlin.find((source) => source.name.endsWith('SqlcipherNative.kt'))?.code;
+    const connection = kotlin.find((source) =>
+      source.name.endsWith('SqlcipherConnection.kt'),
+    )?.code;
+    expect(JNI_LIBRARY).toBe('libfmp-store-jni.so');
+    expect(native).toContain('const val LIBRARY = "fmp-store-jni"');
+    expect(ENGINE_LIBRARY).toBe('libop-sqlite.so');
+    expect(connection).toContain('const val ENGINE_LIBRARY_NAME = "libop-sqlite"');
+    // Checked on every open, before anything is opened.
+    expect(connection).toMatch(
+      /fun open\([^)]*\): SqlcipherConnection \{\s*requireSharedEngine\(\)/,
+    );
+  });
+
+  test('every native method Kotlin declares is defined in the C file, and no other', () => {
+    const native = kotlin.find((source) => source.name.endsWith('SqlcipherNative.kt'))?.code ?? '';
+    const declared = [...native.matchAll(/@JvmStatic external fun (\w+)\(/g)].map(
+      ([, name]) => name,
+    );
+    const defined = [...jniSource.matchAll(/^FMP_JNI\(\w+, (\w+)\)/gm)].map(([, name]) => name);
+    expect(declared.length).toBeGreaterThan(10);
+    expect([...defined].sort()).toEqual([...declared].sort());
+    expect(jniSource).toContain('Java_dev_findmyperson_encryptedstore_SqlcipherNative_##name');
+    expect(read(STORE_ANDROID, 'consumer-rules.pro')).toContain(
+      'class dev.findmyperson.encryptedstore.SqlcipherNative',
+    );
+  });
+
+  test('op-sqlite still builds what the link relies on', () => {
+    // One shared library named op-sqlite, with SQLCipher compiled in and its symbols visible,
+    // published to other Gradle projects with its headers. A bump of op-sqlite that changes
+    // any of this fails here instead of in the Android build.
+    const opCmake = read(opSqlite, 'android', 'CMakeLists.txt');
+    const opGradle = read(opSqlite, 'android', 'build.gradle');
+    expect(opCmake).toContain('set (PACKAGE_NAME "op-sqlite")');
+    expect(opCmake).toMatch(/add_library\(\s*\$\{PACKAGE_NAME\}\s*SHARED/);
+    expect(opCmake).toContain('../cpp/sqlcipher/sqlite3.c');
+    expect(opCmake + opGradle).not.toMatch(/fvisibility=hidden|SQLITE_API=/);
+    expect(opGradle).toContain('prefabPublishing true');
+    expect(opGradle).toContain('"op-sqlite" {');
+    const header = read(opSqlite, 'cpp', 'sqlcipher', 'sqlite3.h');
+    for (const name of [...jniSource.matchAll(/\b(sqlite3_\w+)\(/g)].map(
+      ([, name]) => name ?? '',
+    )) {
+      expect(header, name).toMatch(new RegExp(`\\b${name}\\(`));
+    }
+  });
+
+  test('every Android build runs the check on what it packaged', () => {
+    const appBuild = read(REPO_ROOT, 'build', 'build-android.sh').split('\n');
+    expect(appBuild.filter((line) => /^\s*\.\/gradlew /.test(line))).toHaveLength(2);
+    expect(appBuild.filter((line) => /^\s*check_one_sqlite "/.test(line))).toHaveLength(2);
+    expect(appBuild.join('\n')).toContain('packages/encrypted-store/scripts/check-native-libs.ts');
+
+    const linkCheck = read(REPO_ROOT, 'build', 'android-linkcheck.sh');
+    expect(linkCheck).toContain('./gradlew :app:assembleDebug');
+    expect(linkCheck).toContain('scripts/check-native-libs.ts');
+    expect(linkCheck).toContain('scripts/check-merged-manifest.ts');
+  });
+
+  test('CI builds the link check and runs the Kotlin store on real SQLCipher, on every pull request', () => {
+    const workflow = read(REPO_ROOT, '.github', 'workflows', 'build.yml');
+    expect(workflow).toMatch(/^on:\n {2}pull_request:/m);
+    expect(workflow).toContain('run: build/android-linkcheck.sh');
+    expect(workflow).toMatch(/gradle -p packages\/encrypted-store\/android .*-PfmpHostSqlcipher/);
   });
 });

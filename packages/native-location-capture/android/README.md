@@ -14,7 +14,7 @@ cd packages/native-location-capture/android
 ./gradlew testDebugUnitTest lintDebug assembleDebug  # what CI runs
 ```
 
-This directory builds by itself (Gradle 8.9 wrapper, Android Gradle Plugin 8.7.3, Kotlin 2.2.0), with no React Native build: it compiles the committed copy of the generated class (`../contracts/android`) against `react-android` from Maven. Inside the app the same `build.gradle` is an autolinked library and React Native generates that class itself.
+This directory builds by itself (Gradle 8.9 wrapper, Android Gradle Plugin 8.7.3, Kotlin 2.2.0), with no React Native build: it compiles the committed copy of the generated class (`../contracts/android`) against `react-android` from Maven. Inside the app the same `build.gradle` is an autolinked library and React Native generates that class itself. Either way it depends on the store package's Android library (`packages/encrypted-store/android`), which the standalone build includes as a subproject (`settings.gradle`).
 
 ## Map
 
@@ -148,7 +148,7 @@ The full purge is TypeScript and runs when the app does. A phone on which the ap
 - **Nothing is derived and nothing is vacuumed here.** Both are TypeScript's.
 - **With nothing selected there is no wake**, so a phone on which capture was stopped is purged when the app is next opened.
 
-`getDeviceConditions` is `MaintenanceRules` in `core/Rules.kt` over three facts read in `platform/AndroidDeviceConditions.kt`: `BatteryManager.isCharging`, `PowerManager.isInteractive`, and whether one of the app's activities is on screen (`ActivityManager.getMyMemoryState`). `charging` is the first; `idle` is the screen off or the app not on it. The app does not vacuum on Android yet whatever this answers (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`, and item 2 under "For whoever owns the spec and the store").
+`getDeviceConditions` is `MaintenanceRules` in `core/Rules.kt` over three facts read in `platform/AndroidDeviceConditions.kt`: `BatteryManager.isCharging`, `PowerManager.isInteractive`, and whether one of the app's activities is on screen (`ActivityManager.getMyMemoryState`). `charging` is the first; `idle` is the screen off or the app not on it. The app does not vacuum on Android yet whatever this answers (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`, which waits for the device checks in `packages/encrypted-store/README.md`).
 
 `RetentionTest` covers when the purge is asked for and every combination of the three facts; `StoreContractTest` runs the purge on the real schema.
 
@@ -165,7 +165,8 @@ What the module keeps outside the store is the selection, and times: when sample
 The stand-in is the M0 store proof with the real contract:
 
 - The SQL and the cipher parameters are generated at build time from `packages/shared/contracts/native-writer.json` and `cipher-params.json` (the `generateStoreContract` Gradle task). Nothing in `src/` restates them.
-- It opens the existing file read-write in WAL mode with the pinned parameters, reads each back, and requires the schema version of the contract. It never creates the file (TypeScript does) and never deletes it (a wrong key looks like corruption).
+- It opens the existing file read-write with the pinned parameters, reads each back, and requires WAL and the schema version of the contract. It never creates the file (TypeScript does) and never deletes it (a wrong key looks like corruption).
+- The connection is `SqlcipherConnection` of `packages/encrypted-store/android`: the SQLCipher inside op-sqlite's library, which is the copy JavaScript uses. This module links no SQLite of its own and must not, because two copies in one process do not see each other's file locks ("One SQLite library in the Android process" in that package's README). A write that meets a TypeScript write waits for it, up to five seconds.
 - The key is 32 random bytes wrapped by an Android Keystore AES-GCM key with no unlock requirement, kept in `noBackupFilesDir/fmp-store/`, which is also `getStoreDirectory()`.
 - The two cells of a row are computed by `core/H3.kt`, a Kotlin port of H3's `latLngToCell` and `cellToParent`, so the write path loads no native library of its own. `GeoContractTest` holds it to `packages/shared`'s golden vectors and to the reference library (h3-java, a test-only dependency) on 60,000 random points, every resolution, the poles, the antimeridian and all twelve pentagons.
 
@@ -182,7 +183,7 @@ The stand-in is the M0 store proof with the real contract:
 Three things this task ran into that are not its to change:
 
 1. **The store contract has no read.** The distance rule needs the position of the last stored sample. A process that did not store it cannot know it (positions are never kept outside the store), so the first fix after a process start is held to the interval alone. Adding a "last sample" query to `native-writer.json` would close that, and would let the status be counted from the store instead of a ledger.
-2. **Two SQLite libraries in one process.** op-sqlite and `sqlcipher-android` each carry their own SQLCipher. SQLite's documentation warns that two copies of the library using one database file in one process defeat its file locking (POSIX locks are per process). While the app is open, JavaScript reads the file through one copy and capture writes through the other. The M0 proof showed they can open the same file; it did not test them concurrently. The store's owner should decide: one library for both sides, or a rule that serialises access. Until then the app does not run the weekly `VACUUM` on Android, and the purge above is one more small native write of the kind an insert already is.
+2. **Two SQLite libraries in one process: settled in the build.** This module used to open the store with `sqlcipher-android`, a second copy of SQLCipher beside op-sqlite's, and two copies using one file in one process defeat SQLite's file locking. It now opens it through the store package, with op-sqlite's copy. The weekly `VACUUM` stays off on Android until that has been seen working on a phone.
 3. **The spec has no word for the fallback.** While mode `fgs` captures through the periodic job, the status can only say "not running" plus a rising sample count. A tier for it would be a spec change.
 
 ## Verified and not verified
@@ -199,8 +200,8 @@ Not verified, because it needs a phone or the app's build:
 
 - **Any behaviour on a device.** Whether the service starts, how often WorkManager runs the job, what each vendor does. The unit tests prove what the module does when Android behaves a given way, not that Android behaves that way.
 - **The build inside the app.** `app/android` does not exist yet, so the autolinked path (the React Native Gradle plugin generating the spec, versions from the root project, the manifest merge) has not run. The first task that adds `app/android` should build with this library and fix what differs.
-- **The purge and the power facts on a phone.** That `compileStatement` and `beginTransaction` of `sqlcipher-android` behave as the JDBC stand-in in the tests does; that `isCharging`, `isInteractive` and the process importance read what this README says they do on a real device, and off the main thread.
-- **SQLCipher on Android.** `SqlCipherSampleStore` and `KeystoreStoreKey` compile and have never run: `libsqlcipher.so` cannot load on a JVM. Open questions from the M0 proof stand: that the Keystore key is readable while locked after first unlock, and that the two SQLCipher copies coexist.
+- **The purge and the power facts on a phone.** That the purge's `BEGIN IMMEDIATE` transaction over `SqlcipherConnection` behaves as the JDBC stand-in in the tests does; that `isCharging`, `isInteractive` and the process importance read what this README says they do on a real device, and off the main thread.
+- **SQLCipher on Android.** `SqlCipherSampleStore` and `KeystoreStoreKey` compile and have never run. The connection under them, `SqlcipherConnection`, is run on a JVM against SQLCipher built from op-sqlite's source by the store package's tests, and the built APK is checked to hold one SQLite; neither is a phone. Open from the M0 proof: that the Keystore key is readable while locked after first unlock. Open from the move to one library: that it loads in a process with no React Native (the list in `packages/encrypted-store/README.md`).
 - **Foreground-service rules per Android version.** Whether a `location` service may start from the boot receiver and from the watchdog on each version (Android 12 restricted background starts, Android 15 changed boot-time rules). If it may not, the module logs `start_failed` and runs the fallback; that path is unit-tested, the rule itself is not.
 - **The Android 10 background-permission dialog**, and resolving `requestPermission('background')` on return from settings on Android 11+.
 - **The vendor settings pages.** From the trial: `samsung_battery` opened on a Galaxy S24 Ultra; every OnePlus name failed on a Nord and fell through to the fallback; the Xiaomi names are untried.

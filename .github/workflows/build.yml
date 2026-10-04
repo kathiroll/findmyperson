@@ -18,15 +18,22 @@ permissions:
 
 jobs:
   # The Android half of packages/encrypted-store, built by itself: its JVM unit tests (key
-  # vault, no-backup paths, schema-version gate, delete-all) and a compile of its Turbo Native
-  # Module against the published React Native library. Needs no app project and no node_modules,
-  # so it runs on every pull request. The runner image ships the Android SDK, as for the
-  # android-module job in ci.yml.
+  # vault, no-backup paths, schema-version gate, delete-all), a compile of its Turbo Native
+  # Module against the published React Native library, and its Kotlin store and JNI code run on
+  # this runner against SQLCipher compiled from op-sqlite's source (-PfmpHostSqlcipher; that is
+  # what needs node_modules and OpenSSL). Needs no app project, so it runs on every pull
+  # request. The runner image ships the Android SDK, as for the android-module job in ci.yml.
   store-android:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -35,8 +42,43 @@ jobs:
         with:
           gradle-version: 9.4.1 # the version React Native 0.87's wrapper uses
           gradle-home-cache-cleanup: true
-      - name: Store library unit tests and Turbo module compile check
-        run: gradle -p packages/encrypted-store/android -PfmpCompileReactGlue testDebugUnitTest
+      - name: OpenSSL development files
+        run: test -e /usr/include/openssl/evp.h || (sudo apt-get update && sudo apt-get install -y libssl-dev)
+      - name: Store library unit tests, Turbo module compile check, Kotlin store on real SQLCipher
+        run: gradle -p packages/encrypted-store/android -PfmpCompileReactGlue -PfmpHostSqlcipher testDebugUnitTest
+
+  # The link check: op-sqlite, the store and the capture module built with the NDK and packaged
+  # into one APK, as the app will package them, then read. Fails unless the APK holds exactly
+  # one SQLite, the SQLCipher in libop-sqlite.so, with the Kotlin side's library linked to it.
+  # Nothing is installed or run. It stands in for the same check on the real app, which
+  # build/build-android.sh makes once app/android exists.
+  android-linkcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-cleanup: true
+      - run: pnpm install --frozen-lockfile
+      - name: Build the link check and read its native libraries
+        run: build/android-linkcheck.sh
+      - name: Upload the APK that was read
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-linkcheck-${{ github.sha }}
+          path: packages/encrypted-store/android-linkcheck/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
 
   android:
     runs-on: ubuntu-latest

@@ -6,11 +6,11 @@ The on-device store, as a real encrypted file on a phone. Location samples, stay
 
 It has three halves that must agree, and tests that fail when they stop agreeing:
 
-| Half       | Where      | What it does                                                                                                    |
-| ---------- | ---------- | --------------------------------------------------------------------------------------------------------------- |
-| TypeScript | `src/`     | Opens the file through op-sqlite, proves the cipher parameters, runs migrations, resets the store               |
-| Kotlin     | `android/` | Holds the key (Android Keystore), names the no-backup directory, writes samples for the capture module          |
-| Swift      | `ios/`     | Holds the key (Keychain), names the backup-excluded directory, writes samples and visits for the capture module |
+| Half       | Where      | What it does                                                                                                                                                      |
+| ---------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript | `src/`     | Opens the file through op-sqlite, proves the cipher parameters, runs migrations, resets the store                                                                 |
+| Kotlin     | `android/` | Holds the key (Android Keystore), names the no-backup directory, writes samples for the capture module, and is the only way native code reaches SQLite on Android |
+| Swift      | `ios/`     | Holds the key (Keychain), names the backup-excluded directory, writes samples and visits for the capture module                                                   |
 
 ## Importing
 
@@ -78,11 +78,13 @@ Failures are `StoreException` (Kotlin) and `StoreError` (Swift) with a `code`: `
 
 To depend on it: on Android add `implementation project(':findmyperson_encrypted-store')` (the name React Native's autolinking gives the project) and use package `dev.findmyperson.encryptedstore`; on iOS add `s.dependency "FindMyPersonEncryptedStore"` to the podspec and `import FindMyPersonEncryptedStore`.
 
+On Android one more class is public: `SqlcipherConnection`, a single connection to a SQLCipher file with the key set and nothing else done (`open(file, keyLiteral, create)`, then `scalar`, `execute`, `insert`, `update`, `busyTimeout`, `close`). `EncryptedStore` is built on it, and it is public because the capture module's stand-in store, below, opens its own connection. Native Android code must reach SQLite through this class and through nothing else; "One SQLite library in the Android process" says why.
+
 `getOrCreateStoreKeyHex` and `getStoreDirectory` exist on both the capture module and this package's own small Turbo Native Module (`NativeEncryptedStore`). This package has its own module because the app needs the key, the directory and the delete even if capture is never started.
 
 ### The capture modules still carry their own copy
 
-Both capture modules in `packages/native-location-capture` were merged while this package was being written, each with a stand-in for it: its own key code, directory and SQLCipher open (`android/.../store/`, and `KeychainKeySource`, `StoreLocation` and `SQLiteCaptureStore` on iOS). Their READMEs say so and name the seam. Replacing those stand-ins with the class above is the remaining step, and it belongs to those modules:
+Both capture modules in `packages/native-location-capture` were merged while this package was being written, each with a stand-in for it: its own key code, directory and SQLCipher open (`android/.../store/`, and `KeychainKeySource`, `StoreLocation` and `SQLiteCaptureStore` on iOS). The Android stand-in opens its connection with this package's `SqlcipherConnection`, so it uses the same SQLite as everything else; the rest of it is still its own. Their READMEs say so and name the seam. Replacing those stand-ins with the class above is the remaining step, and it belongs to those modules:
 
 | Their seam                                                                       | Becomes                                                                             |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -97,19 +99,47 @@ The retention purge of a capture wake is in those stand-ins too (`StorePurge` in
 
 Until that is done the two implementations run side by side, so this package uses exactly the names and formats the stand-ins use: the same Keychain item, the same Android Keystore alias, key file name and key file format, and the same directory on each platform (`src/location.ts`). Both therefore find one key and one file. What the stand-ins lack is what is new here: the backup guard at open, the fail-closed check of the exclusion flag on iOS, and any part in "Delete all my data". On Android the stand-in opens the file for each write and re-reads the key file, so it follows a delete by itself. On iOS it keeps its connection open, so after a delete it goes on writing to the removed file until the app restarts. The swap has to land before a Settings screen offers the delete.
 
-## Open decision: two SQLite libraries in one Android process
+## One SQLite library in the Android process
 
-On Android the TypeScript side reads and writes the file through op-sqlite's SQLCipher (inside `libop-sqlite.so`) and the Kotlin writer through Zetetic's (`libsqlcipher.so`). That is the M0 design, and M0 listed whether the two coexist as a device check. The Android capture task raised it again for this package to decide. It is not decided here, because every fix changes the architecture and none can be tested without a phone.
+On Android the store file is used from two sides of one process. TypeScript reads and writes it through op-sqlite, whose SQLCipher is compiled into `libop-sqlite.so`. Kotlin writes it with no JavaScript running: `EncryptedStore` here, and the capture module's stand-in store. Until this was built the Kotlin side had a SQLCipher of its own, Zetetic's `sqlcipher-android` (`libsqlcipher.so`), and that was a real fault, not an untidiness.
 
-The problem is specific and real. SQLite protects a database with POSIX file locks, which belong to the process, not to the library copy. Two copies in one process do not see each other's locks, so they do not exclude each other, and when one closes its handle the operating system drops the other's locks too (sqlite.org, "How To Corrupt An SQLite Database File", section 2.2.1). While the app is open and capture stores a fix, both copies can believe they hold the write lock. Each write is a few milliseconds and happens about four times an hour, so the window is small, but the outcome when it is hit is lost writes or a damaged WAL. iOS is not affected: there is one SQLCipher in the app and Swift binds to it.
+SQLite protects a database with POSIX file locks, which belong to the process, not to the library copy. Two copies in one process do not see each other's locks, so they do not exclude each other, and when one closes its handle the operating system drops the other's locks too (sqlite.org, "How To Corrupt An SQLite Database File", section 2.2.1). One copy keeps its own record of which of its connections holds what, and that is what makes two connections in one process safe. So the rule is one copy, and the decision (the captain's, from the three options this section used to list) was to make the Kotlin side use op-sqlite's, as Swift already does through `FMPSqlcipher.c`.
 
-This package narrows the window (the Kotlin store keeps one connection open instead of opening and closing per write, so a close seldom happens) and does not remove it. Two things wait on the decision. The weekly `VACUUM` is switched off on Android (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`): rewriting the whole file holds the write lock for far longer than an insert. And the native retention purge, which is a few small deletes about once an hour on a capture wake, is one more native write of the kind an insert already is. The options, for whoever decides:
+How it is built:
 
-1. **One library.** The Kotlin writer calls the SQLCipher inside `libop-sqlite.so` through a small JNI shim, as Swift does through `FMPSqlcipher.c`. Removes the problem and the second 4 MB library. Needs the NDK, depends on op-sqlite exporting the `sqlite3_*` symbols, and must be proved on a device.
-2. **Two processes.** Run capture's worker and service in their own process (`android:process`). File locks work between processes. Changes how the capture module talks to JavaScript.
-3. **Take turns.** A lock in this package that both sides hold around every use, with TypeScript opening the store per unit of work instead of keeping it open. No new native code, but it changes `openStore` into a scoped call and every reader with it.
+- `android/src/main/cpp/fmp_store_jni.c` is the whole native side: one C file of JNI functions over the `sqlite3_*` calls the store needs. It contains no SQLite. It is compiled against op-sqlite's SQLCipher header and linked against `libop-sqlite.so`, which op-sqlite's Gradle project publishes to other projects as a prefab package. The result is `libfmp-store-jni.so`, about 13 KB, whose `sqlite3_*` symbols are all imports.
+- `SqlcipherConnection` is the Kotlin over it, and the only way to SQLite for native Android code: `EncryptedStore` and the capture module both open their connection there. Neither Gradle build has a SQLCipher or SQLite dependency any more.
+- Loading `libfmp-store-jni.so` makes the dynamic linker load `libop-sqlite.so`, once per process, whether or not React Native has started. JavaScript's op-sqlite then uses the same loaded library.
 
-Recommended: option 1, tried first on a phone as its own spike, because it also makes Android match iOS.
+What enforces it:
+
+| Check                                      | Runs                                                                                     | Fails when                                                                                                                                                                                                                                               |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/policy.test.ts`, "one SQLite library" | every pull request (`pnpm test`)                                                         | a Gradle file of the app or a package gains a dependency with SQLite or SQLCipher in its name; Kotlin reaches for Zetetic's, the framework's or androidx's SQLite; the JNI library gains a source file; op-sqlite stops building what the link relies on |
+| `scripts/check-native-libs.ts`             | every Android build (`build/build-android.sh`), and the link check on every pull request | the APK or bundle holds a second library that exports or contains SQLite; `libfmp-store-jni.so` holds one, is not linked to `libop-sqlite.so`, or needs a library that is neither packaged nor part of Android; op-sqlite was built without SQLCipher    |
+| `SqlcipherHostTest`                        | every pull request (`store-android` job, `-PfmpHostSqlcipher`)                           | the real Kotlin and C, run on the JVM against SQLCipher built from op-sqlite's source, stop working, or two connections through the one library stop excluding each other                                                                                |
+| `SqlcipherConnection.open`, on the phone   | every open                                                                               | the dynamic linker reports that the SQLite calls are bound to a library other than `libop-sqlite`. Nothing is opened; the capture module shows it as `store_unusable`                                                                                    |
+
+`src/nativeLibsPolicy.ts` is the rule the second check applies; it reads the symbol tables and contents of the packaged libraries and executes nothing.
+
+**The link check.** `app/android` does not exist yet, so there is no app APK to read. `android-linkcheck/` is a React Native Android app with no screen and no JavaScript that links op-sqlite, this package and the capture module the way the app will, so that the check has a real APK on every pull request (`build/android-linkcheck.sh`, CI job `android-linkcheck`). See its README. Once the app builds in CI, `build/build-android.sh` makes the same check on the real APK and the link check can go.
+
+What changes for a consumer:
+
+- **The two sides now wait for each other.** With one SQLite, a native write that meets a TypeScript write waits for it, up to the busy timeout (5 s, `STORE_BUSY_TIMEOUT_MS`), and fails with `SQLITE_BUSY` after that. Before, it did not wait at all and both wrote. A long TypeScript transaction is therefore now something a fix can time out on.
+- **A capture wake loads more.** With no JavaScript running, the first store use loads `libop-sqlite.so` and the libraries it is linked against (`libreactnative.so`, `libjsi.so`, `libfbjni.so`, `libc++_shared.so`, `libcrypto.so`). React Native does not start; the libraries are mapped. It is the cost of removing the second 4 MB library.
+
+### Before the Android vacuum is switched on
+
+The weekly `VACUUM` is still off on Android (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`). It was switched off because of the two libraries. The build no longer has two, but nothing here has run on a phone, and each of these can only be seen on one:
+
+1. **The library loads with no React Native in the process.** On a capture wake with the app closed (WorkManager job, boot receiver), `store_unusable` is not raised and a fix is stored. This is `System.loadLibrary("fmp-store-jni")` bringing in `libop-sqlite.so` and everything it needs through the system linker instead of React Native's loader. The build check confirms that every library in that chain is in the APK; that they also initialise with no React Native running is what the phone shows. Try a release build as well as a debug one.
+2. **React Native still starts afterwards, in the same process**, and the reverse order: open the app, read the store in TypeScript, let a capture wake write, read again.
+3. **The run-time check agrees.** A store that opens at all has passed it. If it fails, the message names the library SQLite was bound to.
+4. **Both sides at once.** With the app open and maintenance running, capture writes land and none is lost; no `SQLITE_BUSY` reaches the diagnostics.
+5. **How long a `VACUUM` of a full 30-day store takes on the slowest test phone.** A fix that arrives during it waits, and gives up after 5 s. If the vacuum can take longer than that, the busy timeout or the native retry has to change before the flag does.
+
+Then set the flag. iOS is not affected by any of this: there is one SQLCipher in the app and Swift binds to it.
 
 ## What happens on open
 
@@ -161,12 +191,12 @@ Both platforms back app data up to the vendor's cloud by default. That would tak
 
 **What enforces it:**
 
-| Check                                                             | Runs                                                 | Fails when                                                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/policy.test.ts`                                              | every pull request (`pnpm test`)                     | any manifest in the repo sets `allowBackup` to anything but `"false"`, removes it, or the rule files stop excluding a domain; the Android path stops being the no-backup directory; the iOS path, exclusion flag, file protection or Keychain class changes |
-| `scripts/check-merged-manifest.ts`, from `build/build-android.sh` | every Android build, once `app/android` exists       | the manifest Gradle actually merged allows backup. This is the one that sees third-party libraries                                                                                                                                                          |
-| `StorePathsTest`, `EncryptedStoreTest`                            | every pull request (`store-android` job)             | a store file is outside the no-backup directory; a store opens in an app that allows backup                                                                                                                                                                 |
-| `ios/HostCheck` through `src/iosHost.test.ts`                     | `pnpm test` on a Mac; `ios-capture-module` on `main` | the real Swift code leaves the directory without the exclusion flag, read back from the file system                                                                                                                                                         |
+| Check                                                             | Runs                                                      | Fails when                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/policy.test.ts`                                              | every pull request (`pnpm test`)                          | any manifest in the repo sets `allowBackup` to anything but `"false"`, removes it, or the rule files stop excluding a domain; the Android path stops being the no-backup directory; the iOS path, exclusion flag, file protection or Keychain class changes |
+| `scripts/check-merged-manifest.ts`, from `build/build-android.sh` | every Android build; the link check on every pull request | the manifest Gradle actually merged allows backup. This is the one that sees third-party libraries                                                                                                                                                          |
+| `StorePathsTest`, `EncryptedStoreTest`                            | every pull request (`store-android` job)                  | a store file is outside the no-backup directory; a store opens in an app that allows backup                                                                                                                                                                 |
+| `ios/HostCheck` through `src/iosHost.test.ts`                     | `pnpm test` on a Mac; `ios-capture-module` on `main`      | the real Swift code leaves the directory without the exclusion flag, read back from the file system                                                                                                                                                         |
 
 `src/backupPolicy.ts` is the rule itself; the first two checks share it.
 
@@ -197,7 +227,7 @@ await store.runMaintenance(nowSeconds); // on every foreground, and every captur
 
 One run derives stays, deletes everything past retention and, once a week while the phone is charging and idle, vacuums the file. `src/retention.test.ts` runs it on a real SQLCipher file: 60 days of data, nothing past 30 days left, and the file back to the size of a store that only ever held 30 days, with a second connection open as the native writer's is.
 
-The app does exactly this (`createDataStore` and `StoreMaintenance` in `app/src/store/`): it opens the store at its first maintenance run and keeps the handle, with `deviceConditions` answered by the capture module. On Android it passes `vacuum: 'disabled'` until the decision above is made (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`).
+The app does exactly this (`createDataStore` and `StoreMaintenance` in `app/src/store/`): it opens the store at its first maintenance run and keeps the handle, with `deviceConditions` answered by the capture module. On Android it passes `vacuum: 'disabled'` until the checks under "Before the Android vacuum is switched on" have been made on a phone (`ANDROID_VACUUM_ENABLED` in `app/src/store/retention.ts`).
 
 That purge is TypeScript and runs when JavaScript runs. On a capture wake with no JavaScript the capture modules purge fixes and stays themselves, with the purge statements of `native-writer.json`; see "Retention" in `packages/shared/README.md`. They never vacuum.
 
@@ -211,13 +241,14 @@ There is no phone, simulator or emulator in this work, and `app/android` and `ap
 
 - **Anything on a device.** The Keychain item and the Keystore key surviving a reboot and being readable while locked; behaviour before the first unlock; `noBackupFilesDir` and `isExcludedFromBackup` actually keeping the files out of a real Google or iCloud backup; a phone maker's Keystore differing from AOSP.
 - **op-sqlite itself.** `opSqliteDriver.ts` is type-checked against op-sqlite 18.2.5. op-sqlite cannot run SQLCipher under Node, so `openStore` is exercised through `@journeyapps/sqlcipher`, which is a different SQLCipher 4 build.
-- **The Kotlin writer against real SQLCipher.** `SqlcipherDatabase.kt` compiles against Zetetic's library, which is an Android native library and cannot load on a JVM. Its logic is tested through a fake connection. The Swift writer is the same logic and does run.
+- **The Kotlin writer on Android.** `SqlcipherHostTest` runs the real Kotlin store and the real JNI code on a JVM, against SQLCipher built from op-sqlite's source for the machine the tests run on. That is the same C and Kotlin as on a phone, with another compiler, another linker and (on a Mac) another crypto provider. The Android build of it is compiled, linked and read, never executed. The five checks under "Before the Android vacuum is switched on" are what is missing.
 - **Any iOS build of this package.** The podspec, the ObjC++ module (`RCTNativeEncryptedStore.mm`) and the link against op-sqlite's SQLCipher have never been through CocoaPods or Xcode. The Swift and C are compiled for macOS, run, and type-checked against the iPhone SDK. If the app links the system `libsqlite3` instead, the open fails with `NOT_SQLCIPHER` rather than writing plaintext.
-- **The Android library inside the app.** Standalone it compiles at `compileSdk` 35, runs its tests, and its Turbo Native Module compiles against `react-android` 0.87.1 and the committed codegen output. It has not been autolinked into an app, merged its manifest with an app's, or been assembled (`sqlcipher-android` 4.19.0 requires `compileSdk` 37 for that, which the app supplies).
+- **The Android library inside the real app.** In the link check it is autolinked beside op-sqlite and the capture module, its Turbo Native Module is generated and compiled by React Native's plugin, its manifest is merged and a debug APK is assembled for arm64-v8a and armeabi-v7a (`compileSdk` 37, NDK 27.1). That APK is never installed, a release build with R8 has not been made, and the real `app/android` will have more libraries in it.
 - **Where op-sqlite finds its SQLCipher flag in this monorepo.** The flag is set in both `app/package.json` and the root `package.json` because its Android and iOS builds look in different places. If it is missed, `openStore` fails with `NOT_SQLCIPHER`.
-- **`scripts/check-merged-manifest.ts` on an app build.** It was run on the manifests the Android Gradle Plugin produced for this library and on fixtures, not on an app's merged manifest.
+- **`scripts/check-merged-manifest.ts` and `scripts/check-native-libs.ts` on the real app.** Both run on the link check's merged manifest and APK, and on fixtures. `check-native-libs.ts` was also run on the M0 store proof's APK, which has both libraries, and refuses it.
+- **16 KB pages.** `libfmp-store-jni.so` is built with `ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES`, as op-sqlite is. No such phone has loaded it.
 
-Verified here, on a Mac: 89 TypeScript tests (open, mismatch matrix, migrations, retention and delete-all on real SQLCipher; the policy checks; codegen), 35 Kotlin JVM tests, and the Swift store's self-test and cross-language tests against SQLCipher 4.19.0 built from op-sqlite's source.
+Verified here, on a Mac: 117 TypeScript tests (open, mismatch matrix, migrations, retention and delete-all on real SQLCipher; the policy checks; the native-library check; codegen), 46 Kotlin JVM tests of which 11 run the store and the JNI code on SQLCipher 4.19.0 built from op-sqlite's source, the link check's APK built and read (one SQLite, in `libop-sqlite.so`; the NDK's `llvm-readelf` agrees with the reader here), and the Swift store's self-test and cross-language tests against the same SQLCipher. The Linux halves of these run in CI.
 
 ## Commands
 
@@ -226,8 +257,12 @@ pnpm exec vitest run packages/encrypted-store       # all TypeScript tests; on a
 pnpm exec vitest run packages/encrypted-store -u    # also rewrite StoreContract.kt, StoreContract.swift and contracts/
 pnpm --filter @findmyperson/encrypted-store typecheck
 
-# Kotlin unit tests, and a compile of the Turbo Native Module (JDK 17, Android SDK, Gradle 9.4)
-gradle -p packages/encrypted-store/android -PfmpCompileReactGlue testDebugUnitTest
+# Kotlin unit tests, a compile of the Turbo Native Module, and the Kotlin store on real SQLCipher
+# (JDK 17, Android SDK, Gradle 9.4; -PfmpHostSqlcipher also needs a C compiler and `pnpm install`)
+gradle -p packages/encrypted-store/android -PfmpCompileReactGlue -PfmpHostSqlcipher testDebugUnitTest
+
+# The link check: build the APK with the NDK and read its native libraries and merged manifest
+build/android-linkcheck.sh
 
 # The Swift host check by itself
 packages/encrypted-store/ios/build-host-check.sh typecheck

@@ -1,16 +1,25 @@
 // The Android half of @findmyperson/encrypted-store: the store key (Android Keystore), the
-// no-backup directory, and the writer the capture module uses.
+// no-backup directory, the writer the capture module uses, and the JNI front that binds the
+// Kotlin side to the SQLCipher inside op-sqlite's library (src/main/cpp).
 //
-// Built two ways:
+// Built four ways:
 //   - inside the app, as a subproject React Native's autolinking includes. The app's root
-//     project supplies the Android Gradle Plugin, Kotlin and the SDK versions, and
-//     src/reactnative (the Turbo Native Module) is compiled in;
+//     project supplies the Android Gradle Plugin, Kotlin and the SDK versions, src/reactnative
+//     (the Turbo Native Module) is compiled in, and src/main/cpp is built with the NDK against
+//     op-sqlite's own Gradle project;
 //   - by itself, for the JVM unit tests: `gradle -p packages/encrypted-store/android
-//     testDebugUnitTest`. Then the versions below apply and src/reactnative is left out, since
-//     React Native's Gradle plugin and its codegen are not there;
+//     testDebugUnitTest`. Then the versions below apply, src/reactnative is left out, since
+//     React Native's Gradle plugin and its codegen are not there, and src/main/cpp is not built,
+//     since op-sqlite's project is not there either;
 //   - by itself with -PfmpCompileReactGlue, which also compiles src/reactnative against the
 //     published React Native library and the committed copy of the codegen output in
-//     ../contracts/android. That is a compile check of the Turbo Native Module without an app.
+//     ../contracts/android. That is a compile check of the Turbo Native Module without an app;
+//   - by itself with -PfmpHostSqlcipher, which also compiles src/main/cpp for the machine the
+//     build runs on, against SQLCipher built from op-sqlite's source, so that SqlcipherHostTest
+//     runs the real Kotlin and C on the JVM. Needs `pnpm install` and a C compiler; on Linux
+//     also the OpenSSL development files.
+// A standalone build of another module of this repo may include this directory as a subproject
+// (the capture module does); it says so with `ext.fmpWithoutReactNative` on its root project.
 buildscript {
     ext.standalone = project == rootProject
     if (ext.standalone) {
@@ -26,9 +35,19 @@ buildscript {
     }
 }
 
-def standalone = project == rootProject
+def standalone = project == rootProject || rootProject.ext.has("fmpWithoutReactNative")
 def compileReactGlue = standalone && project.hasProperty("fmpCompileReactGlue")
+def hostSqlcipher = standalone && project.hasProperty("fmpHostSqlcipher")
 def fromApp = { name, fallback -> rootProject.ext.has(name) ? rootProject.ext.get(name) : fallback }
+
+// The Gradle project React Native's autolinking makes of @op-engineering/op-sqlite. It builds
+// libop-sqlite.so, with SQLCipher inside, and publishes it as a prefab package.
+def opSqliteProject = ":op-engineering_op-sqlite"
+if (!standalone && findProject(opSqliteProject) == null) {
+    throw new GradleException(
+        "@findmyperson/encrypted-store needs @op-engineering/op-sqlite in the app: its native " +
+        "code is linked against the SQLCipher inside libop-sqlite.so. No project " + opSqliteProject + " found.")
+}
 
 apply plugin: "com.android.library"
 apply plugin: "org.jetbrains.kotlin.android"
@@ -42,6 +61,40 @@ android {
 
     defaultConfig {
         minSdkVersion fromApp("minSdkVersion", 24)
+        consumerProguardFiles "consumer-rules.pro"
+
+        if (!standalone) {
+            externalNativeBuild {
+                cmake {
+                    def architectures = project.findProperty("reactNativeArchitectures")
+                    abiFilters(*(architectures ? architectures.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]))
+                    // c++_shared is what op-sqlite's package was built with, and prefab refuses
+                    // to link across different STLs. The one source file is C and uses none.
+                    arguments "-DANDROID_STL=c++_shared", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                }
+            }
+        }
+    }
+
+    if (!standalone) {
+        if (rootProject.ext.has("ndkVersion")) {
+            ndkVersion rootProject.ext.get("ndkVersion")
+        }
+        externalNativeBuild {
+            cmake {
+                path "src/main/cpp/CMakeLists.txt"
+            }
+        }
+        buildFeatures {
+            prefab true
+        }
+        // Only libfmp-store-jni.so belongs to this library. The build also leaves the libraries
+        // it linked against beside it; op-sqlite's own project and React Native ship those.
+        packaging {
+            jniLibs {
+                excludes += ["**/libop-sqlite.so", "**/libc++_shared.so"]
+            }
+        }
     }
 
     compileOptions {
@@ -66,14 +119,12 @@ kotlin {
 }
 
 dependencies {
-    // SQLCIPHER VERSION. Must equal the SQLCipher release op-sqlite vendors
-    // (CIPHER_VERSION_NUMBER in its cpp/sqlcipher/sqlite3.c), so the Kotlin writer and the
-    // TypeScript reader agree on the file format. src/policy.test.ts compares the two; bump
-    // op-sqlite and this line together.
-    implementation("net.zetetic:sqlcipher-android:4.19.0")
-    implementation("androidx.sqlite:sqlite:2.7.0")
-
+    // NO SQLCIPHER DEPENDENCY, on purpose. The Kotlin store uses the SQLCipher inside op-sqlite's
+    // library through src/main/cpp. A library that brings its own SQLite (net.zetetic's
+    // sqlcipher-android, androidx.sqlite's bundled driver, Room with one) would put a second
+    // copy in the process; src/policy.test.ts fails if one appears in any build file.
     if (!standalone) {
+        implementation project(opSqliteProject)
         // The version of react-native is set by the React Native Gradle Plugin.
         implementation("com.facebook.react:react-android")
     }
@@ -83,4 +134,61 @@ dependencies {
     }
 
     testImplementation("junit:junit:4.13.2")
+}
+
+// -PfmpHostSqlcipher: the same two libraries as on a phone, built for this machine. libop-sqlite
+// here is only SQLCipher, compiled from the source op-sqlite compiles into the real one, and
+// libfmp-store-jni is src/main/cpp linked against it, with no SQLite of its own.
+if (hostSqlcipher) {
+    def mac = System.getProperty("os.name").toLowerCase().contains("mac")
+    def extension = mac ? "dylib" : "so"
+    def hostDir = layout.buildDirectory.dir("host-sqlcipher").get().asFile
+    def opSqliteRoot = providers.exec {
+        workingDir projectDir.parentFile
+        commandLine "node", "--print",
+            "require('node:path').dirname(require.resolve('@op-engineering/op-sqlite/package.json'))"
+    }.standardOutput.asText.get().trim()
+    def sqlcipherSource = new File(opSqliteRoot, "cpp/sqlcipher")
+    def jdk = new File(System.getProperty("java.home"))
+    def engine = new File(hostDir, "libop-sqlite.${extension}")
+    def shim = new File(hostDir, "libfmp-store-jni.${extension}")
+
+    def buildHostEngine = tasks.register("buildHostSqlcipherEngine", Exec) {
+        inputs.file(new File(sqlcipherSource, "sqlite3.c"))
+        outputs.file(engine)
+        doFirst { hostDir.mkdirs() }
+        // The defines op-sqlite's CMakeLists.txt sets for SQLCipher. The crypto provider is
+        // OpenSSL on Linux, as in the app, and CommonCrypto on a Mac, as in ios/build-host-check.sh.
+        def command = ["cc", "-O1", "-w", "-fPIC", "-I${sqlcipherSource}",
+            "-DSQLITE_HAS_CODEC", "-DSQLITE_TEMP_STORE=3",
+            "-DSQLITE_EXTRA_INIT=sqlcipher_extra_init", "-DSQLITE_EXTRA_SHUTDOWN=sqlcipher_extra_shutdown",
+            "${sqlcipherSource}/sqlite3.c", "-o", engine.path]
+        command += mac
+            ? ["-dynamiclib", "-DSQLCIPHER_CRYPTO_CC", "-framework", "Security", "-framework", "CoreFoundation",
+               "-install_name", "@rpath/libop-sqlite.dylib"]
+            : ["-shared", "-DSQLCIPHER_CRYPTO_OPENSSL", "-Wl,-soname,libop-sqlite.so", "-lcrypto", "-lpthread", "-ldl", "-lm"]
+        commandLine command
+    }
+
+    def buildHostShim = tasks.register("buildHostSqlcipherShim", Exec) {
+        dependsOn buildHostEngine
+        inputs.file("src/main/cpp/fmp_store_jni.c")
+        inputs.file(engine)
+        outputs.file(shim)
+        def command = ["cc", "-O1", "-Wall", "-Wextra", "-Werror", "-fPIC", "-I${sqlcipherSource}",
+            "-I${jdk}/include", "-I${jdk}/include/${mac ? 'darwin' : 'linux'}",
+            file("src/main/cpp/fmp_store_jni.c").path, "-L${hostDir}", "-lop-sqlite", "-o", shim.path]
+        command += mac
+            ? ["-dynamiclib", "-Wl,-rpath,@loader_path"]
+            : ["-shared", "-Wl,--no-undefined", '-Wl,-rpath,$ORIGIN', "-ldl"]
+        commandLine command
+    }
+
+    tasks.withType(Test).configureEach {
+        dependsOn buildHostShim
+        systemProperty "java.library.path", hostDir.path
+        systemProperty "fmp.hostSqlcipher", "true"
+        systemProperty "fmp.migrationSql", new File(projectDir.canonicalFile, "../../shared/contracts/migration-v1.sql").canonicalPath
+        inputs.files(engine, shim)
+    }
 }

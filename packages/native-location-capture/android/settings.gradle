@@ -15,3 +15,8 @@ dependencyResolutionManagement {
   }
 }
 rootProject.name = 'findmyperson-native-location-capture'
+
+// The store package, whose SqlcipherConnection this module opens the store with. Inside the app
+// autolinking includes it under this same name.
+include ':findmyperson_encrypted-store'
+project(':findmyperson_encrypted-store').projectDir = new File(settingsDir, '../../encrypted-store/android')

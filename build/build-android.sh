@@ -24,10 +24,18 @@ check_backup_excluded() {
   node "$repo_root/packages/encrypted-store/scripts/check-merged-manifest.ts" "$project/app/build/intermediates"
 }
 
+# Fails the build if the app holds a second SQLite beside the SQLCipher in libop-sqlite.so, or
+# if the Kotlin store is not linked to that one (two copies in one process do not see each
+# other's file locks; packages/encrypted-store/README.md).
+check_one_sqlite() {
+  node "$repo_root/packages/encrypted-store/scripts/check-native-libs.ts" "$@"
+}
+
 case "$variant" in
   debug)
     ./gradlew assembleDebug
     check_backup_excluded
+    check_one_sqlite "$project/app/build/outputs/apk/debug"
     echo "APK: app/android/app/build/outputs/apk/debug/app-debug.apk"
     ;;
   release)
@@ -38,6 +46,7 @@ case "$variant" in
     fi
     ./gradlew --init-script "$repo_root/build/android-signing.init.gradle" assembleRelease bundleRelease
     check_backup_excluded
+    check_one_sqlite "$project/app/build/outputs/apk/release" "$project/app/build/outputs/bundle/release"
     echo "APK: app/android/app/build/outputs/apk/release/"
     echo "AAB: app/android/app/build/outputs/bundle/release/app-release.aab"
     ;;
