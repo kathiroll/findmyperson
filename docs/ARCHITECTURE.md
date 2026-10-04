@@ -2,7 +2,7 @@
 
 A map of the whole of findmyperson for someone joining the project: what it is built from, where each part lives, how the parts talk to each other, and what is not built yet.
 
-It describes `main` at commit `0a1bbb4` (2026-10-04, pull request #30). One pull request was open at that point and is called out where it changes the picture: #31 (one SQLCipher on Android). This file links to the README that owns each topic instead of repeating it; when the two disagree, the README and the code win.
+It describes `main` at commit `0a1bbb4` (2026-10-04, pull request #30). One pull request was open at that point, #31 (one SQLCipher on Android); the passages it changes describe the tree with it in. This file links to the README that owns each topic instead of repeating it; when the two disagree, the README and the code win.
 
 The idea in one paragraph: each phone keeps 30 days of its own location history in an encrypted file that never leaves it. A missing-person report is reviewed by a person, then published as signed static files on a CDN. Every phone downloads the reports for the regions it has been in and checks them against its own history, on the phone. Only a phone that matches shows anything, and only if its owner chooses to send a tip does the server hear from it. The server never learns who matched.
 
@@ -77,19 +77,19 @@ There is no ORM, no cloud SDK and no HTTP client library on the server: R2 is re
 
 ### Native code
 
-| Piece                                   | Version                                         | Where                                                 |
-| --------------------------------------- | ----------------------------------------------- | ----------------------------------------------------- |
-| Kotlin                                  | 2.2.0, JVM target 17                            | both `android/build.gradle` files                     |
-| Android Gradle Plugin (capture module)  | 8.7.3, Gradle wrapper 8.9                       | `packages/native-location-capture/android`            |
-| Android Gradle Plugin (encrypted store) | 9.2.1 standalone                                | `packages/encrypted-store/android/build.gradle`       |
-| Android SDK levels                      | `compileSdk` 35, `minSdk` 24 when standalone    | both modules; the app supplies its own once it exists |
-| `androidx.work:work-runtime`            | 2.10.0                                          | capture module (WorkManager mode)                     |
-| `play-services-location`                | 21.3.0                                          | capture module (fused location provider)              |
-| `net.zetetic:sqlcipher-android`         | 4.19.0                                          | both Android modules; removed by open PR #31          |
-| Swift                                   | tools 5.9 (capture), 5.0 (store podspec)        | `Package.swift`, the two podspecs                     |
-| iOS deployment target                   | React Native's minimum; iOS 15 for `swift test` | podspecs use `min_ios_version_supported`              |
-| H3 C library                            | 4.5.0, vendored unmodified                      | `packages/native-location-capture/ios/Sources/CH3`    |
-| SQLCipher on iOS                        | op-sqlite's copy (4.19.0 in the host check)     | both podspecs depend on `op-sqlite`                   |
+| Piece                                   | Version                                         | Where                                                                                              |
+| --------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Kotlin                                  | 2.2.0, JVM target 17                            | both `android/build.gradle` files                                                                  |
+| Android Gradle Plugin (capture module)  | 8.7.3, Gradle wrapper 8.9                       | `packages/native-location-capture/android`                                                         |
+| Android Gradle Plugin (encrypted store) | 9.2.1 standalone                                | `packages/encrypted-store/android/build.gradle`                                                    |
+| Android SDK levels                      | `compileSdk` 35, `minSdk` 24 when standalone    | both modules; the app supplies its own once it exists                                              |
+| `androidx.work:work-runtime`            | 2.10.0                                          | capture module (WorkManager mode)                                                                  |
+| `play-services-location`                | 21.3.0                                          | capture module (fused location provider)                                                           |
+| SQLCipher on Android                    | op-sqlite's copy, through `libfmp-store-jni.so` | `packages/encrypted-store/android/src/main/cpp`; neither Android module has a SQLCipher dependency |
+| Swift                                   | tools 5.9 (capture), 5.0 (store podspec)        | `Package.swift`, the two podspecs                                                                  |
+| iOS deployment target                   | React Native's minimum; iOS 15 for `swift test` | podspecs use `min_ios_version_supported`                                                           |
+| H3 C library                            | 4.5.0, vendored unmodified                      | `packages/native-location-capture/ios/Sources/CH3`                                                 |
+| SQLCipher on iOS                        | op-sqlite's copy (4.19.0 in the host check)     | both podspecs depend on `op-sqlite`                                                                |
 
 ### CI
 
@@ -365,7 +365,7 @@ Each entry was checked against the code at the commit named at the top. "Waiting
 ### No native app project
 
 - **`app/android` and `app/ios` do not exist**, and `app/src/index.ts` is a placeholder export with no `AppRegistry.registerComponent`. Nothing in the app has been built into an installable binary or run on a phone, a simulator or an emulator. The build scripts and CI jobs detect this and skip. Waiting on: the task that adds the native projects, which must also register the `findmyperson://` URL scheme, link the fonts (`npx react-native-asset`) and run both build scripts for the first time.
-- **Every "not verified" list in the package READMEs** follows from this: Keychain and Keystore behaviour after a reboot, real backup exclusion, op-sqlite itself (its Node build has no SQLCipher), autolinking of both native modules, and capture behaviour on real devices.
+- **Every "not verified" list in the package READMEs** follows from this: Keychain and Keystore behaviour after a reboot, real backup exclusion, op-sqlite itself (its Node build has no SQLCipher), autolinking of both native modules into the real app (the link check in `packages/encrypted-store/android-linkcheck` autolinks them into an APK that is built and read, never run), and capture behaviour on real devices.
 
 ### Unset configuration
 
@@ -387,7 +387,7 @@ Each entry was checked against the code at the commit named at the top. "Waiting
 
 ### Switched off
 
-- **`ANDROID_VACUUM_ENABLED`** (`app/src/store/retention.ts`) is `false`, so the weekly `VACUUM` never runs on Android and the file does not shrink after a purge. The cause is that TypeScript and Kotlin use two copies of SQLite in one process, which do not see each other's file locks. Open PR #31 removes the second copy (a JNI shim onto op-sqlite's SQLCipher) but leaves the flag off. Waiting on: PR #31 merging, then a run on a real Android phone.
+- **`ANDROID_VACUUM_ENABLED`** (`app/src/store/retention.ts`) is `false`, so the weekly `VACUUM` never runs on Android and the file does not shrink after a purge. The cause was that TypeScript and Kotlin used two copies of SQLite in one process, which do not see each other's file locks. Pull request #31 removed the second copy (a JNI shim onto op-sqlite's SQLCipher) and left the flag off, because the result has been built and read but not run on a phone. Waiting on: the checks under "Before the Android vacuum is switched on" in [packages/encrypted-store/README.md](../packages/encrypted-store/README.md), on a real Android phone.
 
 ### Pieces of the product that are not built
 
