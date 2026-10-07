@@ -2,6 +2,106 @@
 
 This file is the project's committed home for project-intrinsic agent knowledge: build, test, release, architecture, and sharp-edge notes that should travel with the code.
 
+## Working rules (read and follow these before doing anything)
+
+Follow these rules for every task. The goal: the captain always knows what was decided, what was done, what's left and what's waiting on them. Visibility beats speed.
+
+**Project docs (single source of truth)**
+
+- `docs/PLAN.md`: what we're building, in what order, and what we're NOT building. Updated at milestones.
+- `docs/TASKS.md`: total / done / remaining / blocked on the captain. Updated every task.
+- `docs/DECISIONS.md`: what was decided, why, and by whom. Updated every significant decision.
+- `docs/WORKLOG.md`: what was actually done and what came up. Updated every task.
+- `docs/ARCHITECTURE.md`: how the app is structured right now. Updated when structure changes.
+
+Doc updates go in the same PR as the code for that task.
+
+`docs/TASKS.md` markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked on the captain. Keep a "Needs you" section at the top. Every `[!]` says what's needed and which tasks it blocks.
+
+Task detail format:
+
+```
+### T-016 Short title
+Goal: One sentence, one outcome.
+Acceptance criteria: 2-6 checkable bullets
+Out of scope:
+Decisions resolved: D-XXX or "none needed"
+Likely areas touched:
+How to verify:
+```
+
+`docs/DECISIONS.md` format:
+
+```
+## D-007 Short title
+- Date:
+- Status: Proposed | Accepted | Superseded by D-XXX
+- Decided by: Captain | Claude (proposed) | Claude (inferred from existing code)
+- Decision:
+- Why:
+- Alternatives considered:
+```
+
+Never delete a decision; mark it Superseded and link the replacement.
+
+`docs/WORKLOG.md` (append-only):
+
+```
+## YYYY-MM-DD: T-016
+- What was done, in plain language
+- Files:
+- Notes / questions raised (-> new task IDs)
+```
+
+**Doing a task**
+
+- Do exactly the one task in your brief. Nothing else.
+- If the brief doesn't answer a question that matters, stop and report back. Don't guess.
+- Leave the app building and running.
+- Work only inside your task's scope and the brief's "Out of scope" line.
+
+**Decisions**
+
+Significant = frameworks/libraries, architecture, data models/schema, auth, payments, third-party services, APIs, navigation structure, or anything costly to reverse.
+
+- Never make a significant decision on your own. Stop, add a Proposed entry to `docs/DECISIONS.md` and a `[!]` item to `docs/TASKS.md`, and report it with tradeoffs and at least one alternative.
+- Small, reversible implementation details are fine; note any notable ones in `docs/WORKLOG.md`.
+
+**Scope discipline**
+
+- No extra features, tooling, analytics, admin screens, simulations, generated datasets or nice-to-haves.
+- Where real data doesn't exist yet, use simple hardcoded placeholders and note them in `docs/WORKLOG.md`. Don't invent models or simulations to produce numbers.
+- Never add a dependency without approval.
+- Out-of-scope ideas go in `docs/TASKS.md` as suggestions, marked clearly. Don't build them.
+
+**Spikes**
+
+A spike investigates an unknown. It changes only `docs/`: it ends with a Proposed entry in `docs/DECISIONS.md` and a `[!]` item in `docs/TASKS.md`. No production code.
+
+**Definition of done**
+
+A task is `[x]` only when all are true:
+
+1. Acceptance criteria met; the app builds and runs.
+2. Commits start with the task ID: `T-016: add bio validation`.
+3. `docs/TASKS.md` updated.
+4. `docs/WORKLOG.md` entry appended.
+5. Any significant decision logged as Proposed, with a matching `[!]` item.
+6. `docs/ARCHITECTURE.md` updated if structure changed.
+
+Finish with a 2-4 line summary: what was done, how to verify it, anything that now needs the captain.
+
+**Git**
+
+- Small, focused commits, each prefixed with the task ID. No unrelated changes.
+- Never force-push or rewrite history.
+
+**Joining an existing codebase**
+
+If the docs above don't exist yet, don't write any code. Read the codebase without modifying it; write `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` (every significant decision you can infer, marked "Decided by: Claude (inferred from existing code)", Status: Proposed), `docs/PLAN.md` (with a Non-goals section) and `docs/TASKS.md` (completed work `[x]`); note anything that looks like unrequested scope under "Needs you" in `docs/TASKS.md` as candidates to remove.
+
+## Project knowledge
+
 - No simulators or emulators; every claim about device behaviour is either verified from source/build output or listed as unverified in the PR and the relevant `m0/*/README.md`.
 - Shared contracts: `packages/shared` is the only definition of the broadcast payload, signing, distance and H3 math, the widen-only edit rule, the store schema and API shapes; import from it, never redefine. Start at `packages/shared/README.md`. `contracts/README.md` there covers the files Kotlin and Swift must match and which of them are frozen versus generated (`pnpm exec vitest run packages/shared -u`, from the repo root). `src/store/ownership.ts` says which task may write which table. Outside `src/testing/` and tests that package must stay free of Node APIs.
 - SQLCipher parameters: the real build reads `packages/shared/contracts/cipher-params.json`, pinned by a test to the M0 original `m0/store-proof/shared/cipher-params.json`, so change both together. In `m0/store-proof` run `npm run gen:cipher` and never hand-edit the generated TS/Kotlin/Swift constants. op-sqlite's Node build ignores the encryption key, so its Jest uses `@journeyapps/sqlcipher`; details in `m0/store-proof/README.md`.
