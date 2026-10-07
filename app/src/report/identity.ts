@@ -11,6 +11,8 @@ import {
   type SqlExecutor,
 } from '@findmyperson/shared';
 
+export { platformRandomBytes } from '../random';
+
 /**
  * Device identity that survives restarts: the client-generated id (the real scheme, addendum
  * 2026-10-03) kept in the encrypted store's `kv`. "Delete all my data" drops the whole store, id
@@ -36,18 +38,4 @@ export function createStoreDeviceIdentity(
       await kvDelete(db, KV_KEYS.deviceId);
     },
   };
-}
-
-/**
- * The platform's CSPRNG. NOT VERIFIED ON A DEVICE: this assumes `globalThis.crypto.getRandomValues`
- * exists under Hermes; if the native projects land without it, supply a polyfill or pass
- * `randomBytes` to `createDataStore`. It throws rather than falling back to Math.random.
- */
-export function platformRandomBytes(length: number): Uint8Array {
-  const crypto = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } })
-    .crypto;
-  if (crypto?.getRandomValues === undefined) {
-    throw new Error('no secure random source on this platform');
-  }
-  return crypto.getRandomValues(new Uint8Array(length));
 }

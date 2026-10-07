@@ -4,9 +4,6 @@ require "json"
 # directory, the Swift writer the capture module uses, and the Turbo Native Module for
 # src/specs/NativeEncryptedStore.ts. React Native's autolinking finds this file by itself.
 #
-# NOT YET BUILT BY COCOAPODS. app/ios does not exist, so `pod install` has never run on this
-# file. The Swift and C in ios/ are compiled and run on a Mac by ios/build-host-check.sh;
-# what only a real iOS build can show is listed in README.md under "Not verified".
 package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 
 # FMPSqlcipher.c includes "sqlite3.h" from the SQLCipher source op-sqlite compiles into the
