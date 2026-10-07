@@ -1,0 +1,465 @@
+# Tasks
+
+The state of the work: what is done, what is left, and what is waiting on the captain. Updated every task, in the same pull request as the task. Markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked on the captain.
+
+|                        |                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| Total                  | 40 (T-000 to T-039)                                                                     |
+| Done                   | 40                                                                                      |
+| In progress            | 0                                                                                       |
+| Remaining              | 0 queued: no future tasks are listed here until the captain approves the next breakdown |
+| Blocked on the captain | 13 items below, each marked `[!]`                                                       |
+
+As of commit `88c8a6c` (2026-10-08). T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
+
+## Needs you
+
+No task IDs exist yet for the work these items block, so each says what it blocks in words. Proposed decisions are in [DECISIONS.md](DECISIONS.md); the plan and its non-goals are in [PLAN.md](PLAN.md).
+
+### Decisions and approvals
+
+- [!] **How far to recut the M0 to M7 plan.** Needed from you: how far to reorder the milestones for dependency order; whether to run a spike on whether TypeScript can run on a background wake before the native wake-trigger work begins; and confirmation of the build concurrency you have decided (one build task at a time by default; parallel only for tasks that touch different files with no shared open decisions, and only after asking you). The milestone plan lives outside this repository and the detail of the recut question is in firstmate's records, so it is not visible here. Blocks: the next task breakdown, so every build task after T-039.
+- [!] **The Home screen's list of non-commercial altruistic projects.** Needed from you: whether the strict non-commercial bar stays (the reference project, Be My Eyes, raised venture funding and fails it) or relaxes to "free to the person helped and volunteer-powered", and which 6 to 8 of the shortlist ship. The shortlist, and the reference to Be My Eyes, are not in the repository: what is there is the placeholder list `CURIOUS_LINKS` in `app/src/home/HomeScreen.tsx` (`[VIDEO LINK]`, `[PROJECT 1]`, `[PROJECT 2]`). Blocks: the real content of Home's "If you're curious" list, and any copy that states what kind of projects are linked. Related: [D-052](DECISIONS.md).
+- [!] **Approve or change the proposed decisions** D-015 (no state library), D-040 (the server database is Node's built-in SQLite although the plan named Postgres) and D-052 to D-062 (inferred in T-000: non-commercial MIT, no third-party SDKs in the app, hamburger navigation, Android id and SDK levels, report form defaults, the operator page, the watch-list rule, matching cadence, fetch cadence, vendored H3 on iOS, Play services with a fallback). Blocks: nothing is stopped today, but each stays `Proposed` until you accept it, and a later task must not build on a Proposed entry without asking.
+- [!] **Ratify the entries whose decider is "not recorded"** (D-001 to D-051, except D-011, D-043 to D-046 which cite plan addenda, D-032's photo cap which the captain decided, and the three marked Proposed). They are in force and documented in the repository, so they are marked `Accepted`, but nothing says who chose them. Part of this: D-001 and `WORKSPACE.md` say the install is hoisted (`node-linker=hoisted` in `.npmrc`); `AGENTS.md` and the installed tree say it is pnpm's isolated layout and that the `.npmrc` line is not read. Needed from you: confirm which is intended; if hoisted was meant, the build has drifted from it. Blocks: nothing today.
+
+### Open choices the code is waiting on
+
+- [!] **Storage and CDN provider.** The server publishes through a Cloudflare R2 adapter (PR #29, [D-038](DECISIONS.md), Proposed: why R2 is not written down), but the app's `REPORT_CDN_ORIGIN` waits on "the storage and CDN decision". Needed from you: confirm R2 or pick another provider, then provision the bucket and a custom domain. Blocks: report fetch ever making a request, and so everything downstream of it (matching real reports, notifications).
+- [!] **The production signing key.** Needed from you: generate the production Ed25519 key (`dist/cli.js keygen` prints the public half) and decide where its seed is kept. The public half is built into the app as `REPORT_TRUSTED_KEYS`. Blocks: report fetch (with no key the app has no report source) and publishing from a real server.
+- [!] **Where the backend runs.** There is no deployment, no Dockerfile and no hosting config, and `API_BASE_URL` is `null`. Needed from you: a hosting choice and an address. Blocks: a submitted report ever leaving the phone, the operator page being used, and any end-to-end test with real phones.
+- [!] **Real operator authentication and alert channel.** The release gate is guarded by a device-id allow-list and by one shared token ([D-057](DECISIONS.md)), and a new report only writes a log line. Needed from you: how operators sign in (accounts, mTLS or an identity provider) and how you are alerted (push, SMS or email). Blocks: exposing the server to the internet; the manual-review gate (D-043) being safe in production.
+- [!] **Photo picker and map provider.** The report form has a seam for each and no library: with no photo port "Add photo" is hidden, and with no map port the reporter types coordinates. Both choices add a dependency, and a map SDK also adds a third party that sees where the reporter looks. Needed from you: approval of a library for each, or a decision to leave them out. Blocks: photos in reports and picking a place on a map.
+- [!] **How a match reaches the person (local notification or push).** No notification is raised, the notification permission is not requested, and no FCM or APNs code exists. Needed from you: the approach and any push provider, which would be a new third-party service. Blocks: the match notification and the Bystander screen, the reporter hearing that a tip arrived, and the push-wake topics of the subscription manager.
+- [!] **Apple developer team.** There is no `app/ios` project; it waits on a team. Needed from you: the team or Apple ID to build with. Blocks: the iOS app, iOS builds in CI, and everything unverified on an iPhone.
+- [!] **Policy page and abuse contact.** `POLICIES_URL` and `ABUSE_CONTACT_URL` in `app/src/settings/links.ts` are placeholders (`findmyperson.app/policies`, `abuse@findmyperson.app`); neither the page nor the mailbox exists. Needed from you: the real address and a monitored mailbox. Blocks: store listings, and honest Settings links.
+- [!] **Three policy points the code leaves open.** (1) How long `own_report` and `received_response` are kept (today: never purged; `ownership.ts` says undecided). (2) Whether a widening edit on a released report needs a second review (today it does not). (3) Whether to enforce the plan's one report per device per day (the `rate_limited` error code exists and nothing returns it). Needed from you: a call on each. Blocks: the reporter's live-report screen and edit flow (1, 2) and any public launch (3).
+
+### Candidates to remove (suggestions, not tasks)
+
+These look like scope nobody asked for in the repository's own record, or tooling that serves only itself. Each is still wired in and some are load-bearing, so nothing is removed until you say so. Needed from you: keep or remove.
+
+- Offline matching harness and its synthetic populations: `server/src/harness/` (simulation and generated data, [D-029](DECISIONS.md)). It produced the recall and false-positive figures behind the 150 m / 30 minute grid, and a smaller run is held in the unit tests.
+- The Android link-check project: `packages/encrypted-store/android-linkcheck/`, `build/android-linkcheck.sh` and the `android-linkcheck` CI job (tooling that exists to check the APK has one SQLite; `app/android` now builds the real APK that the same two checks run on).
+- `PlatformBackend`, the location path for phones without Google Play services ([D-062](DECISIONS.md)): never run on a device.
+- The operator page, `/operator` ([D-057](DECISIONS.md)): an admin screen. It is the only usable interface to the manual-review gate, so removing it means reviewing by hand through the API.
+- The design-system catalogue, `DesignSystemCatalogue` (`app/src/design-system/Catalogue.tsx`): a showcase of the primitives, exported but not reachable from any route.
+- The `History` route and menu entry: a placeholder with no mockup ("Not in the v2 mockups").
+- `m0/`: the finished research trial apps and analyser (149 tracked files). Evidence for decisions; one file in it is pinned by a test to the real build's cipher parameters.
+
+## Done
+
+### Onboarding
+
+#### T-000 [x] Adopt the working rules and write the record documents
+
+Goal: Bring the project onto the working rules so the captain can see what was decided, done, left and waiting on them.
+Acceptance criteria:
+
+- `AGENTS.md` carries the working rules and a coding-style section; its existing content is unchanged.
+- `docs/DECISIONS.md` is in the D-XXX format with no entry lost, and every inferable unrecorded decision is added as Proposed.
+- `docs/ARCHITECTURE.md` is checked against `main` and corrected, not rewritten.
+- `docs/PLAN.md`, `docs/TASKS.md` and `docs/WORKLOG.md` exist; TASKS has a "Needs you" section.
+
+Out of scope: any code, dependency or CI change; recutting the milestone plan; proposing or queueing new feature work; the uncommitted changes in the main local copy.
+Decisions resolved: none needed (it proposes D-052 to D-062).
+Likely areas touched: `AGENTS.md`, `docs/`.
+How to verify: `git diff --stat main...HEAD` shows only those files; `pnpm format:check` passes; open `docs/TASKS.md`.
+
+### Research on real phones
+
+#### T-001 [x] M0: capture log format and analyser
+
+Goal: Define the capture log format v1 and a log analyser for the M0 trial.
+PR: [#1](https://github.com/kathiroll/findmyperson/pull/1)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none recorded
+Likely areas touched: `m0/analyser`, `m0/docs`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-002 [x] M0: iPhone capture trial app
+
+Goal: Build a native Swift trial app that logs background location capture on a real iPhone.
+PR: [#2](https://github.com/kathiroll/findmyperson/pull/2)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none recorded (evidence for D-012)
+Likely areas touched: `m0/ios`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-003 [x] M0: Android toolchain env, README, gitignore
+
+Goal: Make the Android toolchain for the trials reproducible from a script.
+PR: [#3](https://github.com/kathiroll/findmyperson/pull/3)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none needed
+Likely areas touched: `m0/env.sh`, `m0/README.md`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-004 [x] M0: Android capture trial app
+
+Goal: Build a native Kotlin trial app with WorkManager and foreground-service capture modes.
+PR: [#4](https://github.com/kathiroll/findmyperson/pull/4)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none recorded (evidence for D-011)
+Likely areas touched: `m0/android`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-005 [x] M0 iOS: remove the distance filter
+
+Goal: Remove the distance filter on continuous location updates in the iOS trial.
+PR: [#5](https://github.com/kathiroll/findmyperson/pull/5)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none recorded (evidence for D-014)
+Likely areas touched: `m0/ios`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-006 [x] M0 analyser: per-source gaps, relaunch recovery, BOM tolerance
+
+Goal: Extend the analyser to report per-source gaps and relaunch recovery.
+PR: [#6](https://github.com/kathiroll/findmyperson/pull/6)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none needed
+Likely areas touched: `m0/analyser`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-007 [x] M0 store proof (S0.4)
+
+Goal: Prove native Kotlin and Swift writes and TypeScript reads of one SQLCipher file.
+PR: [#7](https://github.com/kathiroll/findmyperson/pull/7)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-018
+Likely areas touched: `m0/store-proof`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+### Foundation
+
+#### T-008 [x] Wave 0: pnpm workspace, shared tooling and CI
+
+Goal: Set up the pnpm workspace, strict TypeScript, ESLint, Prettier, Vitest and CI.
+PR: [#8](https://github.com/kathiroll/findmyperson/pull/8)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-001, D-002, D-003, D-004
+Likely areas touched: root config, `.github/workflows/ci.yml`, empty package shells
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-009 [x] Build pipelines (F1.2)
+
+Goal: Provide one build path for Android APK/AAB and iOS archive, locally and in CI.
+PR: [#9](https://github.com/kathiroll/findmyperson/pull/9)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-006
+Likely areas touched: `build/`, `.github/workflows/build.yml`, `docs/BUILDING.md`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-010 [x] App design system
+
+Goal: Build the v2 theme tokens, primitives, animations and catalogue.
+PR: [#10](https://github.com/kathiroll/findmyperson/pull/10)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-017
+Likely areas touched: `app/src/design-system`, `app/assets/fonts`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-011 [x] Shared contracts
+
+Goal: Define the broadcast payload, signing, geometry, store schema, API shapes and identity seam in one package.
+PR: [#11](https://github.com/kathiroll/findmyperson/pull/11)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-019, D-020, D-028, D-032, D-033, D-036, D-041, D-048, D-049, D-050, D-051
+Likely areas touched: `packages/shared`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-012 [x] Backend skeleton
+
+Goal: Build report intake, the manual-review gate and the response relay.
+PR: [#12](https://github.com/kathiroll/findmyperson/pull/12)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-039, D-040, D-043
+Likely areas touched: `server/src`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-013 [x] Native location capture spec
+
+Goal: Define the Turbo Module interface for capture, its codegen config and an in-memory fake.
+PR: [#13](https://github.com/kathiroll/findmyperson/pull/13)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-008, D-009, D-010
+Likely areas touched: `packages/native-location-capture`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-014 [x] App shell (F1.5)
+
+Goal: Build the navigation graph, tab bar, deep links and placeholder screens.
+PR: [#14](https://github.com/kathiroll/findmyperson/pull/14)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-016
+Likely areas touched: `app/src/navigation`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+### Capture and the on-device store
+
+#### T-015 [x] iOS capture module
+
+Goal: Implement the capture spec in Swift with a state machine, Core Location adapters and tests.
+PR: [#15](https://github.com/kathiroll/findmyperson/pull/15)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-012, D-013, D-014, D-061
+Likely areas touched: `packages/native-location-capture/ios`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-016 [x] Android capture module
+
+Goal: Implement the capture spec in Kotlin with WorkManager and foreground-service modes.
+PR: [#16](https://github.com/kathiroll/findmyperson/pull/16)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-011, D-013, D-014, D-061, D-062
+Likely areas touched: `packages/native-location-capture/android`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-017 [x] Encrypted store (C2.3)
+
+Goal: Provide migrations, key management, backup exclusion and the native writer on both platforms.
+PR: [#17](https://github.com/kathiroll/findmyperson/pull/17)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-018, D-019, D-021, D-022, D-023
+Likely areas touched: `packages/encrypted-store`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-018 [x] Permission flow (C2.6)
+
+Goal: Build the staged location-permission asks, the Play disclosure and the denied and degraded states.
+PR: [#18](https://github.com/kathiroll/findmyperson/pull/18)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none recorded
+Likely areas touched: `app/src/permissions`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-019 [x] Onboarding and Settings screens
+
+Goal: Build onboarding, pause and resume, the retention explainer and delete-all-data.
+PR: [#19](https://github.com/kathiroll/findmyperson/pull/19)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none recorded
+Likely areas touched: `app/src/onboarding`, `app/src/settings`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-020 [x] Capture health (C2.7)
+
+Goal: Show capture status on Home and a diagnostics screen from `getStatus` and `getDiagnostics`.
+PR: [#20](https://github.com/kathiroll/findmyperson/pull/20)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none recorded
+Likely areas touched: `app/src/capture-health`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-021 [x] Stay derivation (C2.4)
+
+Goal: Extract stay points from stored fixes, reconcile CLVisit rows and run restart-safely.
+PR: [#21](https://github.com/kathiroll/findmyperson/pull/21)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-026
+Likely areas touched: `packages/shared/src/stay`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-022 [x] Shard compiler (B3.4)
+
+Goal: Compile signed res-5 and res-3 bundles and an index from released reports.
+PR: [#22](https://github.com/kathiroll/findmyperson/pull/22)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-030, D-031
+Likely areas touched: `server/src/shards`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-023 [x] Retention purge (C2.5)
+
+Goal: Purge history older than 30 days from the store's maintenance hook, with a gated weekly VACUUM.
+PR: [#23](https://github.com/kathiroll/findmyperson/pull/23)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-025
+Likely areas touched: `packages/shared/src/retention`, `packages/encrypted-store`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-024 [x] Server entries run under plain Node
+
+Goal: Bundle the server entries with esbuild so the documented run command works.
+PR: [#24](https://github.com/kathiroll/findmyperson/pull/24)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-047
+Likely areas touched: `server/build.mjs`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-025 [x] Retention triggers
+
+Goal: Run maintenance at app start and foreground, add a native charging/idle getter and purge on capture wakes.
+PR: [#25](https://github.com/kathiroll/findmyperson/pull/25)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-025
+Likely areas touched: `app/src/store`, `packages/native-location-capture`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+### Distribution, matching and the reporter side
+
+#### T-026 [x] Bundle fetcher (B3.6)
+
+Goal: Fetch verified shard bundles into `report_cache`, padded to a constant request count.
+PR: [#26](https://github.com/kathiroll/findmyperson/pull/26)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-037
+Likely areas touched: `packages/shared/src/fetch`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-027 [x] Matching engine (M5.1)
+
+Goal: Build the pure `matchReport` rule, its golden vectors, the anti-oracle grid and an offline recall and false-positive harness.
+PR: [#27](https://github.com/kathiroll/findmyperson/pull/27)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-026, D-027, D-029
+Likely areas touched: `packages/shared/src/match`, `server/src/harness`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-028 [x] Report submit screen (R4.1)
+
+Goal: Build the validated report form with a thumbnail, an offline queue and pending-review copy.
+PR: [#28](https://github.com/kathiroll/findmyperson/pull/28)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-042, D-056
+Likely areas touched: `app/src/report`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-029 [x] Shard publishing to Cloudflare R2
+
+Goal: Implement the object-store and cache-purge interfaces for Cloudflare R2.
+PR: [#29](https://github.com/kathiroll/findmyperson/pull/29)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-038
+Likely areas touched: `server/src/shards/r2.ts`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-030 [x] Report fetch trigger
+
+Goal: Add the wake trigger, Ed25519 verification for Hermes and a native metered-connection getter.
+PR: [#30](https://github.com/kathiroll/findmyperson/pull/30)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-034, D-035, D-060
+Likely areas touched: `app/src/fetch`, `packages/native-location-capture`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-031 [x] Android: one SQLCipher
+
+Goal: Make Kotlin use op-sqlite's SQLCipher through a JNI shim and remove Zetetic's library.
+PR: [#31](https://github.com/kathiroll/findmyperson/pull/31)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-024
+Likely areas touched: `packages/encrypted-store`, `build/`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-032 [x] Docs: ARCHITECTURE.md and DECISIONS.md
+
+Goal: Write the architecture map and the decisions reading aid.
+PR: [#32](https://github.com/kathiroll/findmyperson/pull/32)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: none needed
+Likely areas touched: `docs/`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-033 [x] Android app project
+
+Goal: Add `app/android` from the RN 0.87 template, autolink the native modules and build a debug APK in CI.
+PR: [#33](https://github.com/kathiroll/findmyperson/pull/33)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-055
+Likely areas touched: `app/android`, `docs/BUILDING.md`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-034 [x] Report form: typed coordinates
+
+Goal: Let the reporter type or paste coordinates for the location step.
+PR: [#34](https://github.com/kathiroll/findmyperson/pull/34)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-056
+Likely areas touched: `app/src/report`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-035 [x] Operator page
+
+Goal: Serve `/operator` for review of pending reports and held tips, behind a one-token stub.
+PR: [#35](https://github.com/kathiroll/findmyperson/pull/35)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-057
+Likely areas touched: `server/src/operatorPage.ts`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-036 [x] Home screen and hamburger menu
+
+Goal: Build Home per the v2 mockups, remove the tab bar and put Settings in the menu.
+PR: [#36](https://github.com/kathiroll/findmyperson/pull/36)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-054
+Likely areas touched: `app/src/home`, `app/src/navigation`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-037 [x] Reports carry up to two photos
+
+Goal: Change `person.photo` to `person.photos`, capped at two.
+PR: [#37](https://github.com/kathiroll/findmyperson/pull/37)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-032
+Likely areas touched: `packages/shared`, `app/src/report`, `server/src`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-038 [x] Subscription manager
+
+Goal: Keep the watch list equal to the last 30 days of history, capped and coarsened.
+PR: [#38](https://github.com/kathiroll/findmyperson/pull/38)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-058
+Likely areas touched: `packages/shared/src/subscription`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+#### T-039 [x] Match runner
+
+Goal: Match cached reports against the phone's history on every wake, at most once per report.
+PR: [#39](https://github.com/kathiroll/findmyperson/pull/39)
+Acceptance criteria: not reconstructed; the pull request and the tests it merged into `main` are the record.
+Out of scope: not recorded.
+Decisions resolved: D-059
+Likely areas touched: `packages/shared/src/match`, `app/src/store`
+How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
