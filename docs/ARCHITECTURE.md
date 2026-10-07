@@ -2,7 +2,7 @@
 
 A map of the whole of findmyperson for someone joining the project: what it is built from, where each part lives, how the parts talk to each other, and what is not built yet.
 
-It describes `main` at commit `0a1bbb4` (2026-10-04, pull request #30). One pull request was open at that point, #31 (one SQLCipher on Android); the passages it changes describe the tree with it in. This file links to the README that owns each topic instead of repeating it; when the two disagree, the README and the code win.
+It describes `main` at commit `88c8a6c` (2026-10-08, pull request #39); T-000 checked it against that commit and corrected what had gone out of date since `0a1bbb4` (pull request #30). This file links to the README that owns each topic instead of repeating it; when the two disagree, the README and the code win.
 
 The idea in one paragraph: each phone keeps 30 days of its own location history in an encrypted file that never leaves it. A missing-person report is reviewed by a person, then published as signed static files on a CDN. Every phone downloads the reports for the regions it has been in and checks them against its own history, on the phone. Only a phone that matches shows anything, and only if its owner chooses to send a tip does the server hear from it. The server never learns who matched.
 
@@ -17,7 +17,7 @@ Contents:
 7. [Third-party services](#7-third-party-services)
 8. [Stubs and unfinished](#8-stubs-and-unfinished)
 
-Related: [DECISIONS.md](DECISIONS.md) lists why things are the way they are. [WORKSPACE.md](../WORKSPACE.md) covers the workspace and everyday commands, [BUILDING.md](BUILDING.md) covers installable builds, and [AGENTS.md](../AGENTS.md) holds the rules that are easy to break.
+Related: [PLAN.md](PLAN.md) says what is being built and what is not, [TASKS.md](TASKS.md) what is done and what is waiting on the captain, [DECISIONS.md](DECISIONS.md) lists why things are the way they are, and [WORKLOG.md](WORKLOG.md) what each task did. [WORKSPACE.md](../WORKSPACE.md) covers the workspace and everyday commands, [BUILDING.md](BUILDING.md) covers installable builds, and [AGENTS.md](../AGENTS.md) holds the rules that are easy to break.
 
 ## 1. Tech stack and major libraries
 
@@ -25,17 +25,17 @@ Versions are the ones pinned in the manifests and resolved in `pnpm-lock.yaml`. 
 
 ### Runtime and tooling
 
-| Piece             | Declared              | Resolved | Where it is set                               |
-| ----------------- | --------------------- | -------- | --------------------------------------------- |
-| Node              | `>=24`                | 24 in CI | `engines` in `package.json`, `ci.yml`         |
-| pnpm              | `12.8.1`              | 12.8.1   | `packageManager` in `package.json`            |
-| Linker            | `node-linker=hoisted` | -        | `.npmrc`                                      |
-| TypeScript        | `^5.9.0`              | 5.9.3    | root; strict settings in `tsconfig.base.json` |
-| Vitest            | `^4.0.0`              | 4.1.11   | root; `vitest.config.ts` runs every member    |
-| ESLint            | `^10.11.0`            | 10.11.0  | root, flat config in `eslint.config.js`       |
-| typescript-eslint | `^8.71.0`             | 8.71.0   | root                                          |
-| Prettier          | `^3.9.9`              | 3.9.9    | root, `.prettierrc.json`                      |
-| esbuild           | `^0.28.2`             | 0.28.2   | `server` only, used by `server/build.mjs`     |
+| Piece             | Declared              | Resolved      | Where it is set                                                                                                                            |
+| ----------------- | --------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Node              | `>=24`                | 24 in CI      | `engines` in `package.json`, `ci.yml`                                                                                                      |
+| pnpm              | `12.8.1`              | 12.8.1        | `packageManager` in `package.json`                                                                                                         |
+| Linker            | `node-linker=hoisted` | not in effect | `.npmrc` sets it, but the install is pnpm's isolated layout (`AGENTS.md`); Gradle and Metro are pointed at React Native's parts explicitly |
+| TypeScript        | `^5.9.0`              | 5.9.3         | root; strict settings in `tsconfig.base.json`                                                                                              |
+| Vitest            | `^4.0.0`              | 4.1.11        | root; `vitest.config.ts` runs every member                                                                                                 |
+| ESLint            | `^10.11.0`            | 10.11.0       | root, flat config in `eslint.config.js`                                                                                                    |
+| typescript-eslint | `^8.71.0`             | 8.71.0        | root                                                                                                                                       |
+| Prettier          | `^3.9.9`              | 3.9.9         | root, `.prettierrc.json`                                                                                                                   |
+| esbuild           | `^0.28.2`             | 0.28.2        | `server` only, used by `server/build.mjs`                                                                                                  |
 
 ### App (`app/`)
 
@@ -76,23 +76,23 @@ There is no ORM, no cloud SDK and no HTTP client library on the server: R2 is re
 
 ### Native code
 
-| Piece                                   | Version                                         | Where                                                                                              |
-| --------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Kotlin                                  | 2.2.0, JVM target 17                            | both `android/build.gradle` files                                                                  |
-| Android Gradle Plugin (capture module)  | 8.7.3, Gradle wrapper 8.9                       | `packages/native-location-capture/android`                                                         |
-| Android Gradle Plugin (encrypted store) | 9.2.1 standalone                                | `packages/encrypted-store/android/build.gradle`                                                    |
-| Android SDK levels                      | `compileSdk` 35, `minSdk` 24 when standalone    | both modules; the app supplies its own once it exists                                              |
-| `androidx.work:work-runtime`            | 2.10.0                                          | capture module (WorkManager mode)                                                                  |
-| `play-services-location`                | 21.3.0                                          | capture module (fused location provider)                                                           |
-| SQLCipher on Android                    | op-sqlite's copy, through `libfmp-store-jni.so` | `packages/encrypted-store/android/src/main/cpp`; neither Android module has a SQLCipher dependency |
-| Swift                                   | tools 5.9 (capture), 5.0 (store podspec)        | `Package.swift`, the two podspecs                                                                  |
-| iOS deployment target                   | React Native's minimum; iOS 15 for `swift test` | podspecs use `min_ios_version_supported`                                                           |
-| H3 C library                            | 4.5.0, vendored unmodified                      | `packages/native-location-capture/ios/Sources/CH3`                                                 |
-| SQLCipher on iOS                        | op-sqlite's copy (4.19.0 in the host check)     | both podspecs depend on `op-sqlite`                                                                |
+| Piece                                   | Version                                                                                             | Where                                                                                              |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Kotlin                                  | 2.2.0, JVM target 17                                                                                | both `android/build.gradle` files                                                                  |
+| Android Gradle Plugin (capture module)  | 8.7.3, Gradle wrapper 8.9                                                                           | `packages/native-location-capture/android`                                                         |
+| Android Gradle Plugin (encrypted store) | 9.2.1 standalone                                                                                    | `packages/encrypted-store/android/build.gradle`                                                    |
+| Android SDK levels                      | App: `compileSdk` 37, `targetSdk` 36, `minSdk` 24; modules standalone: `compileSdk` 35, `minSdk` 24 | `app/android/build.gradle`; the two module builds set their own when built alone                   |
+| `androidx.work:work-runtime`            | 2.10.0                                                                                              | capture module (WorkManager mode)                                                                  |
+| `play-services-location`                | 21.3.0                                                                                              | capture module (fused location provider)                                                           |
+| SQLCipher on Android                    | op-sqlite's copy, through `libfmp-store-jni.so`                                                     | `packages/encrypted-store/android/src/main/cpp`; neither Android module has a SQLCipher dependency |
+| Swift                                   | tools 5.9 (capture), 5.0 (store podspec)                                                            | `Package.swift`, the two podspecs                                                                  |
+| iOS deployment target                   | React Native's minimum; iOS 15 for `swift test`                                                     | podspecs use `min_ios_version_supported`                                                           |
+| H3 C library                            | 4.5.0, vendored unmodified                                                                          | `packages/native-location-capture/ios/Sources/CH3`                                                 |
+| SQLCipher on iOS                        | op-sqlite's copy (4.19.0 in the host check)                                                         | both podspecs depend on `op-sqlite`                                                                |
 
 ### CI
 
-`ci.yml` runs typecheck, lint, format check and unit tests in one Linux job on every pull request, plus the Kotlin capture module as its own Gradle job. `build.yml` builds Android on every pull request and iOS only on `main` and tags, on `macos-15`. See [BUILDING.md](BUILDING.md).
+`ci.yml` runs typecheck, lint, format check and unit tests in one Linux job on every pull request, plus the Kotlin capture module as its own Gradle job. `build.yml` has the `android` job (debug APK on every pull request), `store-android`, `android-linkcheck`, `ios-capture-module` and `ios` (iOS only on `main` and tags, on `macos-15`). See [BUILDING.md](BUILDING.md).
 
 ## 2. Folder structure
 
@@ -112,6 +112,7 @@ m0/                               Finished research trial apps; not part of the 
 
 | Folder            | What lives there                                                                                                                                                                              |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `home/`           | `HomeScreen`: status row, thank-you copy, the reporter's active-report card and the hamburger menu                                                                                            |
 | `navigation/`     | `routes.ts` (the only definition of routes, params and deep links), `AppNavigator.tsx`, `screens.tsx`, its own README                                                                         |
 | `design-system/`  | `theme.ts` tokens, primitives (`Button`, `Card`, `Field`, `Text`, `BottomSheet`, ...), motion, a `Catalogue`                                                                                  |
 | `onboarding/`     | The onboarding screen                                                                                                                                                                         |
@@ -119,7 +120,7 @@ m0/                               Finished research trial apps; not part of the 
 | `capture-health/` | Home status row and the diagnostics screen, built on `getStatus` and `getDiagnostics`                                                                                                         |
 | `settings/`       | Settings screen (pause and resume, retention explainer, delete all data), `links.ts`                                                                                                          |
 | `store/`          | `createDataStore` and its provider, `StoreMaintenance`, `useAppWake.ts` (the moments background work runs), `retention.ts`                                                                    |
-| `report/`         | The only report submit path: `form.ts`, `queue.ts`, `api.ts`, `identity.ts`, `image.ts`, `services.tsx`, the screen                                                                           |
+| `report/`         | The only report submit path: `form.ts`, `coordinates.ts`, `queue.ts`, `api.ts`, `identity.ts`, `image.ts`, `services.tsx`, the screen                                                         |
 | `fetch/`          | The report fetch: `trigger.ts` (when to run a cycle), `reportCdn.ts` (CDN origin and pinned keys, both unset), `ed25519.ts`, `httpTransport.ts`, `random.ts`, and the `ReportFetch` component |
 | `index.ts`        | A placeholder export. The entry point React Native runs is `app/index.js`, which registers `AppNavigator`                                                                                     |
 
@@ -131,7 +132,7 @@ The map is in [packages/shared/README.md](../packages/shared/README.md). In shor
 
 ### `packages/encrypted-store/`
 
-`src/` (TypeScript: `openStore`, `deleteAllData`, the backup policy and its tests), `android/` (Kotlin: Keystore-wrapped key, no-backup directory, the writer), `ios/` (Swift: Keychain key, backup-excluded directory, the writer, a host check that runs on a Mac), `contracts/` (generated). See [its README](../packages/encrypted-store/README.md).
+`src/` (TypeScript: `openStore`, `deleteAllData`, the backup policy and its tests), `android/` (Kotlin: Keystore-wrapped key, no-backup directory, the writer), `ios/` (Swift: Keychain key, backup-excluded directory, the writer, a host check that runs on a Mac), `contracts/` (generated), `android-linkcheck/` (a small Android project that builds the native modules into an APK so a script can check there is exactly one SQLite), `scripts/` (`check-native-libs.ts`). See [its README](../packages/encrypted-store/README.md).
 
 ### `packages/native-location-capture/`
 
@@ -139,17 +140,18 @@ The map is in [packages/shared/README.md](../packages/shared/README.md). In shor
 
 ### `server/src/`
 
-| File or folder  | What it is                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------ |
-| `app.ts`        | Every route, the auth wrapper, the idempotency wrapper                                     |
-| `db.ts`         | The schema and every query (`ServerDb`)                                                    |
-| `lifecycle.ts`  | The review gate: `pending -> released` or `rejected`                                       |
-| `moderation.ts` | The link and payment filter on tips                                                        |
-| `operator.ts`   | Who may release or reject                                                                  |
-| `alerts.ts`     | The alert raised when a report arrives                                                     |
-| `shards/`       | The compiler, signing keys, storage interfaces, the R2 adapter, the worker and the CLI     |
-| `harness/`      | Offline recall and false-positive measurement of `matchReport`; not imported by the server |
-| `main.ts`       | Process entry; `build.mjs` bundles it, the shard CLI and the harness CLI into `dist/`      |
+| File or folder    | What it is                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `app.ts`          | Every route, the auth wrapper, the idempotency wrapper                                            |
+| `db.ts`           | The schema and every query (`ServerDb`)                                                           |
+| `lifecycle.ts`    | The review gate: `pending -> released` or `rejected`                                              |
+| `moderation.ts`   | The link and payment filter on tips                                                               |
+| `operator.ts`     | Who may release or reject through the API (a device-id allow-list)                                |
+| `operatorPage.ts` | `/operator`: the one HTML page the server emits, for review in a browser, behind a one-token stub |
+| `alerts.ts`       | The alert raised when a report arrives                                                            |
+| `shards/`         | The compiler, signing keys, storage interfaces, the R2 adapter, the worker and the CLI            |
+| `harness/`        | Offline recall and false-positive measurement of `matchReport`; not imported by the server        |
+| `main.ts`         | Process entry; `build.mjs` bundles it, the shard CLI and the harness CLI into `dist/`             |
 
 See [server/README.md](../server/README.md).
 
@@ -196,7 +198,7 @@ Details per flow are in [app/src/navigation/README.md](../app/src/navigation/REA
 
 There is no state library: no Redux, Zustand, MobX or query cache, and no AsyncStorage. State lives in three places.
 
-**The encrypted store is the durable state.** Location history, cached reports, matches, queued submits and the device id are rows in one SQLCipher file. Screens do not hold a database handle; they get a `DataStore` (`app/src/store/DataStoreContext.tsx`) with a small set of operations: `runMaintenance`, `runFetchCycle`, `enqueueReport`, `runReportQueue`, `deleteAll`, `deviceIdentity`. `createDataStore` opens the store on first use, keeps the handle, and runs every piece of work through one serial queue so a delete cannot close the connection under a purge.
+**The encrypted store is the durable state.** Location history, cached reports, matches, queued submits and the device id are rows in one SQLCipher file. Screens do not hold a database handle; they get a `DataStore` (`app/src/store/DataStoreContext.tsx`) with a small set of operations: `runMaintenance`, `runFetchCycle`, `enqueueReport`, `runReportQueue`, `getActiveReport`, `deleteAll`, `deviceIdentity`. `createDataStore` opens the store on first use, keeps the handle, and runs every piece of work through one serial queue so a delete cannot close the connection under a purge.
 
 **The native capture module owns capture state.** Whether capture is running, in which mode, with which permission and which health flags is held natively and persisted natively, because the OS relaunches the app in the background with no JavaScript. The app reads it with `getStatus()` and follows it with the `onStatusChanged` and `onSampleWritten` events (`app/src/capture-health/useCaptureHealth.ts`, `app/src/permissions/usePermissionFlow.ts`). The permission flow has no state of its own beyond this: its stage is derived from `getStatus().permission`.
 
@@ -210,7 +212,7 @@ Dependencies reach screens through three React contexts, all provided by `AppNav
 | `DataStoreContext`      | `app/src/store/DataStoreContext.tsx`     | the `DataStore`                                         | a recording store, or real SQLCipher under Node |
 | `ReportServicesContext` | `app/src/report/services.tsx`            | photo port, location port, optional API client override | plain objects                                   |
 
-Background work is driven by two components that render nothing, not by screens. Both use `useAppWake` (`app/src/store/useAppWake.ts`), which names the three moments the app does background work: at start, on every return to the foreground, and on every stored sample the capture module reports. `StoreMaintenance` calls `DataStore.runMaintenance()` at each of them: one run derives stays, purges what is past retention and, when due and allowed, vacuums the file; at start and on foreground it also retries the queued report submits. `ReportFetch` runs the fetch trigger (`app/src/fetch/trigger.ts`), which decides how often a wake becomes a fetch cycle.
+Background work is driven by two components that render nothing, not by screens. Both use `useAppWake` (`app/src/store/useAppWake.ts`), which names the three moments the app does background work: at start, on every return to the foreground, and on every stored sample the capture module reports. `StoreMaintenance` calls `DataStore.runMaintenance()` at each of them: one run derives stays, purges what is past retention, keeps the `subscription` table equal to the watch set of the remaining history, matches the cached reports against that history (`runMatchPass`, the last step) and, when due and allowed, vacuums the file; at start and on foreground it also retries the queued report submits. `ReportFetch` runs the fetch trigger (`app/src/fetch/trigger.ts`), which decides how often a wake becomes a fetch cycle.
 
 Two rules shape all of this and are enforced by tests. Coordinates never cross from native to JavaScript on the capture path: no return value or event of the capture module carries a latitude or longitude, and JavaScript reads positions only from the store. And writes to a table go only through that table's functions in `packages/shared/src/store/tables/`, by the owner listed in `ownership.ts`.
 
@@ -262,6 +264,7 @@ Node's built-in SQLite, schema in [`server/src/db.ts`](../server/src/db.ts).
 | `reports`           | One row per report: reporter device, `review_state`, `status`, revision, criteria, person JSON, reporter phone, reviewer |
 | `responses`         | Tips: `UNIQUE (query_id, device_id)`, text, optional phone, `moderation` (`delivered` or `held`) and reason              |
 | `idempotency`       | Remembered outcomes keyed by `(device_id, key)`                                                                          |
+| `response_reviews`  | The operator's decision on a held tip (release or reject), final                                                         |
 | `shard_generations` | The newest generation, content hash and count per shard. Never reset, never deleted                                      |
 | `shard_index_state` | Hash and time of the last published index (a single row)                                                                 |
 | `shard_cdn_pending` | Paths whose CDN purge failed and must be retried                                                                         |
@@ -307,6 +310,8 @@ The six public endpoints are data in [`packages/shared/src/api/endpoints.ts`](..
 | `GET /v1/operator/reports?state=`       | List reports by review state                    | no              | no, operator       |
 | `GET /v1/operator/responses/held`       | List tips held by moderation                    | no              | no, operator       |
 
+Beside the API, the same process serves the operator page: `GET /operator` (and `POST /operator/reports/:id/release|reject`, `POST /operator/responses/:id/release|reject`, plus its sign-in form), server-rendered HTML with no script, behind a shared token (`FMP_OPERATOR_WEB_TOKEN`). It calls the same review functions as the operator routes above.
+
 Conventions, each defined once in `packages/shared/src/api/`:
 
 - **Errors** are always `{ "error": { "code", "message", ... } }`, and each code has one fixed HTTP status (`errors.ts`). Clients branch on `code`. No error may depend on whether any device matched.
@@ -333,13 +338,13 @@ This is a decision, not an oversight. It was made in the 2026-10-03 addendum to 
 
 Consequences to keep in mind: the id is forgeable, so deduplication and any future rate limit are only as strong as that; "Delete all my data" mints a new id; and `DeviceIdentity` and `DeviceAuthenticator` are the two interfaces a stronger scheme would replace without touching callers.
 
-**Operator.** The release and reject routes check that the caller's device id is on an allow-list (`FMP_OPERATOR_DEVICE_IDS`; empty means nobody). It is the same forgeable identity, so it is not safe on the public internet. See section 8.
+**Operator.** The release and reject routes check that the caller's device id is on an allow-list (`FMP_OPERATOR_DEVICE_IDS`; empty means nobody). It is the same forgeable identity, so it is not safe on the public internet. The operator page has its own temporary stub: one shared token (`FMP_OPERATOR_WEB_TOKEN`, at least 16 characters, else the page refuses everything) exchanged for a 12-hour signed cookie. Neither is real operator authentication. See section 8.
 
 **Publisher keys.** What devices trust is not the server's TLS identity but Ed25519 keys pinned in the app binary. `server/src/shards/keys.ts` holds the key ring and describes rotation with an overlap.
 
 ### Configuration
 
-Environment variables only; nothing secret is committed. `FMP_DB_PATH`, `FMP_PORT`, `FMP_OPERATOR_DEVICE_IDS` (`server/src/main.ts`); `FMP_SHARD_OUT_DIR` or the `FMP_R2_*` and `FMP_CDN_*` set, `FMP_SHARD_KEYS` or `FMP_SHARD_KEYS_FILE`, `FMP_RESPOND_ENDPOINT`, `FMP_SHARD_INTERVAL_SEC` (`server/src/shards/worker.ts`). Build signing uses the `FMP_ANDROID_*` and `FMP_IOS_*` secrets in [BUILDING.md](BUILDING.md).
+Environment variables only; nothing secret is committed. `FMP_DB_PATH`, `FMP_PORT`, `FMP_OPERATOR_DEVICE_IDS`, `FMP_OPERATOR_WEB_TOKEN` (`server/src/main.ts`); `FMP_SHARD_OUT_DIR` or the `FMP_R2_*` and `FMP_CDN_*` set, `FMP_SHARD_KEYS` or `FMP_SHARD_KEYS_FILE`, `FMP_RESPOND_ENDPOINT`, `FMP_SHARD_INTERVAL_SEC` (`server/src/shards/worker.ts`). Build signing uses the `FMP_ANDROID_*` and `FMP_IOS_*` secrets in [BUILDING.md](BUILDING.md).
 
 ## 7. Third-party services
 
@@ -390,22 +395,21 @@ Each entry was checked against the code at the commit named at the top. "Waiting
 ### Pieces of the product that are not built
 
 - **Report fetch.** The trigger, the Ed25519 verify and the metered-connection getter are built and wired (`ReportFetch` in `AppNavigator`), but a run stops at once as `unconfigured` until `REPORT_CDN_ORIGIN` and `REPORT_TRUSTED_KEYS` are set. The watch list it would then follow is kept by the subscription manager (next item).
-- **Push topics of the subscription manager.** The manager itself is built (added after the commit this file describes): every maintenance run keeps the `subscription` table equal to the res-5 shards the phone has been in for 30 days, their neighbours and their res-3 parents ("Subscription manager" in [packages/shared/README.md](../packages/shared/README.md)), and the fetcher follows the shards among them. Nothing subscribes to the res-3 rows as push-wake topics: each run returns what it added and removed, and nothing reads it. Waiting on: push (below).
-- **What follows a match.** The match runner itself is built (added after the commit this file describes): the last step of every maintenance run, and of the run a fetch that stored reports asks for, matches the cached reports against the history and writes `match` rows in state `new`, at most one per report ("Match runner" in [packages/shared/README.md](../packages/shared/README.md)). Nothing reads those rows yet: each run returns the ones it inserted, and nothing acts on them. Waiting on: the notification and the bystander screen (next item), and on reports actually arriving.
+- **Push topics of the subscription manager.** The manager itself is built: every maintenance run keeps the `subscription` table equal to the res-5 shards the phone has been in for 30 days, their neighbours and their res-3 parents ("Subscription manager" in [packages/shared/README.md](../packages/shared/README.md)), and the fetcher follows the shards among them. Nothing subscribes to the res-3 rows as push-wake topics: each run returns what it added and removed, and nothing reads it. Waiting on: push (below).
+- **What follows a match.** The match runner itself is built: the last step of every maintenance run, and of the run a fetch that stored reports asks for, matches the cached reports against the history and writes `match` rows in state `new`, at most one per report ("Match runner" in [packages/shared/README.md](../packages/shared/README.md)). Nothing reads those rows yet: each run returns the ones it inserted, and nothing acts on them. Waiting on: the notification and the bystander screen (next item), and on reports actually arriving.
 - **Match notification and bystander screen.** No local notification is raised, and `Bystander` is a placeholder. The notification permission (Android 13 and later) is not requested anywhere.
 - **Bystander tip pipeline.** Nothing in the app writes `outbound_response` or calls `POST /v1/responses`. The server side of that endpoint is built.
 - **Reporter side after submit.** `LiveReport` is a placeholder; the app never calls `GET /v1/reports/:id`, `PATCH`, `end` or `GET .../responses`, and nothing writes `received_response`. The app's `own_report` handling does not read `review_state` yet, so it cannot tell `pending` from `released`.
 - **Push.** No FCM or APNs code exists on either side. The server stores a push token if one is registered, the app never calls `POST /v1/devices`, and nothing sends a push: not the coarse wake topics, not "a tip arrived" to the reporter.
-- **Home and History.** Home is a placeholder shell around the real capture-health row; History is an empty placeholder and has no mockup.
+- **Home and History.** Home is built per the v2 mockups (status row, thank-you copy, active-report card, hamburger menu), but its "If you're curious" list is placeholder text (`CURIOUS_LINKS` in `app/src/home/HomeScreen.tsx`: `[VIDEO LINK]`, `[PROJECT 1]`, `[PROJECT 2]`). History is an empty placeholder and has no mockup.
 - **Onboarding gate.** The initial route is always `Onboarding`; nothing remembers that it was completed.
 - **Capture mode setting.** The capture module supports switching between the WorkManager mode and the foreground-service mode at run time, but Settings only has pause and resume and always starts with the defaults.
-- **Navigation chrome.** `theme.ts` records that the v2 mockups replaced the bottom tab bar with a hamburger menu, and `HamburgerMenu` exists in the design system, but the navigator still uses bottom tabs and nothing renders the menu.
 
 ### Server
 
-- **Operator authentication** (`server/src/operator.ts`). The release gate, the project's main safety control, is guarded by a device-id allow-list on a forgeable header. Waiting on: a real operator credential (a token, mTLS or an admin login) before the API is exposed.
+- **Operator authentication** (`server/src/operator.ts`, `server/src/operatorPage.ts`). The release gate, the project's main safety control, is guarded by a device-id allow-list on a forgeable header for the API routes and by one shared token for the page; neither records who decided. Waiting on: a real operator credential (accounts, mTLS or an identity provider) before the server is exposed.
 - **Operator alert** (`server/src/alerts.ts`). A new pending report produces one log line, `report.pending`. Waiting on: a real channel (push, SMS or email) implementing `OperatorAlerter`.
-- **No operator UI.** Review is done by calling the operator routes directly.
+- **Operator page is minimal.** It lists and decides, nothing else: no search, no history of past decisions, no sign-in rate limit.
 - **No rate limits.** The plan's one report per device per day is not enforced; the `rate_limited` error code exists and nothing returns it.
 - **Moderation** is a regex filter for links and payment identifiers. Its misses are listed at the top of `server/src/moderation.ts`. The policy page, abuse contact and review commitments that go with it are not built.
 - **Widening after release.** A widening edit on a released report stays released with no second review.
@@ -414,10 +418,11 @@ Each entry was checked against the code at the commit named at the top. "Waiting
 
 ### Native modules
 
-- **Capture modules carry their own store code.** Both still open the store through a stand-in written before `packages/encrypted-store` existed. The swap to `EncryptedStore` is listed in that package's README, which also says the swap has to land before a Settings screen offers the delete: the iOS stand-in keeps its connection open, so after a delete it goes on writing to the removed file until the app restarts. Settings offers the delete today (it stops capture first), so on iOS a delete followed by a resume in the same run is exposed to this.
+- **Capture modules carry their own store code.** Both still open the store through a stand-in written before `packages/encrypted-store` existed (the Android one now opens its connection through that package's `SqlcipherConnection`; the rest of it is still its own). The swap to `EncryptedStore` is listed in that package's README, which also says the swap has to land before a Settings screen offers the delete: the iOS stand-in keeps its connection open, so after a delete it goes on writing to the removed file until the app restarts. Settings offers the delete today (it stops capture first), so on iOS a delete followed by a resume in the same run is exposed to this.
 - **No scheduled purge when nothing wakes.** A phone with capture stopped and the app never opened keeps what it has until the app is next opened.
 
 ### Documentation that lags
 
 - The status paragraph of the root `README.md` still says "pre-implementation" and its package list omits `packages/encrypted-store`.
-- The shard compiler note in `AGENTS.md` still says the bucket and CDN adapters are not built; the R2 adapter landed in pull request #29.
+- The shard compiler note in `AGENTS.md` still says the bucket and CDN adapters are not built; the R2 adapter landed in pull request #29. It was left as it was in T-000, which only adds to that file.
+- `WORKSPACE.md` still says `.npmrc` makes the install hoisted; see the linker row in section 1.
