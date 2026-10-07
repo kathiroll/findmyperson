@@ -50,13 +50,14 @@ Never delete a decision; mark it Superseded and link the replacement.
 ## YYYY-MM-DD: T-016
 - What was done, in plain language
 - Files:
+- Defaults taken: question -> default chosen -> how to reverse (or "none")
 - Notes / questions raised (-> new task IDs)
 ```
 
 **Doing a task**
 
 - Do exactly the one task in your brief. Nothing else.
-- If the brief doesn't answer a question that matters, stop and report back. Don't guess.
+- If the brief doesn't answer a question, don't stall: take the simplest default that works, keep going, and log it as a default taken (WORKLOG: the question, the default chosen, how to reverse it). Exception: a significant decision (see Decisions), or anything you are unsure is significant, still stops and gets reported.
 - Leave the app building and running.
 - Work only inside your task's scope and the brief's "Out of scope" line.
 
@@ -133,7 +134,7 @@ Not lazy about: understanding the problem (read it fully and trace the real flow
 
 Adapted from DietrichGebert/ponytail (MIT).
 
-Where this section conflicts with the working rules above, the working rules win: if the task does not answer a question that matters, stop and report instead of defaulting; surface lint and test failures you see even when you did not cause them; and a bug fix or feature that needs an architecture proposal gets one before building.
+Unanswered questions: ship the simplest default and log it as a default taken, as the working rules say; significant decisions and anything doubtful still stop. Otherwise the working rules win over this section: surface lint and test failures you see even when you did not cause them, and a bug fix or feature that needs an architecture proposal gets one before building.
 
 ## Project knowledge
 

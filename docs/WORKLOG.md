@@ -10,6 +10,11 @@ What was actually done and what came up, one entry per task. Append only: add ne
 - Checked `docs/ARCHITECTURE.md` against `main` at `88c8a6c` and corrected it in place: the commit it describes, the Home screen and tab-bar passages (now built), the operator page and its token, `response_reviews`, the Android project and SDK levels, the new folders, what `runMaintenance` does, and the pnpm layout row.
 - Wrote `docs/PLAN.md` (with Non-goals), `docs/TASKS.md` (T-000 to T-039, a "Needs you" section with 13 `[!]` items and 7 candidates to remove) and this file.
 - Files: `AGENTS.md`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, `docs/PLAN.md`, `docs/TASKS.md`, `docs/WORKLOG.md`, `docs/README.md`.
+- Defaults taken:
+  - Who decided the 51 older decisions, where nothing names them -> "Not recorded", Status `Accepted` (in force and documented) -> change the field per entry once the captain says who decided.
+  - How to number T-001 to T-039 -> one per merged PR, task number equals PR number -> renumber in `docs/TASKS.md`.
+  - What the repo's milestone names mean when the plan is not visible -> grouped the work by the task IDs the repository cites and named the groups myself in `docs/PLAN.md` -> replace the group list once the captain supplies the plan.
+  - Acceptance criteria for the done tasks -> "not reconstructed" instead of inventing them -> fill in only if the captain wants them.
 - Notes / questions raised:
   - The M0 to M7 milestone plan is outside the repository and was not seen; `docs/PLAN.md` says so and does not define M6 or M7. The detail of the recut question and the home-screen shortlist (and the Be My Eyes reference) are not in the repository either; the `[!]` items say so. -> "How far to recut" and "Home screen list" in `docs/TASKS.md`.
   - Found out of date and left alone, because T-000 only adds to `AGENTS.md` and its scope is the five record documents: the root `README.md` still says "pre-implementation"; `AGENTS.md`'s shard-compiler note still says the bucket and CDN adapters are not built (R2 landed in PR #29); `WORKSPACE.md` and `.npmrc` say the install is hoisted, but `AGENTS.md` and the installed tree say it is pnpm's isolated layout (D-001 carries a note). -> "Ratify the entries whose decider is not recorded".
