@@ -34,6 +34,7 @@ async function mount(initialUrl: string | null = null, store: Partial<DataStore>
           runMaintenance: async () => ({
             ran: true,
             subscriptions: { added: [], removed: [], changed: [], total: 0 },
+            matches: [],
           }),
           runFetchCycle: () => Promise.reject(new Error('no screen fetches')),
           deviceIdentity: {

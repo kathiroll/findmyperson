@@ -76,6 +76,8 @@ export {
   type MatchSample,
   type MatchStay,
 } from './match/matchReport';
+// Match runner: the retrospective and prospective passes, and the writer of `match`.
+export { runMatchPass, type MatchRunResult } from './match/runner';
 
 // Retention: the purge, the weekly VACUUM and the store's maintenance hook.
 export { purgeExpired, type PurgeResult } from './retention/purge';

@@ -18,6 +18,7 @@ import {
   insertStay,
   KV_KEYS,
   kvGet,
+  listMatches,
   listSamplesAfterId,
   listStaysOverlapping,
   listSubscriptions,
@@ -25,9 +26,11 @@ import {
   RETENTION_SEC,
   sampleCells,
   StoreRowError,
+  upsertCachedReport,
   watchSetForCells,
   type SqlDatabase,
 } from '@findmyperson/shared';
+import { verifiedQueryWith } from '@findmyperson/shared/src/testing/fixtures';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { appStateLog } from '../design-system/__tests__/stubs/react-native';
@@ -196,7 +199,11 @@ describe('the maintenance run', () => {
     const dataStore = createDataStore(real.options, current, () => clock.now);
     cleanups.push(() => current.store?.close());
 
-    expect(await dataStore.runMaintenance()).toEqual({ ran: true, subscriptions: UNCHANGED });
+    expect(await dataStore.runMaintenance()).toEqual({
+      ran: true,
+      subscriptions: UNCHANGED,
+      matches: [],
+    });
     expect(real.opens()).toBe(1);
     const db = current.store!.db;
     expect(await kvGet(db, KV_KEYS.purgeLastRunAt)).toBe(String(T0));
@@ -241,7 +248,11 @@ describe('the maintenance run', () => {
 
     // The phone is unlocked and the store opens.
     current.store = store;
-    expect(await dataStore.runMaintenance()).toEqual({ ran: true, subscriptions: UNCHANGED });
+    expect(await dataStore.runMaintenance()).toEqual({
+      ran: true,
+      subscriptions: UNCHANGED,
+      matches: [],
+    });
     expect(runs).toEqual([T0]);
   });
 
@@ -262,7 +273,11 @@ describe('the maintenance run', () => {
       error: { message: 'database is locked' },
     });
     fail = false;
-    expect(await dataStore.runMaintenance()).toEqual({ ran: true, subscriptions: UNCHANGED });
+    expect(await dataStore.runMaintenance()).toEqual({
+      ran: true,
+      subscriptions: UNCHANGED,
+      matches: [],
+    });
     expect(runs).toEqual([T0]);
   });
 
@@ -315,7 +330,7 @@ describe('the maintenance run', () => {
     const maintained = dataStore.runMaintenance();
     expect(await deleted).toEqual({ emptyStoreConfirmed: true });
     // The fix went with the old store, so the new one follows nothing.
-    expect(await maintained).toEqual({ ran: true, subscriptions: UNCHANGED });
+    expect(await maintained).toEqual({ ran: true, subscriptions: UNCHANGED, matches: [] });
 
     expect(current.store).not.toBe(before);
     expect(await sampleTimes(current.store!.db)).toEqual([]);
@@ -352,6 +367,7 @@ describe('the watch list', () => {
     expect(first).toEqual({
       ran: true,
       subscriptions: { added: wanted, removed: [], changed: [], total: wanted.length },
+      matches: [],
     });
     expect(await rows(db)).toEqual(wanted);
     // What the fetcher is given: the shard the phone is in and its ring, at res 5, and not
@@ -368,6 +384,7 @@ describe('the watch list', () => {
       expect(await dataStore.runMaintenance()).toEqual({
         ran: true,
         subscriptions: { added: [], removed: [], changed: [], total: wanted.length },
+        matches: [],
       });
     }
     expect(await listSubscriptions(db)).toEqual(stored);
@@ -442,6 +459,125 @@ describe('the watch list', () => {
     expect(result.subscriptions).toBeUndefined();
     // The purge was not held up by it.
     expect(runs).toEqual([T0]);
+  });
+});
+
+describe('the match runner', () => {
+  function realDataStore(clock: { now: number }) {
+    const real = realStoreOptions(createFakeLocationCapture(), 'ios');
+    const current: { store: EncryptedStore | null } = { store: null };
+    cleanups.push(() => current.store?.close());
+    return { current, dataStore: createDataStore(real.options, current, () => clock.now) };
+  }
+  const fixAt = (db: SqlDatabase, ts: number, place = HOME) =>
+    insertLocationSample(db, { ts_utc: ts, ...place, accuracy_m: 20, source: 'wm' });
+  /** Somebody last seen within 150 m of HOME in the half hour from T0, as the fetcher stores it. */
+  const cacheReport = async (db: SqlDatabase, receivedAt: number) =>
+    upsertCachedReport(
+      db,
+      await verifiedQueryWith({
+        issued_at: T0,
+        expires_at: T0 + 20 * DAY,
+        center: HOME,
+        radius_m: 150,
+        window: { from: T0, to: T0 + 1_800 },
+      }),
+      receivedAt,
+    );
+
+  test('runs last in the pass: a report is matched by the stay the same run derived', async () => {
+    const clock = { now: T0 + 1_260 };
+    const { current, dataStore } = realDataStore(clock);
+    await dataStore.runMaintenance();
+    const db = current.store!.db;
+    await cacheReport(db, clock.now);
+    // Twenty minutes at the place, stored by the capture module and not yet looked at.
+    for (const after of [0, 300, 600, 900, 1_200]) {
+      await fixAt(db, T0 + after);
+    }
+
+    const result = await dataStore.runMaintenance();
+    const stays = await listStaysOverlapping(db, T0, T0 + 1_200);
+    expect(stays).toHaveLength(1);
+    expect(result).toMatchObject({
+      ran: true,
+      matches: [
+        {
+          stay_id: stays[0]!.id,
+          sample_id: null,
+          revision: 1,
+          state: 'new',
+          created_at: clock.now,
+        },
+      ],
+    });
+    expect(await listMatches(db)).toEqual(result.matches);
+  });
+
+  test('a report that got there first is matched on the wake that stores the fix, and never again', async () => {
+    const clock = { now: T0 + 300 };
+    const { current, dataStore } = realDataStore(clock);
+    await dataStore.runMaintenance();
+    const db = current.store!.db;
+    await cacheReport(db, clock.now);
+    expect(await dataStore.runMaintenance()).toMatchObject({ ran: true, matches: [] });
+
+    const sampleId = await fixAt(db, T0 + 600);
+    clock.now = T0 + 660;
+    const arrived = await dataStore.runMaintenance();
+    expect(arrived).toMatchObject({ ran: true, matches: [{ sample_id: sampleId, stay_id: null }] });
+
+    for (const later of [T0 + 900, T0 + 1_200, T0 + DAY]) {
+      await fixAt(db, later);
+      clock.now = later + 60;
+      expect(await dataStore.runMaintenance()).toMatchObject({ ran: true, matches: [] });
+    }
+    expect(await listMatches(db)).toEqual(arrived.matches);
+  });
+
+  test('history the purge removes in the same run is not matched', async () => {
+    const clock = { now: T0 };
+    const { current, dataStore } = realDataStore(clock);
+    await dataStore.runMaintenance();
+    const db = current.store!.db;
+    await fixAt(db, T0 + 600);
+    clock.now = T0 + RETENTION_SEC + DAY;
+    await upsertCachedReport(
+      db,
+      await verifiedQueryWith({
+        issued_at: T0 + 10 * DAY,
+        expires_at: T0 + 40 * DAY,
+        center: HOME,
+        radius_m: 150,
+        window: { from: T0, to: T0 + 10 * DAY },
+      }),
+      clock.now,
+    );
+
+    expect(await dataStore.runMaintenance()).toMatchObject({ ran: true, matches: [] });
+    expect(await sampleTimes(db)).toEqual([]);
+    expect(await listMatches(db)).toEqual([]);
+  });
+
+  test('reports that cannot be matched are the result, not a crash, and hold nothing else up', async () => {
+    const clock = { now: T0 };
+    const { current, dataStore } = realDataStore(clock);
+    await dataStore.runMaintenance();
+    const db = current.store!.db;
+    await fixAt(db, T0);
+    // A cursor the runner cannot read.
+    await db.execute(
+      `INSERT INTO report_cache
+         (query_id, payload_json, version, received_at, expires_at, revision, last_matched_at)
+       VALUES ('01JB3Z6Q7W8X9Y0ZABCDEFGHJQ', '{}', 1, ?, ?, 1, 'soon')`,
+      [T0, T0 + DAY],
+    );
+
+    const result = await dataStore.runMaintenance();
+    expect(result).toMatchObject({ ran: false, error: expect.any(StoreRowError) });
+    expect(result.matches).toBeUndefined();
+    expect(result.subscriptions?.added).toEqual(watchSetForCells([sampleCells(HOME).h3_r5]));
+    expect(await kvGet(db, KV_KEYS.purgeLastRunAt)).toBe(String(T0));
   });
 });
 

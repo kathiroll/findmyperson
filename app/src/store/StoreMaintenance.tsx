@@ -18,6 +18,11 @@ import { useAppWake } from './useAppWake';
  * been (`DataStore.runMaintenance` does it after the purge). What a run added and removed is in
  * its result, which nothing reads yet: applying it to push topics is the push task's.
  *
+ * And every one of them ends with the match runner: the cached reports are matched against the
+ * history, so a report that arrived before the phone did is found on the wake that stores the
+ * fix. The matches a run inserted are in its result too, and nothing reads them yet: raising
+ * the notification is the bystander task's.
+ *
  * A wake that stores a fix with no JavaScript running is not seen here. The capture modules
  * purge fixes and stays themselves on those (native-writer.json), so retention does not depend
  * on this component ever mounting.

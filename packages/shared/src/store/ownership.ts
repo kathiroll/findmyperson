@@ -76,11 +76,17 @@ export const TABLE_OWNERSHIP: Readonly<Record<StoreTable, readonly WritePath[]>>
       writes:
         'insert and revise verified queries, and drop ones no longer published (upsertCachedReport, deleteCachedReport)',
     },
-    { owner: 'M5.2 match runner', writes: 'the last_matched_at cursor only (setLastMatchedAt)' },
+    {
+      owner: 'M5.2 match runner',
+      writes: 'the last_matched_at cursor only, inside runMatchPass (setLastMatchedAt)',
+    },
     { owner: 'C2.5 retention purge', writes: 'delete expired rows (deleteExpiredReports)' },
   ],
   match: [
-    { owner: 'M5.2 match runner', writes: 'insert, in state new (insertMatchIfAbsent)' },
+    {
+      owner: 'M5.2 match runner',
+      writes: 'insert, in state new, inside runMatchPass (insertMatchIfAbsent)',
+    },
     {
       owner: 'M5.3 match notification and match screen',
       writes: 'state to notified, opened or dismissed (advanceMatchState)',

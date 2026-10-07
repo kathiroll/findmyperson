@@ -11,6 +11,10 @@ import { createFetchTrigger, type FetchTrigger } from './trigger';
  * What a wake does, how often, and what happens to its result is the trigger's (./trigger.ts).
  * Until a build is given a CDN origin and trusted keys (./reportCdn.ts) every wake ends there
  * as `unconfigured`.
+ *
+ * A fetch that stores reports owing a match is followed at once by a maintenance run of the
+ * store, whose last step is the match runner (the trigger asks for it): the same wake's own
+ * run came before the fetch and could not have seen them.
  */
 export function ReportFetch({
   trigger,

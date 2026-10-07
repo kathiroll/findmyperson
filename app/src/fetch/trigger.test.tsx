@@ -11,7 +11,9 @@ import {
 import {
   FETCH_METERED_INTERVAL_SEC,
   FETCH_SHARD_REQUESTS_PER_CYCLE,
+  insertLocationSample,
   listLiveReports,
+  listMatches,
   listReportsAwaitingRetrospective,
   putSubscription,
   SHARD_INDEX_PATH,
@@ -89,14 +91,29 @@ const QUIET: FetchCycleResult = {
   retryAt: null,
 };
 
-/** A fetch cycle that records what it was asked and answers from a script, then with QUIET. */
+/** A maintenance run that found nothing to do. */
+const MAINTAINED = {
+  ran: true as const,
+  subscriptions: { added: [], removed: [], changed: [], total: 0 },
+  matches: [],
+};
+
+/**
+ * A fetch cycle that records what it was asked and answers from a script, then with QUIET, on a
+ * store that counts the maintenance runs it is asked for.
+ */
 function scriptedCycle(script: Array<Partial<FetchCycleResult>> = []) {
   const inputs: StoreFetchInput[] = [];
+  const maintenance = { runs: 0 };
   const runFetchCycle: DataStore['runFetchCycle'] = async (input) => {
     inputs.push(input);
     return { ...QUIET, ...script.shift() };
   };
-  return { inputs, runFetchCycle, script };
+  const runMaintenance: DataStore['runMaintenance'] = async () => {
+    maintenance.runs += 1;
+    return MAINTAINED;
+  };
+  return { inputs, runFetchCycle, runMaintenance, maintenance, script };
 }
 
 const noNetwork: HttpFetch = async () => {
@@ -361,6 +378,25 @@ describe('the fetch trigger', () => {
     expect(rematches).toEqual([3]);
   });
 
+  test('rematch: left to itself, the trigger asks the store for a maintenance run, once per run', async () => {
+    const cycle = scriptedCycle([{ rematch: 2, inserted: 2, deferred: 1 }, { rematch: 1 }, {}]);
+    const clock = { now: NOW };
+    const trigger = createFetchTrigger({
+      dataStore: cycle,
+      capture: createFakeLocationCapture(),
+      source: () => TEST_SOURCE,
+      now: () => clock.now,
+      fetch: noNetwork,
+    });
+    expect(await trigger.run()).toMatchObject({ outcome: 'ran', rematch: 3 });
+    expect(cycle.maintenance.runs).toBe(1);
+
+    // A cycle that stored nothing new asks for nothing.
+    clock.now += FETCH_TRIGGER_MIN_INTERVAL_SEC;
+    expect(await trigger.run()).toMatchObject({ outcome: 'ran', rematch: 0 });
+    expect(cycle.maintenance.runs).toBe(1);
+  });
+
   test('rematch: a hook that throws does not fail the run', async () => {
     const cycle = scriptedCycle([{ rematch: 1, inserted: 1 }]);
     const trigger = createFetchTrigger({
@@ -439,6 +475,7 @@ describe('the fetch trigger', () => {
           started += 1;
           return new Promise<FetchCycleResult>((resolve) => (release = resolve));
         },
+        runMaintenance: async () => MAINTAINED,
       },
       capture: createFakeLocationCapture(),
       source: () => TEST_SOURCE,
@@ -482,6 +519,7 @@ describe('the fetch trigger', () => {
           if (refuse) throw new RangeError('watch list entry is not a res-5 or res-3 H3 cell');
           return QUIET;
         },
+        runMaintenance: async () => MAINTAINED,
       },
       capture,
       source: () => TEST_SOURCE,
@@ -499,8 +537,11 @@ describe('from a wake to the store: a stand-in CDN, a real store, the real verif
   const DISTRICT = shardsAround(2);
   const [HOME] = shardsAround(0) as [H3Cell];
 
-  /** A real SQLCipher store, opened, with the trigger a real build would run on it. */
-  async function device(cdn: FakeShardCdn) {
+  /**
+   * A real SQLCipher store, opened, with the trigger a real build would run on it. The match
+   * hook is a recorder unless `matching` is set, which leaves it to the trigger as a build does.
+   */
+  async function device(cdn: FakeShardCdn, options: { matching?: boolean } = {}) {
     const directory = mkdtempSync(join(tmpdir(), 'fmp-app-trigger-'));
     cleanups.push(() => rmSync(directory, { recursive: true, force: true }));
     const vault = createTestVault(directory);
@@ -522,14 +563,14 @@ describe('from a wake to the store: a stand-in CDN, a real store, the real verif
       dataStore,
       capture,
       source: () => TEST_SOURCE,
-      onRematch: (reports) => void rematches.push(reports),
+      ...(options.matching ? {} : { onRematch: (reports: number) => void rematches.push(reports) }),
       now: () => clock.now,
       random: seededRandom(7),
       fetch: overHttp(cdn),
     });
     const cached = async () =>
       (await listLiveReports(db, clock.now)).map((report) => report.query.query_id).sort();
-    return { clock, db, capture, trigger, rematches, cached };
+    return { clock, db, capture, dataStore, trigger, rematches, cached };
   }
 
   const only = (run: FetchRun): FetchCycleResult => {
@@ -561,6 +602,50 @@ describe('from a wake to the store: a stand-in CDN, a real store, the real verif
     // The signal, and the debt it stands for, which is what the match runner will read.
     expect(rematches).toEqual([2]);
     expect(await listReportsAwaitingRetrospective(db, clock.now)).toHaveLength(2);
+  });
+
+  test('a report the phone had already crossed is matched in the wake that fetches it', async () => {
+    const cdn = await FakeShardCdn.start();
+    // Somebody last seen at the fix's place in the half hour before it was taken.
+    const seen = { from: NOW - 1_800, to: NOW };
+    await cdn.publish({
+      [HOME]: [
+        await signedReport(1, { center: HOME_FIX, radius_m: 150, window: seen }),
+        await signedReport(2, { center: { lat: 13.3, lon: 77.9 }, radius_m: 150, window: seen }),
+      ],
+    });
+    const { clock, db, capture, dataStore, trigger } = await device(cdn, { matching: true });
+    capture.controls.setNetworkConditions({ metered: false });
+    const sampleId = await insertLocationSample(db, {
+      ts_utc: NOW - 600,
+      ...HOME_FIX,
+      accuracy_m: 20,
+      source: 'wm',
+    });
+    // The wake's own maintenance run comes first and follows the shard; nothing is cached yet.
+    expect(await dataStore.runMaintenance()).toMatchObject({ ran: true, matches: [] });
+
+    clock.now += 60;
+    expect(only(await trigger.run())).toMatchObject({ outcome: 'completed', inserted: 2 });
+    // The trigger has asked the store for a maintenance run, and nobody else has. The store
+    // does one thing at a time, so a read asked for now comes back after that run.
+    await dataStore.getActiveReport();
+    expect(await listMatches(db)).toEqual([
+      expect.objectContaining({
+        query_id: queryIdOf(1),
+        sample_id: sampleId,
+        state: 'new',
+        created_at: clock.now,
+      }),
+    ]);
+    // Both reports have had their pass, the one that matched and the one that did not.
+    expect(await listReportsAwaitingRetrospective(db, clock.now)).toEqual([]);
+
+    // The next wakes find nothing new to say about either.
+    clock.now += FETCH_TRIGGER_MIN_INTERVAL_SEC;
+    expect(only(await trigger.run())).toMatchObject({ outcome: 'completed', rematch: 0 });
+    expect(await dataStore.runMaintenance()).toMatchObject({ ran: true, matches: [] });
+    expect(await listMatches(db)).toHaveLength(1);
   });
 
   test('a backlog of changed shards is cleared in one wake, in whole cycles', async () => {

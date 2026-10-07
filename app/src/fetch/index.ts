@@ -20,7 +20,6 @@ export {
   FETCH_TRIGGER_MAX_CYCLES,
   FETCH_TRIGGER_MIN_INTERVAL_SEC,
   FETCH_TRIGGER_RECHECK_SEC,
-  matchRunnerNotBuilt,
   type FetchRun,
   type FetchTrigger,
   type FetchTriggerOptions,
