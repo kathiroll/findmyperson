@@ -140,3 +140,18 @@ Everything about real behaviour: none of it ran on a device or simulator.
 - Whether the file can be written from a background launch while the phone is locked but unlocked once since boot, and the exact behaviour before the first unlock.
 - Whether the visit callbacks contain usable arrival/departure dates and accuracy values in practice.
 - That the 7-day expiry assumption (install = first launch) matches Xcode's provisioning profile dates.
+
+## Real React Native app verification (`app/ios`)
+
+The production app is a separate bundle (`dev.findmyperson.app`), built by `build/build-ios.sh`; this M0 project remains the trial. Its source/host checks and build evidence live in `docs/BUILDING.md` and the native module READMEs. A physical-device result must name device, OS, build/configuration, timestamp and observed rows/errors. No simulator is used.
+
+Hardware acceptance remains unverified until recorded for the actual app:
+
+1. Personal Team install; launch the bundled Hermes app with Metro unavailable, check fonts and onboarding.
+2. Denied, When In Use, Always, approximate-only and return-from-Settings permission paths; check that visible health matches the real conditions.
+3. Start capture, background and lock after first unlock, let native fixes land, foreground and read the same encrypted rows through op-sqlite. Confirm native-first and JS-first initialization without another key/path.
+4. Pause/resume, then capture A → stop → delete all → recreate/rotate → resume → capture B in the same process. JS must see only B, and the old key must refuse the new file; no writer may keep the removed inode.
+5. Initialize report/device IDs and cover state through the bundled native CSPRNG with no debugger-injected globals; record that the provider is `SecRandomCopyBytes`, not merely different random samples.
+6. Visits and stay reconciliation, restart/before-first-unlock/first-unlock recovery, Low Power Mode, Background App Refresh off, termination/movement and longer untouched capture using the trial scenarios above. Record limits and failures rather than assuming all OS wakes occur.
+
+An unsigned archive or host integration test cannot establish any item above. API/CDN configuration and push are separate outstanding work.

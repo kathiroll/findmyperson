@@ -35,6 +35,8 @@ packages/*/android-linkcheck/android/.kotlin/
 packages/*/android-linkcheck/android/app/.cxx/
 app/ios/Pods/
 app/ios/build/
+app/ios/.xcode.env.local
+**/xcuserdata/
 .expo/
 .metro-health-check*
 

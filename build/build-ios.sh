@@ -6,12 +6,13 @@
 set -euo pipefail
 
 mode="${1:-unsigned}"
+case "$mode" in unsigned|signed|device) ;; *) echo "usage: build/build-ios.sh unsigned|signed|device" >&2; exit 64 ;; esac
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="$repo_root/app/ios"
 scheme="${FMP_IOS_SCHEME:-FindMyPerson}"
 
 if [ ! -d "$project" ] || [ -z "$(ls -d "$project"/*.xcodeproj 2>/dev/null)" ]; then
-  echo "No iOS project at app/ios yet (no .xcodeproj). The native projects are added by a later task." >&2
+  echo "Missing app/ios Xcode project; this is a build failure, not a skipped acceptance check." >&2
   exit 3
 fi
 
@@ -27,11 +28,16 @@ fi
 
 if [ -d "$scheme.xcworkspace" ]; then target=(-workspace "$scheme.xcworkspace"); else target=(-project "$scheme.xcodeproj"); fi
 archive="$project/build/$scheme.xcarchive"
+mkdir -p "$project/build"
+# The link map lets the artifact check prove which object supplies SQLite/SQLCipher symbols.
+build_options=(-derivedDataPath "$project/build/DerivedData" LD_GENERATE_MAP_FILE=YES
+  "LD_MAP_FILE_PATH=$project/build/$scheme-LinkMap-\$(CURRENT_ARCH).txt")
 
 case "$mode" in
   unsigned)
-    xcodebuild "${target[@]}" -scheme "$scheme" -configuration Release -destination 'generic/platform=iOS' \
+    xcodebuild "${target[@]}" "${build_options[@]}" -scheme "$scheme" -configuration Release -destination 'generic/platform=iOS' \
       -archivePath "$archive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive
+    "$repo_root/build/check-ios-archive.sh" "$archive" "$project/build/$scheme-LinkMap-arm64.txt"
     echo "Archive (unsigned, not installable on a phone): app/ios/build/$scheme.xcarchive"
     ;;
   signed)
@@ -41,14 +47,18 @@ case "$mode" in
     sed -e "s/__TEAM_ID__/$FMP_IOS_TEAM_ID/g" -e "s/__BUNDLE_ID__/$FMP_IOS_BUNDLE_ID/g" \
         -e "s/__PROFILE_NAME__/$FMP_IOS_PROFILE_NAME/g" -e "s/__METHOD__/${FMP_IOS_EXPORT_METHOD:-app-store-connect}/g" \
         "$repo_root/build/ExportOptions.plist.template" > "$export_plist"
-    xcodebuild "${target[@]}" -scheme "$scheme" -configuration Release -destination 'generic/platform=iOS' \
+    xcodebuild "${target[@]}" "${build_options[@]}" -scheme "$scheme" -configuration Release -destination 'generic/platform=iOS' \
       -archivePath "$archive" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$FMP_IOS_TEAM_ID" \
-      PROVISIONING_PROFILE_SPECIFIER="$FMP_IOS_PROFILE_NAME" CODE_SIGN_IDENTITY="Apple Distribution" archive
+      PROVISIONING_PROFILE_SPECIFIER="$FMP_IOS_PROFILE_NAME" PRODUCT_BUNDLE_IDENTIFIER="$FMP_IOS_BUNDLE_ID" CODE_SIGN_IDENTITY="Apple Distribution" archive
+    "$repo_root/build/check-ios-archive.sh" "$archive" "$project/build/$scheme-LinkMap-arm64.txt"
     xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$export_plist" -exportPath "$project/build/export"
     echo "IPA: app/ios/build/export/"
     ;;
-  *)
-    echo "usage: build/build-ios.sh unsigned|signed" >&2
-    exit 64
+  device)
+    : "${FMP_IOS_TEAM_ID:?set your local Personal Team id in FMP_IOS_TEAM_ID}"
+    xcodebuild "${target[@]}" "${build_options[@]}" -scheme "$scheme" -configuration Release \
+      -destination 'generic/platform=iOS' -allowProvisioningUpdates CODE_SIGN_STYLE=Automatic \
+      DEVELOPMENT_TEAM="$FMP_IOS_TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="${FMP_IOS_BUNDLE_ID:-dev.findmyperson.app}" build
+    echo "Signed device app: app/ios/build/DerivedData/Build/Products/Release-iphoneos/$scheme.app"
     ;;
 esac

@@ -28,21 +28,30 @@ mkdir -p "$out/module"
 
 # What CocoaPods gives the pod's Swift: its own public C headers, as the underlying module.
 cat > "$out/module/module.modulemap" <<EOF
+module FindMyPersonEncryptedStore {
+  header "$package/../encrypted-store/ios/FMPSqlcipher.h"
+  export *
+}
 module FMPLocationCapture {
   header "$root/Sources/CH3/include/h3api.h"
-  header "$root/Sources/FMPSQLite/include/fmp_sqlite.h"
   export *
 }
 EOF
 
-echo "1/4 Swift (CaptureCore + Platform) for $target"
+echo "1/4 Swift (encrypted-store dependency + CaptureCore + Platform) for $target"
+xcrun --sdk iphoneos swiftc -sdk "$sdk" -target "$target" -swift-version 5 -parse-as-library \
+  -emit-module -module-name FindMyPersonEncryptedStore -import-underlying-module -I"$out/module" \
+  -emit-module-path "$out/module/FindMyPersonEncryptedStore.swiftmodule" \
+  "$package"/../encrypted-store/ios/*.swift
+# The legacy test opener is excluded from the production pod.
+core_sources=$(find "$root/Sources/CaptureCore" -name '*.swift' ! -name 'SQLiteCaptureStore.swift')
 xcrun --sdk iphoneos swiftc -sdk "$sdk" -target "$target" -swift-version 5 -parse-as-library \
   -typecheck -module-name FMPLocationCapture -import-underlying-module -I"$out/module" \
   -emit-objc-header-path "$out/FMPLocationCapture-Swift.h" \
-  "$root"/Sources/CaptureCore/*.swift "$root"/Sources/Platform/*.swift
+  $core_sources "$root"/Sources/Platform/*.swift
 
-echo "2/4 C (H3, SQLite declarations) for $target"
-for file in "$root"/Sources/CH3/h3lib/lib/*.c "$root"/Sources/FMPSQLite/*.c; do
+echo "2/4 C (H3) for $target"
+for file in "$root"/Sources/CH3/h3lib/lib/*.c; do
   xcrun --sdk iphoneos clang -isysroot "$sdk" -target "$target" -fsyntax-only -w \
     -I"$root/Sources/CH3/include" -I"$root/Sources/CH3/h3lib/include" \
     -I"$root/Sources/FMPSQLite/include" "$file"

@@ -52,6 +52,13 @@ public struct VisitStayRow {
     }
 }
 
+/// Counts only, suitable for capture diagnostics without location history.
+public struct NativePurgeCounts {
+    public let samples: Int
+    public let stays: Int
+    public let staysTrimmed: Int
+}
+
 /// THE NATIVE STORE INTERFACE ON iOS. One instance per process: `EncryptedStore.shared`.
 ///
 /// The capture module writes every fix through `insertLocationSample`, and every CLVisit
@@ -93,6 +100,41 @@ public final class EncryptedStore {
     /// For `getStoreDirectory`.
     public func directory() throws -> String {
         try locked { try preparedLocation().directory.path }
+    }
+
+    /// The owner supplies the directory for capture's non-location state and diagnostics.
+    /// Resolving the URL does not read protected files; preparation is retried by `directory`
+    /// and every database open, so a launch before first unlock can still restore later.
+    public func captureFilesDirectory() -> URL {
+        // An app without Application Support cannot persist any state at all.
+        guard let directory = try? location().directory else {
+            preconditionFailure("Application Support is unavailable")
+        }
+        _ = try? self.directory()
+        return directory
+    }
+
+    /// Native-only wake retention. Uses the shared writer contract under the same lock and
+    /// connection as capture writes and delete/key rotation.
+    public func purgeExpired(nowTsUtc: Int64) throws -> NativePurgeCounts {
+        try locked {
+            try write { db in
+                let cutoff = nowTsUtc - Int64(StoreContract.retentionSec)
+                _ = try db.update("BEGIN IMMEDIATE", [])
+                do {
+                    let samples = try db.update(StoreContract.deleteSamplesBeforeSql, [.int(cutoff)])
+                    let stays = try db.update(StoreContract.deleteStaysEndedBeforeSql, [.int(cutoff)])
+                    let trimmed = try db.update(StoreContract.trimStaysStartedBeforeSql,
+                                                [.int(cutoff), .int(cutoff), .int(cutoff)])
+                    _ = try db.update(StoreContract.rewindStayCursorSql, [])
+                    _ = try db.update("COMMIT", [])
+                    return NativePurgeCounts(samples: samples, stays: stays, staysTrimmed: trimmed)
+                } catch {
+                    _ = try? db.update("ROLLBACK", [])
+                    throw error
+                }
+            }
+        }
     }
 
     /// Opens the store if it is not open and checks it is usable. For `initStore`, and for the

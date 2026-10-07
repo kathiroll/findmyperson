@@ -2,7 +2,7 @@
 
 A map of the whole of findmyperson for someone joining the project: what it is built from, where each part lives, how the parts talk to each other, and what is not built yet.
 
-It describes `main` at commit `88c8a6c` (2026-10-08, pull request #39); T-000 checked it against that commit and corrected what had gone out of date since `0a1bbb4` (pull request #30). This file links to the README that owns each topic instead of repeating it; when the two disagree, the README and the code win.
+It describes `main` at commit `88c8a6c` (2026-10-08, pull request #39) plus the iOS project landed in T-040; T-000 checked it against that commit and corrected what had gone out of date since `0a1bbb4` (pull request #30). This file links to the README that owns each topic instead of repeating it; when the two disagree, the README and the code win.
 
 The idea in one paragraph: each phone keeps 30 days of its own location history in an encrypted file that never leaves it. A missing-person report is reviewed by a person, then published as signed static files on a CDN. Every phone downloads the reports for the regions it has been in and checks them against its own history, on the phone. Only a phone that matches shows anything, and only if its owner chooses to send a tip does the server hear from it. The server never learns who matched.
 
@@ -39,18 +39,19 @@ Versions are the ones pinned in the manifests and resolved in `pnpm-lock.yaml`. 
 
 ### App (`app/`)
 
-| Library                          | Declared   | Resolved | Used for                                                 |
-| -------------------------------- | ---------- | -------- | -------------------------------------------------------- |
-| `react-native`                   | `0.87.1`   | 0.87.1   | The app. New Architecture (Turbo Native Modules, Fabric) |
-| `react`                          | `19.2.3`   | 19.2.3   |                                                          |
-| `@react-navigation/native`       | `^7.5.0`   | 7.5.0    | Navigation container and deep links                      |
-| `@react-navigation/native-stack` | `^7.20.0`  | 7.20.0   | Root stack                                               |
-| `react-native-screens`           | `^4.28.0`  | 4.28.0   | Native screen containers for the stack                   |
-| `react-native-safe-area-context` | `^5.10.1`  | 5.10.1   | Insets                                                   |
-| `react-native-svg`               | `^15.15.5` | 15.15.5  | Icons in the design system                               |
-| `@op-engineering/op-sqlite`      | `18.2.5`   | 18.2.5   | SQLite with SQLCipher, enabled by the `op-sqlite` flag   |
-| `tweetnacl`                      | `1.0.3`    | 1.0.3    | Ed25519 verification on Hermes, which has no WebCrypto   |
-| `react-test-renderer` (dev)      | `19.2.3`   | 19.2.3   | Component tests, against stubs of react-native           |
+| Library                          | Declared   | Resolved | Used for                                                                                    |
+| -------------------------------- | ---------- | -------- | ------------------------------------------------------------------------------------------- |
+| `react-native`                   | `0.87.1`   | 0.87.1   | The app. New Architecture (Turbo Native Modules, Fabric)                                    |
+| `react`                          | `19.2.3`   | 19.2.3   |                                                                                             |
+| `@react-navigation/native`       | `^7.5.0`   | 7.5.0    | Navigation container and deep links                                                         |
+| `@react-navigation/native-stack` | `^7.20.0`  | 7.20.0   | Root stack                                                                                  |
+| `react-native-screens`           | `^4.28.0`  | 4.28.0   | Native screen containers for the stack                                                      |
+| `react-native-safe-area-context` | `^5.10.1`  | 5.10.1   | Insets                                                                                      |
+| `react-native-svg`               | `^15.15.5` | 15.15.5  | Icons in the design system                                                                  |
+| `@op-engineering/op-sqlite`      | `18.2.5`   | 18.2.5   | SQLite with SQLCipher, enabled by the `op-sqlite` flag                                      |
+| `tweetnacl`                      | `1.0.3`    | 1.0.3    | Ed25519 verification on Hermes, which has no WebCrypto                                      |
+| `react-native-get-random-values` | `^2.0.0`   | 2.0.0    | Secure random bytes (`SecRandomCopyBytes`, `SecureRandom`); proposed, [D-063](DECISIONS.md) |
+| `react-test-renderer` (dev)      | `19.2.3`   | 19.2.3   | Component tests, against stubs of react-native                                              |
 
 The `"op-sqlite": { "sqlcipher": true }` flag is set in both `app/package.json` and the root `package.json`, because op-sqlite's Android and iOS builds look in different places.
 
@@ -76,19 +77,20 @@ There is no ORM, no cloud SDK and no HTTP client library on the server: R2 is re
 
 ### Native code
 
-| Piece                                   | Version                                                                                             | Where                                                                                              |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Kotlin                                  | 2.2.0, JVM target 17                                                                                | both `android/build.gradle` files                                                                  |
-| Android Gradle Plugin (capture module)  | 8.7.3, Gradle wrapper 8.9                                                                           | `packages/native-location-capture/android`                                                         |
-| Android Gradle Plugin (encrypted store) | 9.2.1 standalone                                                                                    | `packages/encrypted-store/android/build.gradle`                                                    |
-| Android SDK levels                      | App: `compileSdk` 37, `targetSdk` 36, `minSdk` 24; modules standalone: `compileSdk` 35, `minSdk` 24 | `app/android/build.gradle`; the two module builds set their own when built alone                   |
-| `androidx.work:work-runtime`            | 2.10.0                                                                                              | capture module (WorkManager mode)                                                                  |
-| `play-services-location`                | 21.3.0                                                                                              | capture module (fused location provider)                                                           |
-| SQLCipher on Android                    | op-sqlite's copy, through `libfmp-store-jni.so`                                                     | `packages/encrypted-store/android/src/main/cpp`; neither Android module has a SQLCipher dependency |
-| Swift                                   | tools 5.9 (capture), 5.0 (store podspec)                                                            | `Package.swift`, the two podspecs                                                                  |
-| iOS deployment target                   | React Native's minimum; iOS 15 for `swift test`                                                     | podspecs use `min_ios_version_supported`                                                           |
-| H3 C library                            | 4.5.0, vendored unmodified                                                                          | `packages/native-location-capture/ios/Sources/CH3`                                                 |
-| SQLCipher on iOS                        | op-sqlite's copy (4.19.0 in the host check)                                                         | both podspecs depend on `op-sqlite`                                                                |
+| Piece                                   | Version                                                                                              | Where                                                                                                                                 |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Kotlin                                  | 2.2.0, JVM target 17                                                                                 | both `android/build.gradle` files                                                                                                     |
+| Android Gradle Plugin (capture module)  | 8.7.3, Gradle wrapper 8.9                                                                            | `packages/native-location-capture/android`                                                                                            |
+| Android Gradle Plugin (encrypted store) | 9.2.1 standalone                                                                                     | `packages/encrypted-store/android/build.gradle`                                                                                       |
+| Android SDK levels                      | App: `compileSdk` 37, `targetSdk` 36, `minSdk` 24; modules standalone: `compileSdk` 35, `minSdk` 24  | `app/android/build.gradle`; the two module builds set their own when built alone                                                      |
+| `androidx.work:work-runtime`            | 2.10.0                                                                                               | capture module (WorkManager mode)                                                                                                     |
+| `play-services-location`                | 21.3.0                                                                                               | capture module (fused location provider)                                                                                              |
+| SQLCipher on Android                    | op-sqlite's copy, through `libfmp-store-jni.so`                                                      | `packages/encrypted-store/android/src/main/cpp`; neither Android module has a SQLCipher dependency                                    |
+| Swift                                   | tools 5.9 (capture), 5.0 (store podspec)                                                             | `Package.swift`, the two podspecs                                                                                                     |
+| iOS deployment target                   | React Native's minimum; iOS 15 for `swift test`                                                      | podspecs use `min_ios_version_supported`                                                                                              |
+| iOS app                                 | React Native 0.87.1 template, device-only, New Architecture, Hermes, CocoaPods                       | `app/ios` ([D-065](DECISIONS.md)); autolinking through `@react-native-community/cli-platform-ios` 20.2.0 (dev, [D-064](DECISIONS.md)) |
+| H3 C library                            | 4.5.0, vendored unmodified                                                                           | `packages/native-location-capture/ios/Sources/CH3`                                                                                    |
+| SQLCipher on iOS                        | op-sqlite's copy (4.19.0 in the host check) is the only owner of the symbols ([D-066](DECISIONS.md)) | both podspecs depend on `op-sqlite`; `build/check-ios-archive.sh` reads the archive                                                   |
 
 ### CI
 
@@ -97,7 +99,7 @@ There is no ORM, no cloud SDK and no HTTP client library on the server: R2 is re
 ## 2. Folder structure
 
 ```
-app/                              React Native app: TypeScript, plus android/ (no ios/ yet)
+app/                              React Native app: TypeScript, plus android/ and ios/
 packages/shared/                  Contracts and pure logic, used by app and server
 packages/encrypted-store/         The on-device encrypted file: TypeScript, Kotlin, Swift
 packages/native-location-capture/ The capture Turbo Native Module: spec, fake, Kotlin, Swift
@@ -137,6 +139,10 @@ The map is in [packages/shared/README.md](../packages/shared/README.md). In shor
 ### `packages/native-location-capture/`
 
 `src/specs/NativeLocationCapture.ts` is the interface and its contract. `src/fake.ts` is the in-memory implementation tests use. `android/` and `ios/` are the two real implementations, each split into a platform-free core that is unit-tested and thin platform adapters. `contracts/` is committed codegen output. See [its README](../packages/native-location-capture/README.md), [android/README.md](../packages/native-location-capture/android/README.md) and [ios/README.md](../packages/native-location-capture/ios/README.md).
+
+### `app/ios/`
+
+The React Native 0.87.1 iOS project (`FindMyPerson.xcodeproj`, `FindMyPerson.xcworkspace`, `Podfile` and its lockfile, `AppDelegate.swift`, `Info.plist`, privacy manifest, launch storyboard, asset catalogue); `Pods/` and `build/` are generated and ignored. It is device-only (no simulator slice), registers the `findmyperson` component and loads bundled JavaScript in Debug and Release. It links, through CocoaPods autolinking, op-sqlite (the one SQLCipher), `FindMyPersonEncryptedStore` and `FMPLocationCapture`; the capture pod does not include the old `SQLiteCaptureStore` opener. The script `build/build-ios.sh` (`unsigned`, `device`, distribution) archives it and `build/check-ios-archive.sh` inspects the archive. `app/index.js` imports `react-native-get-random-values` before any app code, and `app/src/random.ts` is the only reader of that source. What differs from the template is tabled in [BUILDING.md](BUILDING.md) ("The iOS project").
 
 ### `server/src/`
 
@@ -348,15 +354,15 @@ Environment variables only; nothing secret is committed. `FMP_DB_PATH`, `FMP_POR
 
 ## 7. Third-party services
 
-| Service                         | Used for                                                  | State                                                                                                                              |
-| ------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Cloudflare R2                   | Object store for the index and shard bundles (S3 API)     | Adapter built and tested against a fake endpoint; no bucket provisioned, never run live                                            |
-| Cloudflare zone and cache purge | Serves the bucket on a custom domain; purges `index.json` | Same                                                                                                                               |
-| Google Play services (location) | Fused location provider on Android                        | Linked by the capture module. A fallback for phones without Play services (`PlatformBackend`) exists and has never run on a device |
-| Android Keystore, iOS Keychain  | Holding the store key                                     | Platform features, not network services                                                                                            |
-| GitHub Actions                  | CI and installable builds                                 | Running; the Android job builds and uploads a debug APK, the iOS job skips until `app/ios` exists                                  |
-| Apple Developer, Google Play    | Signing and distribution                                  | Secrets are read from CI if present; none are required to build unsigned                                                           |
-| Google Fonts (source only)      | Bricolage Grotesque, Atkinson Hyperlegible Next           | Bundled as static files; nothing is fetched at run time                                                                            |
+| Service                         | Used for                                                  | State                                                                                                                                   |
+| ------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare R2                   | Object store for the index and shard bundles (S3 API)     | Adapter built and tested against a fake endpoint; no bucket provisioned, never run live                                                 |
+| Cloudflare zone and cache purge | Serves the bucket on a custom domain; purges `index.json` | Same                                                                                                                                    |
+| Google Play services (location) | Fused location provider on Android                        | Linked by the capture module. A fallback for phones without Play services (`PlatformBackend`) exists and has never run on a device      |
+| Android Keystore, iOS Keychain  | Holding the store key                                     | Platform features, not network services                                                                                                 |
+| GitHub Actions                  | CI and installable builds                                 | Running; the Android job builds and uploads a debug APK; the iOS job (main and tags only) now has `app/ios` to build, and has never run |
+| Apple Developer, Google Play    | Signing and distribution                                  | Secrets are read from CI if present; none are required to build unsigned                                                                |
+| Google Fonts (source only)      | Bricolage Grotesque, Atkinson Hyperlegible Next           | Bundled as static files; nothing is fetched at run time                                                                                 |
 
 Not used, deliberately or not yet: no analytics, crash reporting or advertising SDK; no push provider (the API accepts an `fcm` or `apns` token but nothing sends); no SMS or OTP provider; no maps or geocoding SDK; no hosted database; no cloud SDK. The app's only network destinations are the API and the CDN, and both addresses are unset today (`API_BASE_URL` and `REPORT_CDN_ORIGIN` are `null`), so the app as it stands makes no network request at all.
 
@@ -364,10 +370,10 @@ Not used, deliberately or not yet: no analytics, crash reporting or advertising 
 
 Each entry was checked against the code at the commit named at the top. "Waiting on" is what has to happen before it can be finished.
 
-### Nothing has run on a phone, and there is no iOS project
+### Nothing has run on a phone
 
 - **`app/android` builds a debug APK** (`build/build-android.sh debug`, and the `android` CI job, which uploads it), with both native modules, op-sqlite and the JavaScript in it. It has not been installed: launch, the permission flow, capture in the background and the store on a real file system are all unobserved. "Not verified yet" in [BUILDING.md](BUILDING.md) lists what the build proves and what needs a phone. Not done in that project: the `findmyperson://` URL scheme is not registered (no intent filter), and the signed release path has not run with a real keystore.
-- **`app/ios` does not exist.** Waiting on: an Apple developer team, then the task that adds the project, which must also register the URL scheme, link the fonts (`npx react-native-asset`) and run `build/build-ios.sh` for the first time.
+- **`app/ios` builds an unsigned arm64 archive** (`build/build-ios.sh unsigned`, T-040), and `build/check-ios-archive.sh` passes on it: Hermes bytecode, fonts, location declarations, the store and capture modules and op-sqlite as the only owner of the SQLCipher symbols. It cannot be installed. Waiting on: the Apple team ID for T-041 (signed install), then T-042 (testing on the phone). The `findmyperson://` URL scheme is registered in neither project yet, and the iOS CI job has never run.
 - **Every "not verified" list in the package READMEs** follows from this: Keychain and Keystore behaviour after a reboot, real backup exclusion, op-sqlite itself (its Node build has no SQLCipher), and capture behaviour on real devices.
 
 ### Unset configuration
@@ -418,7 +424,7 @@ Each entry was checked against the code at the commit named at the top. "Waiting
 
 ### Native modules
 
-- **Capture modules carry their own store code.** Both still open the store through a stand-in written before `packages/encrypted-store` existed (the Android one now opens its connection through that package's `SqlcipherConnection`; the rest of it is still its own). The swap to `EncryptedStore` is listed in that package's README, which also says the swap has to land before a Settings screen offers the delete: the iOS stand-in keeps its connection open, so after a delete it goes on writing to the removed file until the app restarts. Settings offers the delete today (it stops capture first), so on iOS a delete followed by a resume in the same run is exposed to this.
+- **The Android capture module carries its own store code.** It opens its connection through the store package's `SqlcipherConnection`, but its key, directory and purge are still its own stand-in (listed in that package's README). The iOS module no longer does: `EncryptedCaptureStore` calls `EncryptedStore.shared` ([D-067](DECISIONS.md)), so a delete closes the writer capture is using; this is checked on a Mac against real SQLCipher (`test-store-integration.sh`), not on a phone.
 - **No scheduled purge when nothing wakes.** A phone with capture stopped and the app never opened keeps what it has until the app is next opened.
 
 ### Documentation that lags

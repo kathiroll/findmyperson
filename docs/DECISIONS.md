@@ -30,16 +30,17 @@ How the other fields were filled for D-001 to D-051:
 
 ## Index by area
 
-| Area                    | Entries                                                                     |
-| ----------------------- | --------------------------------------------------------------------------- |
-| Workspace and tooling   | D-001 to D-006                                                              |
-| App platform            | D-007 to D-017                                                              |
-| On-device store         | D-018 to D-025                                                              |
-| Matching                | D-026 to D-029                                                              |
-| Distribution of reports | D-030 to D-038                                                              |
-| Backend                 | D-039 to D-047                                                              |
-| Cross-cutting           | D-048 to D-051                                                              |
-| Inferred in T-000       | D-052 to D-062 (all Proposed; each has a matching `[!]` item in `TASKS.md`) |
+| Area                    | Entries                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| Workspace and tooling   | D-001 to D-006                                                                |
+| App platform            | D-007 to D-017                                                                |
+| On-device store         | D-018 to D-025                                                                |
+| Matching                | D-026 to D-029                                                                |
+| Distribution of reports | D-030 to D-038                                                                |
+| Backend                 | D-039 to D-047                                                                |
+| Cross-cutting           | D-048 to D-051                                                                |
+| Inferred in T-000       | D-052 to D-062 (all Proposed; each has a matching `[!]` item in `TASKS.md`)   |
+| Inferred in T-040       | D-063 to D-067 (the iOS app; all Proposed, matching `[!]` item in `TASKS.md`) |
 
 ## D-001 One pnpm workspace, with a hoisted `node_modules`
 
@@ -664,3 +665,53 @@ How the other fields were filled for D-001 to D-051:
 - Why: Inferred: the fused provider is what the M0 trial measured and what makes background capture affordable, and the fallback keeps the app working on de-Googled phones (the same population that rules out Play Integrity in D-044). Whether the fallback is wanted is not stated.
 - Alternatives considered: Fused provider only, with the app refusing to capture on phones without it. The platform `LocationManager` only. A third-party location library. Dropping the fallback: it is listed in "Needs you" as unverified scope to confirm.
 - Source: Inferred from `packages/native-location-capture/android/README.md` and `platform/LocationBackend.kt`.
+
+## D-063 `react-native-get-random-values` is the secure random source on both platforms
+
+- Date: 2026-10-08 (recorded in T-040; code written by an earlier Codex session, landed in T-040)
+- Status: Proposed
+- Decided by: Claude (inferred from existing code)
+- Decision: A new dependency, `react-native-get-random-values` `^2.0.0` (`app/package.json`), is imported first in `app/index.js`. Its native module installs `crypto.getRandomValues` (`SecRandomCopyBytes` on iOS, `SecureRandom` on Android). `app/src/random.ts` (`platformRandomBytes`) is the only reader: it refuses a missing source, an invalid result and the library's legacy remote-debugging fallback, and serves device and report identity (`app/src/report/identity.ts`) and the fetcher's cover randomness (`app/src/fetch/random.ts`).
+- Why: Inferred: Hermes has no WebCrypto (D-034), and the app needs real entropy for device ids, report ids and cover-shard choice (D-037, D-044). The library is the standard React Native way to get it and it needed no code of ours on either platform.
+- Alternatives considered: A small Turbo Native Module of our own over `SecRandomCopyBytes` and `SecureRandom` (no dependency, but two more native files to keep and test). `Math.random` (not acceptable for identifiers or cover traffic). Reading entropy from the encrypted-store package's native side.
+- Source: Inferred from `app/index.js`, `app/src/random.ts` and `docs/BUILDING.md`.
+
+## D-064 `@react-native-community/cli-platform-ios` 20.2.0 as a dev dependency
+
+- Date: 2026-10-08 (recorded in T-040; code written by an earlier Codex session, landed in T-040)
+- Status: Proposed
+- Decided by: Claude (inferred from existing code)
+- Decision: A new dev dependency, `@react-native-community/cli-platform-ios` `20.2.0` (`app/package.json`), pinned to the same version as the existing `@react-native-community/cli` and `cli-platform-android`. The `Podfile` asks the CLI (run with Node) which native modules to autolink.
+- Why: Inferred: the iOS counterpart of the Android platform package that is already there; CocoaPods autolinking does not work without it.
+- Alternatives considered: Listing every native pod by hand in the `Podfile` (no dependency, but it drifts every time a library is added). Not building iOS.
+- Source: Inferred from `app/package.json`, `app/ios/Podfile` and `docs/BUILDING.md` ("The iOS project").
+
+## D-065 The iOS app is React Native 0.87.1, device-only, on the New Architecture and Hermes
+
+- Date: 2026-10-08 (recorded in T-040; code written by an earlier Codex session, landed in T-040)
+- Status: Proposed
+- Decided by: Claude (inferred from existing code)
+- Decision: `app/ios` is the React Native 0.87.1 template (the same version as Android, D-007), targeting iPhone devices only: no simulator slice, New Architecture (Turbo Native Modules, Fabric) and Hermes, bundle identifier `dev.findmyperson.app`. JavaScript is bundled and loaded from the app in both Debug and Release, so a Debug build also launches without Metro. Signing is never in the repository: `build/build-ios.sh` takes it from environment variables (`unsigned`, `device`, distribution).
+- Why: Inferred: the project rule is that no simulator or emulator is used (every claim about behaviour comes from a phone, `AGENTS.md`), and both native modules are Turbo Native Modules (D-008). The difference table in `docs/BUILDING.md` lists what changed from the template.
+- Alternatives considered: Also building for the simulator (contradicts the no-simulator rule and doubles the architectures). The old architecture or JavaScriptCore (the capture and store modules are written for the new architecture). A different bundle identifier scheme.
+- Source: Inferred from `app/ios/FindMyPerson.xcodeproj`, `app/ios/Podfile`, `app/ios/FindMyPerson/AppDelegate.swift` and `docs/BUILDING.md`.
+
+## D-066 op-sqlite's SQLCipher is the single owner of SQLCipher symbols on iOS
+
+- Date: 2026-10-08 (recorded in T-040; code written by an earlier Codex session, landed in T-040)
+- Status: Proposed
+- Decided by: Claude (inferred from existing code)
+- Decision: In the iOS app every SQLite and SQLCipher symbol comes from the SQLCipher inside op-sqlite (enabled by the `op-sqlite` flag in `app/package.json`). The store package's and the capture module's podspecs add no SQLite or SQLCipher dependency, and the system `libsqlite3` is not linked directly. `build/check-ios-archive.sh` reads the archive and its link map and fails if the system `libsqlite3` is linked or if those symbols are defined by anything other than op-sqlite's object. This is the iOS counterpart of "one SQLite on Android" (`AGENTS.md`).
+- Why: Inferred: two copies of SQLite in one process do not see each other's file locks, and JavaScript and the native writer open the same encrypted file (D-009, D-018).
+- Alternatives considered: Each native module bringing its own SQLCipher pod (the lock problem above, plus larger binary). Native code using the system SQLite (cannot open the encrypted file). Separate files for native and JavaScript writes.
+- Source: Inferred from the two podspecs, `build/check-ios-archive.sh` and `docs/BUILDING.md`.
+
+## D-067 `EncryptedCaptureStore` over `EncryptedStore.shared` is the production iOS capture store
+
+- Date: 2026-10-08 (recorded in T-040; code written by an earlier Codex session, landed in T-040)
+- Status: Proposed
+- Decided by: Claude (inferred from existing code)
+- Decision: On iOS the capture engine writes through `EncryptedCaptureStore` (`Sources/Platform`), which implements the engine's `CaptureStore` port by calling `EncryptedStore.shared` of `packages/encrypted-store`; `EncryptedStoreKeySource` delegates the key and the state directory comes from that package. The earlier stand-in `SQLiteCaptureStore` is excluded from the production pod and kept only for host tests. `EncryptedStore` gained a native-retention method on its existing connection and lock, so a delete or key rotation closes the writer the capture module is using. Android keeps its stand-in for now (listed in the store package's README).
+- Why: Inferred: the store package's README required this swap before Settings could offer "delete all data", because the stand-in kept a connection to the removed file. `test-store-integration.sh` checks the delete-and-resume case on real host SQLCipher.
+- Alternatives considered: Keeping the stand-in and fixing its delete behaviour separately (two implementations of key, directory and purge to keep in step). Hiding the delete on iOS until the swap.
+- Source: Inferred from `packages/encrypted-store/README.md` ("Capture integration"), `packages/native-location-capture/ios/README.md` and `Sources/Platform/EncryptedCaptureStore.swift`.

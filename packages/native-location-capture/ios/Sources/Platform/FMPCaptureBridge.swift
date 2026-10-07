@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import FindMyPersonEncryptedStore
 
 /// Receives the module's two events as the objects JavaScript gets. Implemented by the Turbo
 /// Module (RCTNativeLocationCapture.mm).
@@ -32,9 +33,8 @@ public final class FMPCaptureBridge: NSObject, CaptureEngineListener {
 
     private override init() {
         dispatchPrecondition(condition: .onQueue(.main))
-        StoreLocation.prepare()
-        let directory = StoreLocation.directory
-        let keys = KeychainKeySource()
+        let directory = EncryptedStore.shared.captureFilesDirectory()
+        let keys = EncryptedStoreKeySource()
         location = CoreLocationSystem()
         #if DEBUG
         let debugBuild = true
@@ -45,10 +45,7 @@ public final class FMPCaptureBridge: NSObject, CaptureEngineListener {
             CaptureEngine.Dependencies(
                 location: location,
                 device: SystemDeviceConditions(),
-                store: SQLiteCaptureStore(
-                    path: directory.appendingPathComponent(StoreContract.storeFileName).path,
-                    engine: .sqlcipher,
-                    keyHex: keys.getOrCreateKeyHex),
+                store: EncryptedCaptureStore(),
                 keys: keys,
                 stateStorage: FileStateStorage(url: directory.appendingPathComponent("capture-state.json")),
                 diagnostics: FileDiagnosticsLog(
@@ -142,7 +139,7 @@ public final class FMPCaptureBridge: NSObject, CaptureEngineListener {
 
     @objc(getStoreDirectoryWithResolve:reject:)
     public func getStoreDirectory(resolve: Resolve, reject: Reject) {
-        resolve(engine.storeDirectory)
+        settle(resolve, reject) { try EncryptedStore.shared.directory() }
     }
 
     @objc(initStoreWithResolve:reject:)

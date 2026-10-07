@@ -2,7 +2,7 @@
 
 Plain-language guide to getting an installable Android or iOS build of the real app (`app/`). The same scripts in `build/` run on your machine and in CI, so a local build is a faithful rehearsal of CI.
 
-> **Status:** `app/android` exists and builds: the Android sections below are real. `app/ios` does not exist yet (it waits on an Apple developer team); until it does, the iOS script and CI job detect that, say so, and skip. The iOS sections apply once that folder exists (Xcode project plus Podfile in `app/ios`, scheme named `FindMyPerson` unless `FMP_IOS_SCHEME` says otherwise).
+> **Status:** both `app/android` and `app/ios` are real native projects. The iOS project uses the React Native 0.87.1 template, New Architecture and Hermes; account/team selection is local. An unsigned archive proves compilation and resources, while install/permissions/background behaviour require a physical iPhone.
 
 ## What CI builds, and when
 
@@ -58,25 +58,51 @@ The JavaScript side of the build is in `app/`: `index.js` (registers the navigat
 
 ### iOS (installable on your own iPhone with a free Apple ID)
 
-The command-line build below is unsigned, so it proves the code compiles but cannot be installed. To put it on your phone, open `app/ios/FindMyPerson.xcworkspace` in Xcode, tick **Automatically manage signing** with your Personal Team, pick the plugged-in iPhone and press Run, exactly as in `m0/ios/README.md`.
+Use Xcode 16.1 or newer (React Native's minimum), Node 24, and current CocoaPods. On this Mac the build uses Xcode 16.2/iPhoneOS 18.2 SDK, Homebrew Ruby 4.0.7 and CocoaPods 1.17.0. `brew install ruby cocoapods` installs the latter without replacing macOS's Ruby or editing your shell profile; macOS Ruby 2.6 cannot install current CocoaPods dependencies. `pod install` uses the committed `Podfile.lock` and React Native's release artifacts; the first run needs network access and downloads large native frameworks.
 
 ```sh
 build/build-ios.sh unsigned
 ```
 
-Output: `app/ios/build/FindMyPerson.xcarchive`. The script also runs `pod install` first (CocoaPods; `bundle exec` if there is a `Gemfile`).
+Output: `app/ios/build/FindMyPerson.xcarchive`, an arm64 Release device archive. The script runs CocoaPods first and fails if the project is missing. It then checks the archive's Hermes bytecode, fonts, permission/background declarations, compiled capture/store/random modules and linker-map ownership of SQLite/SQLCipher symbols. `FindMyPerson-LinkMap-arm64.txt` is beside the archive. The unsigned result cannot be installed.
+
+To sign for your phone, open `app/ios/FindMyPerson.xcworkspace` in Xcode. Add your Apple ID in **Xcode → Settings → Accounts**, connect and trust the iPhone, enable Developer Mode on it, select the `FindMyPerson` target, choose **Automatically manage signing** and your Personal Team, then select the physical iPhone and Run. Keep team/account changes local; never commit `DEVELOPMENT_TEAM` or provisioning material. The default identifier is `dev.findmyperson.app`; if that identifier is unavailable to your team, use a unique local identifier. Personal Team provisioning normally expires after seven days; rebuild/reinstall from Xcode when it expires. Background location needs no paid push entitlement.
+
+The command-line alternative keeps the team in environment variables:
+
+```sh
+FMP_IOS_TEAM_ID=YOUR_PERSONAL_TEAM_ID build/build-ios.sh device
+# Optional FMP_IOS_BUNDLE_ID overrides the local identifier.
+xcrun devicectl device install app --device YOUR_DEVICE_ID \
+  app/ios/build/DerivedData/Build/Products/Release-iphoneos/FindMyPerson.app
+xcrun devicectl device process launch --device YOUR_DEVICE_ID dev.findmyperson.app
+```
+
+This requires an Apple account configured in Xcode and a valid local signing identity/profile. `device` uses automatic development signing and permits Xcode to update provisioning. Both Debug and Release load bundled JavaScript with Metro unavailable; the bundle phase forces Debug bundling too. `app/ios/.xcode.env.local` is ignored for a machine-specific `NODE_BINARY` if Xcode's launch environment cannot find Node. No simulator or emulator is used.
+
+### The iOS project (`app/ios`)
+
+Diff against `@react-native-community/template@0.87.1` when upgrading:
+
+| Where                    | Difference                                                                              | Purpose                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `Podfile`                | CLI resolved with Node; targeted `op-sqlite` modular headers; Hermes explicit           | pnpm resolution and Swift static-pod integration without making all RN headers modular |
+| `FindMyPerson.xcodeproj` | `dev.findmyperson.app`, device-only platform, three font resources, forced bundle phase | actual arm64 app, bundled fonts and offline Debug launch                               |
+| `AppDelegate.swift`      | component `findmyperson`; bundled URL in both configurations; explicit capture resume   | matches `app.json` and restores native capture independently of JS                     |
+| `Info.plist`             | location usage descriptions, `location` background mode, `UIAppFonts`                   | permissions, background capture and PostScript font names                              |
+| launch storyboard        | app name and local-history copy                                                         | no template tooling copy in the product                                                |
+
+The store package supplies the backup-excluded/file-protected directory and Keychain key; the app never names or opens the store. Capture's production pod depends on that package and excludes its historical test opener. SQLCipher comes only from op-sqlite, configured in `app/package.json`. `react-native-get-random-values` 2.0.0 supplies iOS `SecRandomCopyBytes`/Android `SecureRandom` before the navigator is imported; the app rejects absent or malformed entropy and the library's insecure debugger fallback.
 
 ### If `xcodebuild` does not work on your Mac
 
-On the machine M0 was built on, `xcodebuild` could not start (Xcode's CoreSimulator plug-in failed to load). `sudo xcodebuild -runFirstLaunch` partly fixed it. `build/build-ios.sh` checks `xcodebuild -version` first and exits with code 4 and a pointer here if it fails. The fallback is to type-check the Swift sources against the real iPhone SDK, without Xcode's build system (same method as `m0/ios/README.md`):
+On the machine M0 was built on, `xcodebuild` could not start (Xcode's CoreSimulator plug-in failed to load). `sudo xcodebuild -runFirstLaunch` partly fixed it. `build/build-ios.sh` checks `xcodebuild -version` first and exits with code 4 and a pointer here if it fails. The supported fallback is the native module's own iPhone SDK compile check:
 
 ```sh
-xcrun --sdk iphoneos swiftc -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" -target arm64-apple-ios15.0 -swift-version 5 -parse-as-library -typecheck -module-name FindMyPerson app/ios/FindMyPerson/*.swift
+sh packages/native-location-capture/ios/scripts/check-ios.sh
 ```
 
-The iOS capture module has this fallback as a script of its own, which also compiles its C, Objective-C and Objective-C++ sources: `sh packages/native-location-capture/ios/scripts/check-ios.sh` (see that package's `ios/README.md`).
-
-Adjust the source path and `-target` to the project. This catches Swift errors only; it does not cover CocoaPods, linking, resources or signing. Those are verified by the `ios` CI job on `main`, so treat a green iOS job as the real proof when your Mac cannot run `xcodebuild`.
+It builds the store dependency's Swift module, type-checks the production capture adapters against the real arm64 iPhone SDK and compiles H3/Objective-C/Turbo Module sources. It does not archive the application, link CocoaPods, bundle resources or sign/install anything. A successful fallback cannot substitute for the iOS archive acceptance check.
 
 ## Forks: build unsigned debug artifacts with no secrets
 
@@ -124,4 +150,8 @@ Signing is injected by `build/android-signing.init.gradle`, a Gradle init script
 
 **Android, not done:** a release signed with a real keystore (no secrets are set, so the signed CI step has never run); R8 (`enableProguardInReleaseBuilds` is `false`, as in the template); the `findmyperson://` URL scheme (no intent filter); `POST_NOTIFICATIONS`, which belongs to the notification task; a launcher icon other than the template's.
 
-**iOS:** no project exists in `app/ios`, so `build/build-ios.sh` and the `ios` job have never run against the real app. The script was syntax-checked only. The task that adds `app/ios` should run it and fix whatever differs (scheme name, Podfile location).
+**iOS, built and inspected on October 7, 2026:** `build/build-ios.sh unsigned` completed Xcode's **ARCHIVE SUCCEEDED** with Xcode 16.2/iPhoneOS 18.2. The final artifact check passes for `app/ios/build/FindMyPerson.xcarchive`: arm64 only, Hermes bytecode and embedded `hermesvm.framework`, all three exact font files, location declarations, encrypted-store/capture/random modules, and SQLite/SQLCipher symbol definitions in op-sqlite's object. There is no direct system-SQLite dependency and the production legacy opener is absent. The checker recognizes link-map dead-stripped symbols too (the optimizer inlines `sqlcipher_version`). Signing/install and hardware runtime acceptance have not run.
+
+**iOS, source/host checks:** the Foundation capture suite (155 tests); encrypted-store/capture TypeScript and Mac-host suites (190 tests); arm64 iPhone SDK compile of the Swift adapters, H3 and Turbo Module shim; `test-store-integration.sh` exercises real host SQLCipher with the production capture port and engine, both initialization orders, same-process stop/delete/key rotation/reopen/resume, a separate reader, wrong-key refusal, native retention/visit trim/cursor rewind. These are not device results.
+
+**iOS, requires a phone:** signed installation and launch without Metro; font rendering, denied/foreground/Always/settings permission paths, locked/background capture after first unlock and JS reading the same native row, visit reconciliation, reboot/before-first-unlock recovery, pause/resume and delete/resume. The full evidence checklist is in `m0/ios/README.md`. API/CDN origins and trust keys remain unset, so this build does not submit to a deployed service or fetch live reports. Push/TestFlight/App Store distribution and a custom app icon remain outside this first application project.

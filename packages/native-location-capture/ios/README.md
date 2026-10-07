@@ -11,13 +11,14 @@ The Swift implementation of `../src/specs/NativeLocationCapture.ts`: background 
 | `Sources/CaptureCore/CaptureEngine.swift`        | The state machine: every spec method, every Core Location callback. Start here         | yes                    |
 | `Sources/CaptureCore/Ports.swift`                | What the engine needs from the phone, as protocols                                     | yes                    |
 | `Sources/CaptureCore/FixFilter.swift`            | The interval-or-distance rule                                                          | yes                    |
-| `Sources/CaptureCore/SQLiteCaptureStore.swift`   | Opens the SQLCipher store, checks it, runs the statements of `native-writer.json`      | yes                    |
+| `Sources/CaptureCore/SQLiteCaptureStore.swift`   | Host-test opener only; excluded from the production pod                                | yes                    |
 | `Sources/CaptureCore/Geo.swift`                  | H3 cells and haversine distance, matching `packages/shared/src/geo`                    | yes                    |
 | `Sources/CaptureCore/PersistedState.swift`       | What survives a process death (no coordinates), as a JSON file                         | yes                    |
 | `Sources/CaptureCore/FileDiagnosticsLog.swift`   | The local capture-health log                                                           | yes                    |
 | `Sources/CaptureCore/Contracts.generated.swift`  | Generated from `packages/shared/contracts` by `scripts/gen-contracts.mjs`. Do not edit | yes                    |
 | `Sources/Platform/CoreLocationSystem.swift`      | The engine's `LocationSystem` over three `CLLocationManager` objects                   | no, compiled only      |
-| `Sources/Platform/SystemAdapters.swift`          | Keychain key, Low Power Mode, Background App Refresh, the store directory              | no, compiled only      |
+| `Sources/Platform/SystemAdapters.swift`          | Low Power Mode, Background App Refresh and device/network conditions                   | no, compiled only      |
+| `Sources/Platform/EncryptedCaptureStore.swift`   | Thin ports to `EncryptedStore.shared`, the sole key/path/connection owner              | host integration       |
 | `Sources/Platform/FMPCaptureBridge.swift`        | The singleton that builds the engine, and the Objective-C face the Turbo Module calls  | no, compiled only      |
 | `Sources/Bridge/RCTNativeLocationCapture.{h,mm}` | The Turbo Native Module: a shim over `FMPCaptureBridge`                                | no, compiled only      |
 | `Sources/Bridge/FMPCaptureLaunchObserver.m`      | Restarts capture on every app launch                                                   | no, compiled only      |
@@ -54,7 +55,7 @@ Four Core Location services, as chosen in the architecture plan (section 5.3) an
 
 ## Retention
 
-The full purge is TypeScript and runs when the app does. A phone on which the app is never opened only ever runs this module, so storing a sample or a visit, and every launch with capture selected, also purges: `purgeIfDue` in the engine asks the store to delete the fixes and stays past retention, and `SQLiteCaptureStore.purgeExpired` runs the four purge statements of `native-writer.json` in one `BEGIN IMMEDIATE` transaction, with the cutoff `retentionSec` behind the clock.
+The full purge is TypeScript and runs when the app does. A phone on which the app is never opened only ever runs this module, so storing a sample or a visit, and every launch with capture selected, also purges: `purgeIfDue` in the engine asks the store to delete the fixes and stays past retention, and `EncryptedCaptureStore` delegates to the store package, whose `EncryptedStore.purgeExpired` runs the four purge statements of `native-writer.json` in one `BEGIN IMMEDIATE` transaction, with the cutoff `retentionSec` behind the clock.
 
 - **At most once an hour per process** (`Tunables.purgeIntervalSec`): a phone on the move stores a fix every few seconds. The time of the last purge is kept in memory only and never decides what is deleted, so a relaunched process purges at once, and a purge after a long gap or a changed clock deletes exactly what one at that moment should.
 - **A failed purge changes nothing**, is logged as `retention_purge_failed`, and is tried at the next wake. It does not raise `store_unusable`. A store that is already unusable is not purged.
@@ -85,7 +86,7 @@ Tier: `background_updates` with Always, `throttled` with "While Using", `stopped
 
 ## What the app has to provide
 
-The module cannot add these itself. The task that creates `app/ios` must.
+The module cannot add these itself. The real `app/ios` supplies them; see `docs/BUILDING.md`.
 
 | Where                   | What                                                                                     | Without it                                                 |
 | ----------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -104,7 +105,7 @@ All in `Application Support/findmyperson-store/`, which is excluded from backups
 | `capture-state.json`        | The selection, sample times of the last 24 hours, visit times, prompt flags   | never       |
 | `capture-diagnostics.jsonl` | The capture-health log `getDiagnostics` returns                               | never       |
 
-The store key is in the Keychain (`AfterFirstUnlockThisDeviceOnly`), as in `m0/store-proof`. iOS itself holds one position for the module: the centre of the exit region. `stop()` removes it.
+The encrypted-store package owns the Keychain key (`AfterFirstUnlockThisDeviceOnly`), directory and live connection. `FMPCaptureBridge` asks it for the capture-file directory and constructs only `EncryptedCaptureStore`/`EncryptedStoreKeySource` adapters. Capture never opens a database or makes a key. The vault closes the exact native writer connection before delete/key rotation; resuming the same engine writes the new file. The directory can be resolved before first unlock without reading protected files; database opens still require successful backup exclusion/key/schema checks. iOS itself holds one position for the module: the centre of the exit region. `stop()` removes it.
 
 ## Tests
 
@@ -112,7 +113,8 @@ The store key is in the Keychain (`AfterFirstUnlockThisDeviceOnly`), as in `m0/s
 cd packages/native-location-capture/ios
 swift test                     # the state machine, 155 tests; Mac or Linux, no simulator
 sh scripts/test-sqlcipher.sh   # the same on an encrypted store, against real SQLCipher, 159 tests; Mac
-sh scripts/check-ios.sh        # compiles every source for arm64 iOS, the Turbo Module shim included; Mac
+sh scripts/check-ios.sh        # production sources/dependency for arm64 iOS, Turbo Module shim included; Mac
+sh scripts/test-store-integration.sh # production adapter + engine, host SQLCipher delete/resume; Mac
 ```
 
 `swift test` runs in CI on every pull request (Linux). The other two need a Mac and run in the iOS job on `main`.
@@ -137,8 +139,7 @@ These tests fix what the module does when iOS behaves as the trial observed. The
 ## Decisions made here
 
 - **The spec's methods run on the main queue.** Core Location calls back there and the engine has no locks. Each call is short; the store is opened once and kept.
-- **`PRAGMA key`, not `sqlite3_key_v2`.** Same raw-key literal. Plain SQLite accepts the statement as an unknown pragma, so one code path serves the app and the tests, and the `cipher_version` check that follows is what refuses an engine that is not SQLCipher.
-- **The module declares the SQLite functions it calls** (`Sources/FMPSQLite`) instead of importing a `sqlite3.h`. Importing the SDK's SQLite module would link the system library, which cannot open the store.
+- **One store owner.** Production capture writes through `EncryptedStore.shared`, linked to op-sqlite's SQLCipher. `SQLiteCaptureStore` and its SQLite C front remain only for historical Foundation/SPM tests; the pod excludes the opener/front. The standalone SDK compile builds the encrypted-store Swift module before capture, matching the cross-pod dependency.
 - **`start_failed` on iOS** is the case where Location Services is off although the app's permission is granted. The selection is kept and `reconcile` retries.
 - **A fix timed more than one interval before the last sample is stored.** The interval rule uses the size of the gap, so setting the clock back cannot stop capture until the clock catches up. The fake applies only the distance rule to such a fix.
 
@@ -151,18 +152,14 @@ These tests fix what the module does when iOS behaves as the trial observed. The
 
 ## Verified and not verified
 
-Verified on a Mac, with no phone and no simulator:
+Verified on a Mac, with no phone or simulator:
+
+- The real RN 0.87.1 `app/ios` unsigned arm64 archive built on October 7, 2026 (Xcode 16.2/iPhoneOS 18.2); its artifact inspection passes for the compiled capture/store/random modules, one op-sqlite SQLCipher symbol owner, Hermes bundle/framework, fonts and location declarations. This is build evidence, not runtime permission/background proof.
 
 - The state machine, with fakes for the phone: `swift test`, 155 tests.
 - The store against real SQLCipher built from the C source op-sqlite vendors: opens an encrypted file with the pinned parameters, writes samples and visit stays into the real schema (`migration-v1.sql`), purges what is past retention from it, refuses a wrong key, other cipher parameters and a plaintext file, and leaves no plaintext on disk (`scripts/test-sqlcipher.sh`, 159 tests). That build uses CommonCrypto where the app uses OpenSSL.
+- The **production** adapter and engine against real host SQLCipher (`test-store-integration.sh`): JS-first/native-first schema initialization, capture A → stop/delete/key rotation/reopen → capture B in the same process, separate reader sees only B, old key refuses the new file, native retention trims a visit and rewinds the derivation cursor. The reader plays JS's lifecycle with Swift SQLCipher; hardware op-sqlite concurrency remains unverified.
 - Cells and distances against `geo-vectors.json`, with the same H3 version h3-js bundles.
 - Every source file compiles for arm64 iOS 15.1 against the iPhoneOS 18.2 SDK: Swift, the vendored C, the launch observer, and the Turbo Module shim against React Native 0.87.1's headers and the committed codegen header (`scripts/check-ios.sh`).
 
-Not verified:
-
-- **Any behaviour on a device.** In particular: that the launch notification is early enough for iOS to deliver the event that caused a relaunch (the M0 app started capture inside `didFinishLaunching` itself; an app can do the same with `FMPCaptureBridge.resume`); that iOS delivers region exits and visits to the third location manager after a relaunch; that the Always prompt makes the app inactive, which is how a refusal is detected; that state and store are readable in a background launch on a locked phone that was unlocked once.
-- **The battery state and the application state on a phone.** That `batteryState` is already known at the first call after monitoring is switched on (it reads `.unknown`, which counts as on battery, until iOS has told the process), and what `applicationState` is during a background relaunch.
-- **`FMPLocationCapture.podspec`.** CocoaPods is not installed on this machine and there is no `app/ios` to install into. Only its Ruby syntax was checked.
-- **Linking.** Whether the module binds to op-sqlite's SQLCipher and not the system `libsqlite3` in the linked app. If it binds to the wrong one the module refuses to write and reports `store_unusable`; it does not write a plaintext store. `StoreTests.testAnEngineThatIsNotSQLCipherIsRefused` covers that refusal.
-- **That TypeScript (op-sqlite) reads what this module wrote** on a phone. `m0/store-proof` showed it for the same cipher parameters with a probe table, not for this module.
-- **Battery cost.** Continuous updates with no distance filter are the M0 trial app's configuration (`m0/ios/README.md`). This module's own cost has not been measured.
+Not verified on a physical iPhone: signing/install, offline launch, permission dialogs, background/locked writes and op-sqlite reading the same rows, same-process delete/resume with real callbacks, visit delivery/reconciliation, reboot/before-first-unlock recovery, long unattended capture. `app/ios` now exists and the shared build script exercises CocoaPods/linking; source/host checks alone do not close these device cases. Record exact device/OS/build/time and failures using `m0/ios/README.md`.

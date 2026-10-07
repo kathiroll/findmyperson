@@ -168,6 +168,8 @@ jobs:
         run: sh packages/native-location-capture/ios/scripts/test-sqlcipher.sh
       - name: Compile for iOS
         run: sh packages/native-location-capture/ios/scripts/check-ios.sh
+      - name: Capture through the shared store, delete and resume
+        run: sh packages/native-location-capture/ios/scripts/test-store-integration.sh
       # The iOS half of packages/encrypted-store: its real Swift compiled and run on this Mac
       # against SQLCipher (backup exclusion read back from the file system, key rotation, the
       # schema-version gate, one file shared with the TypeScript store). The Linux CI job has

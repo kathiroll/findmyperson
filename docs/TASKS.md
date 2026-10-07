@@ -2,15 +2,15 @@
 
 The state of the work: what is done, what is left, and what is waiting on the captain. Updated every task, in the same pull request as the task. Markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked on the captain.
 
-|                        |                                                                                         |
-| ---------------------- | --------------------------------------------------------------------------------------- |
-| Total                  | 40 (T-000 to T-039)                                                                     |
-| Done                   | 40                                                                                      |
-| In progress            | 0                                                                                       |
-| Remaining              | 0 queued: no future tasks are listed here until the captain approves the next breakdown |
-| Blocked on the captain | 13 items below, each marked `[!]`                                                       |
+|                        |                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| Total                  | 43 (T-000 to T-042)                                                                         |
+| Done                   | 41                                                                                          |
+| In progress            | 0                                                                                           |
+| Remaining              | 2 queued (T-041, T-042); no others are listed until the captain approves the next breakdown |
+| Blocked on the captain | 14 items below, each marked `[!]`                                                           |
 
-As of commit `88c8a6c` (2026-10-08). T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
+As of commit `88c8a6c` (2026-10-08), plus T-040. T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
 
 ## Needs you
 
@@ -21,6 +21,7 @@ No task IDs exist yet for the work these items block, so each says what it block
 - [!] **How far to recut the M0 to M7 plan.** Needed from you: how far to reorder the milestones for dependency order; whether to run a spike on whether TypeScript can run on a background wake before the native wake-trigger work begins; and confirmation of the build concurrency you have decided (one build task at a time by default; parallel only for tasks that touch different files with no shared open decisions, and only after asking you). The milestone plan lives outside this repository and the detail of the recut question is in firstmate's records, so it is not visible here. Blocks: the next task breakdown, so every build task after T-039.
 - [!] **The Home screen's list of non-commercial altruistic projects.** Needed from you: whether the strict non-commercial bar stays (the reference project, Be My Eyes, raised venture funding and fails it) or relaxes to "free to the person helped and volunteer-powered", and which 6 to 8 of the shortlist ship. The shortlist, and the reference to Be My Eyes, are not in the repository: what is there is the placeholder list `CURIOUS_LINKS` in `app/src/home/HomeScreen.tsx` (`[VIDEO LINK]`, `[PROJECT 1]`, `[PROJECT 2]`). Blocks: the real content of Home's "If you're curious" list, and any copy that states what kind of projects are linked. Related: [D-052](DECISIONS.md).
 - [!] **Approve or change the proposed decisions** D-015 (no state library), D-040 (the server database is Node's built-in SQLite although the plan named Postgres) and D-052 to D-062 (inferred in T-000: non-commercial MIT, no third-party SDKs in the app, hamburger navigation, Android id and SDK levels, report form defaults, the operator page, the watch-list rule, matching cadence, fetch cadence, vendored H3 on iOS, Play services with a fallback). Blocks: nothing is stopped today, but each stays `Proposed` until you accept it, and a later task must not build on a Proposed entry without asking.
+- [!] **Approve the iOS app's dependencies and choices** (D-063 to D-067, inferred in T-040 from the work an earlier Codex session did). Two are new dependencies, which need your approval by name: `react-native-get-random-values` `^2.0.0` (secure randomness, D-063) and `@react-native-community/cli-platform-ios` `20.2.0` (dev dependency, CocoaPods autolinking, D-064). The other three: React Native 0.87.1 on iOS, device-only, New Architecture, Hermes (D-065); op-sqlite's SQLCipher as the single owner of SQLCipher symbols (D-066); `EncryptedCaptureStore` over `EncryptedStore.shared` as the production iOS capture store (D-067). Blocks: nothing is stopped today, but each stays `Proposed` until you accept it, and no later task may build on one without asking.
 - [!] **Ratify the entries whose decider is "not recorded"** (D-001 to D-051, except D-011, D-043 to D-046 which cite plan addenda, D-032's photo cap which the captain decided, and the three marked Proposed). They are in force and documented in the repository, so they are marked `Accepted`, but nothing says who chose them. Part of this: D-001 and `WORKSPACE.md` say the install is hoisted (`node-linker=hoisted` in `.npmrc`); `AGENTS.md` and the installed tree say it is pnpm's isolated layout and that the `.npmrc` line is not read. Needed from you: confirm which is intended; if hoisted was meant, the build has drifted from it. Blocks: nothing today.
 
 ### Open choices the code is waiting on
@@ -31,7 +32,7 @@ No task IDs exist yet for the work these items block, so each says what it block
 - [!] **Real operator authentication and alert channel.** The release gate is guarded by a device-id allow-list and by one shared token ([D-057](DECISIONS.md)), and a new report only writes a log line. Needed from you: how operators sign in (accounts, mTLS or an identity provider) and how you are alerted (push, SMS or email). Blocks: exposing the server to the internet; the manual-review gate (D-043) being safe in production.
 - [!] **Photo picker and map provider.** The report form has a seam for each and no library: with no photo port "Add photo" is hidden, and with no map port the reporter types coordinates. Both choices add a dependency, and a map SDK also adds a third party that sees where the reporter looks. Needed from you: approval of a library for each, or a decision to leave them out. Blocks: photos in reports and picking a place on a map.
 - [!] **How a match reaches the person (local notification or push).** No notification is raised, the notification permission is not requested, and no FCM or APNs code exists. Needed from you: the approach and any push provider, which would be a new third-party service. Blocks: the match notification and the Bystander screen, the reporter hearing that a tip arrived, and the push-wake topics of the subscription manager.
-- [!] **Apple developer team.** There is no `app/ios` project; it waits on a team. Needed from you: the team or Apple ID to build with. Blocks: the iOS app, iOS builds in CI, and everything unverified on an iPhone.
+- [!] **Apple developer team ID.** The iOS project now exists (`app/ios`, T-040) and builds to an unsigned archive. Needed from you: the 10-character team ID of your existing Personal Team (the `FMP_IOS_TEAM_ID` for `build/build-ios.sh device`; it stays local and is never committed). Blocks: T-041 (the signed build on your iPhone), T-042 (testing on it), iOS builds in CI (also needs the paid-account secrets in `docs/BUILDING.md`), and everything unverified on an iPhone.
 - [!] **Policy page and abuse contact.** `POLICIES_URL` and `ABUSE_CONTACT_URL` in `app/src/settings/links.ts` are placeholders (`findmyperson.app/policies`, `abuse@findmyperson.app`); neither the page nor the mailbox exists. Needed from you: the real address and a monitored mailbox. Blocks: store listings, and honest Settings links.
 - [!] **Three policy points the code leaves open.** (1) How long `own_report` and `received_response` are kept (today: never purged; `ownership.ts` says undecided). (2) Whether a widening edit on a released report needs a second review (today it does not). (3) Whether to enforce the plan's one report per device per day (the `rate_limited` error code exists and nothing returns it). Needed from you: a call on each. Blocks: the reporter's live-report screen and edit flow (1, 2) and any public launch (3).
 
@@ -46,6 +47,40 @@ These look like scope nobody asked for in the repository's own record, or toolin
 - The design-system catalogue, `DesignSystemCatalogue` (`app/src/design-system/Catalogue.tsx`): a showcase of the primitives, exported but not reachable from any route.
 - The `History` route and menu entry: a placeholder with no mockup ("Not in the v2 mockups").
 - `m0/`: the finished research trial apps and analyser (149 tracked files). Evidence for decisions; one file in it is pinned by a test to the real build's cipher parameters.
+
+## Queued
+
+### T-041 [ ] Signed build installed on the captain's iPhone
+
+Goal: A development-signed build of the app is installed on the captain's iPhone and launches.
+Acceptance criteria:
+
+- `FMP_IOS_TEAM_ID=<team id> build/build-ios.sh device` succeeds using the existing Personal Team; nothing about the team is committed.
+- The app is installed on the paired iPhone (Xcode or `xcrun devicectl`) and opens without Metro.
+- The separate M0 app and its data on the phone are untouched.
+
+Out of scope: any on-device testing beyond launching (T-042); push, TestFlight or App Store distribution; CI signing.
+Decisions resolved: none needed. Blocked by the Apple team ID (the "Apple developer team ID" item above).
+Likely areas touched: none in the repository unless the build exposes a defect; a unique local bundle identifier if `dev.findmyperson.app` is unavailable to the team (`FMP_IOS_BUNDLE_ID`).
+How to verify: the app icon is on the phone and opens to onboarding.
+
+### T-042 [ ] Real-phone testing against the checklist in `m0/ios/README.md`
+
+Goal: Record what the app actually does on a real iPhone, item by item. Done by the captain, with the app from T-041.
+Acceptance criteria: each result names device, OS, build, timestamp and observed rows or errors, for these behaviours that nothing so far has verified:
+
+- Launch with Metro unavailable, and the three bundled fonts rendering.
+- The permission paths: denied, When In Use, Always, approximate-only, and returning from Settings; the visible health matches the real conditions.
+- Capture in the background and with the phone locked after first unlock, native fixes landing, and JavaScript reading the same encrypted rows (native-first and JavaScript-first start-up, one key and one path).
+- Pause and resume, and capture A, stop, delete all data, resume, capture B in the same process: JavaScript sees only B and the old key refuses the new file.
+- Device and report ids and cover state coming from `SecRandomCopyBytes`, not a debugger-injected source.
+- Visits and stay reconciliation, recovery after restart and before first unlock, Low Power Mode, Background App Refresh off, termination and movement, and a longer untouched capture.
+- That the Keychain key and backup exclusion behave as the store package's README expects after a reboot.
+
+Out of scope: fixing what fails (new tasks from the results); API/CDN-dependent behaviour (origins and trusted keys are unset).
+Decisions resolved: none needed.
+Likely areas touched: `m0/ios/README.md` (results recorded there or in `docs/WORKLOG.md`).
+How to verify: the recorded results; every item is either observed or listed as failed.
 
 ## Done
 
@@ -463,3 +498,21 @@ Out of scope: not recorded.
 Decisions resolved: D-059
 Likely areas touched: `packages/shared/src/match`, `app/src/store`
 How to verify: the pull request's checks; the tests and READMEs it added are on `main`.
+
+### The iOS app
+
+#### T-040 [x] Land the iOS project and native wiring
+
+Goal: The iOS project and native wiring written by an earlier Codex session are on a branch as one pull request, building to a verified unsigned archive.
+Acceptance criteria:
+
+- The source changes are on current `main` (the working rules and the match runner already landed), with `AGENTS.md`'s working rules and coding style intact.
+- `pnpm check` passes.
+- `build/build-ios.sh unsigned` produces the archive and `build/check-ios-archive.sh` passes on it.
+- Docs updated: ARCHITECTURE, TASKS (T-041, T-042), DECISIONS (D-063 to D-067, Proposed, with a `[!]` item), WORKLOG.
+- Generated output (`Pods`, `build`, archives), `.lavish/`, the recovery note and scratch documents, and the captain's own M0 project edits are not in the pull request.
+
+Out of scope: signing, installing or running on any device; API/CDN origins and trusted keys; finishing the report/tip journey; an iOS CI job; changing native behaviour beyond reconciling with `main`.
+Decisions resolved: none needed (it proposes D-063 to D-067).
+Likely areas touched: `app/ios`, `app/index.js`, `app/src/random.ts`, `build/`, `packages/encrypted-store/ios`, `packages/native-location-capture/ios`, `docs/`.
+How to verify: `git diff --stat main...HEAD`; the checks on the pull request; the archive verification output in its description.
