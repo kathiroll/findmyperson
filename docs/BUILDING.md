@@ -78,7 +78,7 @@ xcrun devicectl device install app --device YOUR_DEVICE_ID \
 xcrun devicectl device process launch --device YOUR_DEVICE_ID dev.findmyperson.app
 ```
 
-This requires an Apple account configured in Xcode and a valid local signing identity/profile. `device` uses automatic development signing and permits Xcode to update provisioning. Both Debug and Release load bundled JavaScript with Metro unavailable; the bundle phase forces Debug bundling too. `app/ios/.xcode.env.local` is ignored for a machine-specific `NODE_BINARY` if Xcode's launch environment cannot find Node. No simulator or emulator is used.
+Find the device id with `xcrun devicectl list devices`. The phone must be cabled, unlocked and kept unlocked, with Developer Mode on: install fails with "developer disk image could not be mounted ... device is locked" otherwise, and the first launch may need the developer profile trusted under Settings > General > VPN & Device Management. If CocoaPods stops on an encoding error, prefix the build with `LANG=en_US.UTF-8`. This requires an Apple account configured in Xcode and a valid local signing identity/profile. `device` uses automatic development signing and permits Xcode to update provisioning. Both Debug and Release load bundled JavaScript with Metro unavailable; the bundle phase forces Debug bundling too. `app/ios/.xcode.env.local` is ignored for a machine-specific `NODE_BINARY` if Xcode's launch environment cannot find Node. No simulator or emulator is used.
 
 ### The iOS project (`app/ios`)
 

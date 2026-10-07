@@ -2,15 +2,15 @@
 
 The state of the work: what is done, what is left, and what is waiting on the captain. Updated every task, in the same pull request as the task. Markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked on the captain.
 
-|                        |                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------- |
-| Total                  | 43 (T-000 to T-042)                                                                         |
-| Done                   | 41                                                                                          |
-| In progress            | 0                                                                                           |
-| Remaining              | 2 queued (T-041, T-042); no others are listed until the captain approves the next breakdown |
-| Blocked on the captain | 14 items below, each marked `[!]`                                                           |
+|                        |                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| Total                  | 43 (T-000 to T-042)                                                                  |
+| Done                   | 42                                                                                   |
+| In progress            | 0                                                                                    |
+| Remaining              | 1 queued (T-042); no others are listed until the captain approves the next breakdown |
+| Blocked on the captain | 14 items below, each marked `[!]`                                                    |
 
-As of commit `88c8a6c` (2026-10-08), plus T-040. T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
+As of commit `88c8a6c` (2026-10-08), plus T-040 and T-041. T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
 
 ## Needs you
 
@@ -32,7 +32,7 @@ No task IDs exist yet for the work these items block, so each says what it block
 - [!] **Real operator authentication and alert channel.** The release gate is guarded by a device-id allow-list and by one shared token ([D-057](DECISIONS.md)), and a new report only writes a log line. Needed from you: how operators sign in (accounts, mTLS or an identity provider) and how you are alerted (push, SMS or email). Blocks: exposing the server to the internet; the manual-review gate (D-043) being safe in production.
 - [!] **Photo picker and map provider.** The report form has a seam for each and no library: with no photo port "Add photo" is hidden, and with no map port the reporter types coordinates. Both choices add a dependency, and a map SDK also adds a third party that sees where the reporter looks. Needed from you: approval of a library for each, or a decision to leave them out. Blocks: photos in reports and picking a place on a map.
 - [!] **How a match reaches the person (local notification or push).** No notification is raised, the notification permission is not requested, and no FCM or APNs code exists. Needed from you: the approach and any push provider, which would be a new third-party service. Blocks: the match notification and the Bystander screen, the reporter hearing that a tip arrived, and the push-wake topics of the subscription manager.
-- [!] **Apple developer team ID.** The iOS project now exists (`app/ios`, T-040) and builds to an unsigned archive. Needed from you: the 10-character team ID of your existing Personal Team (the `FMP_IOS_TEAM_ID` for `build/build-ios.sh device`; it stays local and is never committed). Blocks: T-041 (the signed build on your iPhone), T-042 (testing on it), iOS builds in CI (also needs the paid-account secrets in `docs/BUILDING.md`), and everything unverified on an iPhone.
+- [!] **Paid Apple team (optional).** T-041 signed with the Personal Team already in this Mac's Xcode, so nothing blocks T-042. The friend's paid team is not visible in this Mac's Xcode. Needed from you only if you want it: sign in to it in Xcode and give its 10-character team ID (kept local, never committed). Blocks: iOS builds in CI and distribution (also need the paid-account secrets in `docs/BUILDING.md`); a Personal Team build expires after 7 days.
 - [!] **Policy page and abuse contact.** `POLICIES_URL` and `ABUSE_CONTACT_URL` in `app/src/settings/links.ts` are placeholders (`findmyperson.app/policies`, `abuse@findmyperson.app`); neither the page nor the mailbox exists. Needed from you: the real address and a monitored mailbox. Blocks: store listings, and honest Settings links.
 - [!] **Three policy points the code leaves open.** (1) How long `own_report` and `received_response` are kept (today: never purged; `ownership.ts` says undecided). (2) Whether a widening edit on a released report needs a second review (today it does not). (3) Whether to enforce the plan's one report per device per day (the `rate_limited` error code exists and nothing returns it). Needed from you: a call on each. Blocks: the reporter's live-report screen and edit flow (1, 2) and any public launch (3).
 
@@ -50,7 +50,7 @@ These look like scope nobody asked for in the repository's own record, or toolin
 
 ## Queued
 
-### T-041 [ ] Signed build installed on the captain's iPhone
+### T-041 [x] Signed build installed on the captain's iPhone
 
 Goal: A development-signed build of the app is installed on the captain's iPhone and launches.
 Acceptance criteria:
@@ -60,7 +60,7 @@ Acceptance criteria:
 - The separate M0 app and its data on the phone are untouched.
 
 Out of scope: any on-device testing beyond launching (T-042); push, TestFlight or App Store distribution; CI signing.
-Decisions resolved: none needed. Blocked by the Apple team ID (the "Apple developer team ID" item above).
+Decisions resolved: none needed. Done with the Personal Team already in Xcode on this Mac (see the WORKLOG entry).
 Likely areas touched: none in the repository unless the build exposes a defect; a unique local bundle identifier if `dev.findmyperson.app` is unavailable to the team (`FMP_IOS_BUNDLE_ID`).
 How to verify: the app icon is on the phone and opens to onboarding.
 

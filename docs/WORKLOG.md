@@ -39,3 +39,31 @@ What was actually done and what came up, one entry per task. Append only: add ne
   - Where the new tasks go in `docs/TASKS.md` -> a "Queued" section above "Done", and T-040 in a new "The iOS app" group -> move them.
   - Whether the `Podfile.lock` and `app/ios/.xcode.env` belong in the pull request -> yes (the template tracks both); `.xcode.env.local` and `xcuserdata` stay ignored (Codex's `.gitignore` lines) -> edit `.gitignore`.
 - Notes / questions raised: the iOS CI job in `build.yml` still has never run (main and tags only); adding or changing CI is out of scope here. The `findmyperson://` URL scheme is registered in neither native project (`AGENTS.md` now says so for both). Signed install -> T-041; phone testing -> T-042.
+
+## 2026-10-08: T-041
+
+- Built a development-signed iOS app and installed and launched it on the captain's paired iPhone 13 ("Kartik's iPhone", CoreDevice identifier `31B437E5-A1A0-4778-A1ED-F9BF29FF4CC8`). The team ID went in through the environment only; no team, certificate, profile or Apple ID is in any tracked file. No code changed.
+- Build: `LANG=en_US.UTF-8 FMP_IOS_TEAM_ID=J6NNZCGZYK build/build-ios.sh device` -> `** BUILD SUCCEEDED **`, app at `app/ios/build/DerivedData/Build/Products/Release-iphoneos/FindMyPerson.app`. `codesign -dvv` shows `Identifier=dev.findmyperson.app`, `TeamIdentifier=J6NNZCGZYK`, signed by the one "Apple Development" identity in the keychain.
+- First install attempt, phone cabled but locked: `ERROR: The developer disk image could not be mounted on this device ... The operation failed since the device is locked. (kAMDMobileImageMounterDeviceLocked)`. Reported to firstmate as blocked, retried every 30 seconds; after the captain unlocked the phone:
+
+```
+xcrun devicectl device install app --device 31B437E5-A1A0-4778-A1ED-F9BF29FF4CC8 \
+  app/ios/build/DerivedData/Build/Products/Release-iphoneos/FindMyPerson.app
+...
+Complete!
+App installed:
+  bundleID: dev.findmyperson.app
+  installationURL: file:///private/var/containers/Bundle/Application/407E08EE-F596-4676-84E6-268EF7463B6B/FindMyPerson.app/
+
+xcrun devicectl device process launch --device 31B437E5-A1A0-4778-A1ED-F9BF29FF4CC8 dev.findmyperson.app
+Launched application with dev.findmyperson.app bundle identifier.
+```
+
+- Afterwards `devicectl device info processes` listed `.../FindMyPerson.app/FindMyPerson` running (pid 6178), and `devicectl device info apps` still lists the M0 app (`dev.findmyperson.m0`) beside `dev.findmyperson.app`; the M0 app was not touched. Launch needed no trust step from the captain (the launch command returned success). What the app shows on screen was not observed: that is T-042.
+- A Personal Team build expires after 7 days; rebuild and reinstall with the same two commands. Added to `docs/BUILDING.md` (which already had the commands and the 7 days): the device-id command, that the phone must be unlocked, and the `LANG` note.
+- Files: `docs/TASKS.md`, `docs/WORKLOG.md`, `docs/BUILDING.md`.
+- Defaults taken:
+  - Which team -> the friend's paid team is not visible in this Mac's Xcode (only "Kartik Verma (Personal Team)", `J6NNZCGZYK`, with one valid Apple Development identity), so the Personal Team was used -> to switch, sign in to the paid team in Xcode and give its 10-character team ID as `FMP_IOS_TEAM_ID`. Kept as an optional `[!]` item in `docs/TASKS.md`.
+  - Bundle identifier -> the default `dev.findmyperson.app` was accepted by the team -> set `FMP_IOS_BUNDLE_ID` otherwise.
+  - CocoaPods encoding -> `LANG=en_US.UTF-8` for the build only -> none.
+- Notes / questions raised: none; no defect found. Phone testing is T-042 (the captain's).
