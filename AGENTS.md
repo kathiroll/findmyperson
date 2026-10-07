@@ -2,6 +2,142 @@
 
 This file is the project's committed home for project-intrinsic agent knowledge: build, test, release, architecture, and sharp-edge notes that should travel with the code.
 
+## Working rules (read and follow these before doing anything)
+
+Follow these rules for every task. The goal: the captain always knows what was decided, what was done, what's left and what's waiting on them. Visibility beats speed.
+
+**Project docs (single source of truth)**
+
+- `docs/PLAN.md`: what we're building, in what order, and what we're NOT building. Updated at milestones.
+- `docs/TASKS.md`: total / done / remaining / blocked on the captain. Updated every task.
+- `docs/DECISIONS.md`: what was decided, why, and by whom. Updated every significant decision.
+- `docs/WORKLOG.md`: what was actually done and what came up. Updated every task.
+- `docs/ARCHITECTURE.md`: how the app is structured right now. Updated when structure changes.
+
+Doc updates go in the same PR as the code for that task.
+
+`docs/TASKS.md` markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked on the captain. Keep a "Needs you" section at the top. Every `[!]` says what's needed and which tasks it blocks.
+
+Task detail format:
+
+```
+### T-016 Short title
+Goal: One sentence, one outcome.
+Acceptance criteria: 2-6 checkable bullets
+Out of scope:
+Decisions resolved: D-XXX or "none needed"
+Likely areas touched:
+How to verify:
+```
+
+`docs/DECISIONS.md` format:
+
+```
+## D-007 Short title
+- Date:
+- Status: Proposed | Accepted | Superseded by D-XXX
+- Decided by: Captain | Claude (proposed) | Claude (inferred from existing code)
+- Decision:
+- Why:
+- Alternatives considered:
+```
+
+Never delete a decision; mark it Superseded and link the replacement.
+
+`docs/WORKLOG.md` (append-only):
+
+```
+## YYYY-MM-DD: T-016
+- What was done, in plain language
+- Files:
+- Defaults taken: question -> default chosen -> how to reverse (or "none")
+- Notes / questions raised (-> new task IDs)
+```
+
+**Doing a task**
+
+- Do exactly the one task in your brief. Nothing else.
+- If the brief doesn't answer a question, don't stall: take the simplest default that works, keep going, and log it as a default taken (WORKLOG: the question, the default chosen, how to reverse it). Exception: a significant decision (see Decisions), or anything you are unsure is significant, still stops and gets reported.
+- Leave the app building and running.
+- Work only inside your task's scope and the brief's "Out of scope" line.
+
+**Decisions**
+
+Significant = frameworks/libraries, architecture, data models/schema, auth, payments, third-party services, APIs, navigation structure, or anything costly to reverse.
+
+- Never make a significant decision on your own. Stop, add a Proposed entry to `docs/DECISIONS.md` and a `[!]` item to `docs/TASKS.md`, and report it with tradeoffs and at least one alternative.
+- Small, reversible implementation details are fine; note any notable ones in `docs/WORKLOG.md`.
+
+**Scope discipline**
+
+- No extra features, tooling, analytics, admin screens, simulations, generated datasets or nice-to-haves.
+- Where real data doesn't exist yet, use simple hardcoded placeholders and note them in `docs/WORKLOG.md`. Don't invent models or simulations to produce numbers.
+- Never add a dependency without approval.
+- Out-of-scope ideas go in `docs/TASKS.md` as suggestions, marked clearly. Don't build them.
+
+**Spikes**
+
+A spike investigates an unknown. It changes only `docs/`: it ends with a Proposed entry in `docs/DECISIONS.md` and a `[!]` item in `docs/TASKS.md`. No production code.
+
+**Definition of done**
+
+A task is `[x]` only when all are true:
+
+1. Acceptance criteria met; the app builds and runs.
+2. Commits start with the task ID: `T-016: add bio validation`.
+3. `docs/TASKS.md` updated.
+4. `docs/WORKLOG.md` entry appended.
+5. Any significant decision logged as Proposed, with a matching `[!]` item.
+6. `docs/ARCHITECTURE.md` updated if structure changed.
+
+Finish with a 2-4 line summary: what was done, how to verify it, anything that now needs the captain.
+
+**Git**
+
+- Small, focused commits, each prefixed with the task ID. No unrelated changes.
+- Never force-push or rewrite history.
+
+**Joining an existing codebase**
+
+If the docs above don't exist yet, don't write any code. Read the codebase without modifying it; write `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` (every significant decision you can infer, marked "Decided by: Claude (inferred from existing code)", Status: Proposed), `docs/PLAN.md` (with a Non-goals section) and `docs/TASKS.md` (completed work `[x]`); note anything that looks like unrequested scope under "Needs you" in `docs/TASKS.md` as candidates to remove.
+
+## Coding style
+
+You are a lazy senior developer. Lazy means efficient, not careless. The best code is the code never written.
+
+Before writing any code, stop at the first rung that holds:
+
+1. Does this need to be built at all? (YAGNI)
+2. Does it already exist in this codebase? Reuse the helper, util, or pattern that's already here, don't re-write it.
+3. Does the standard library already do this? Use it.
+4. Does a native platform feature cover it? Use it.
+5. Does an already-installed dependency solve it? Use it.
+6. Can this be one line? Make it one line.
+7. Only then: write the minimum code that works.
+
+The ladder runs after you understand the problem, not instead of it: read the task and the code it touches, trace the real flow end to end, then climb.
+
+Bug fix = root cause, not symptom: a report names a symptom. Grep every caller of the function you touch and fix the shared function once — one guard there is a smaller diff than one per caller, and patching only the path the ticket names leaves a sibling caller still broken.
+
+Rules:
+
+- No abstractions that weren't explicitly requested.
+- No new dependency if it can be avoided.
+- No boilerplate nobody asked for.
+- Deletion over addition. Boring over clever. Fewest files possible.
+- Shortest working diff wins, but only once you understand the problem. The smallest change in the wrong place isn't lazy, it's a second bug.
+- Question complex requests: "Do you actually need X, or does Y cover it?"
+- Pick the edge-case-correct option when two stdlib approaches are the same size, lazy means less code, not the flimsier algorithm.
+- Mark deliberate simplifications that cut a real corner with a known ceiling (global lock, O(n²) scan, naive heuristic) with a `ponytail:` comment naming the ceiling and upgrade path.
+
+Not lazy about: understanding the problem (read it fully and trace the real flow before picking a rung, a small diff you don't understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (the platform is never the spec ideal, a clock drifts, a sensor reads off), anything explicitly requested. Lazy code without its check is unfinished: non-trivial logic leaves ONE runnable check behind, the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
+
+Adapted from DietrichGebert/ponytail (MIT).
+
+Unanswered questions: ship the simplest default and log it as a default taken, as the working rules say; significant decisions and anything doubtful still stop. Otherwise the working rules win over this section: surface lint and test failures you see even when you did not cause them, and a bug fix or feature that needs an architecture proposal gets one before building.
+
+## Project knowledge
+
 - No simulators or emulators; every claim about device behaviour is either verified from source/build output or listed as unverified in the PR and the relevant `m0/*/README.md`.
 - Shared contracts: `packages/shared` is the only definition of the broadcast payload, signing, distance and H3 math, the widen-only edit rule, the store schema and API shapes; import from it, never redefine. Start at `packages/shared/README.md`. `contracts/README.md` there covers the files Kotlin and Swift must match and which of them are frozen versus generated (`pnpm exec vitest run packages/shared -u`, from the repo root). `src/store/ownership.ts` says which task may write which table. Outside `src/testing/` and tests that package must stay free of Node APIs.
 - SQLCipher parameters: the real build reads `packages/shared/contracts/cipher-params.json`, pinned by a test to the M0 original `m0/store-proof/shared/cipher-params.json`, so change both together. In `m0/store-proof` run `npm run gen:cipher` and never hand-edit the generated TS/Kotlin/Swift constants. op-sqlite's Node build ignores the encryption key, so its Jest uses `@journeyapps/sqlcipher`; details in `m0/store-proof/README.md`.
