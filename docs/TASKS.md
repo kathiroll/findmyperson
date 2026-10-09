@@ -2,13 +2,13 @@
 
 The state of the work: what is done, what is left, and what is waiting on the captain. Updated every task, in the same pull request as the task. Markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked on the captain.
 
-|                        |                                                                                                                                            |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Total                  | 45 (T-000 to T-044)                                                                                                                        |
-| Done                   | 44                                                                                                                                         |
-| In progress            | 0                                                                                                                                          |
-| Remaining              | 1 queued (T-042); T-045 (the captain's verification) is not yet listed; no others are listed until the captain approves the next breakdown |
-| Blocked on the captain | 14 items below, each marked `[!]`                                                                                                          |
+|                        |                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| Total                  | 46 (T-000 to T-045)                                                                  |
+| Done                   | 45                                                                                   |
+| In progress            | 0                                                                                    |
+| Remaining              | 1 queued (T-042); no others are listed until the captain approves the next breakdown |
+| Blocked on the captain | 14 items below, each marked `[!]`                                                    |
 
 As of commit `88c8a6c` (2026-10-08), plus T-040 and T-041. T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
 
@@ -79,16 +79,31 @@ Decisions resolved: none needed (option B of the investigation, which the captai
 Likely areas touched: `app/src/permissions/`, `app/src/store/DataStoreContext.tsx`, `packages/shared/src/store/tables/kv.ts`, `packages/native-location-capture/src/fake.ts`.
 How to verify: the "Verify on the phone" section of the WORKLOG entry, after T-044; until then the tests in `app/src/permissions/__tests__/permissions.test.tsx`.
 
+- [x] Verified on the phone: met by T-045 (steps 1 to 4; step 5 not run).
+
 ### T-044 [x] Signed build with the T-043 fix installed on the captain's iPhone, for the captain to verify
 
 Goal: The captain's iPhone runs a signed build that contains the T-043 guide, so the captain can follow "Verify on the phone".
-Acceptance criteria: the build is installed over the existing app and launches (as T-041). The captain's per-step results are T-045.
+Acceptance criteria: the build is installed over the existing app and launches (as T-041). The captain's per-step results are T-045 (recorded below).
 Out of scope: fixing what fails (new tasks).
 Decisions resolved: none needed.
 Likely areas touched: none in the repository unless the build exposes a defect.
 How to verify: the captain's results.
 
-- [ ] **Suggestion, not a task (untested): add a minimal `Settings.bundle` so Open Settings lands on the app's own page.** From the investigation's option E: Apple DTS's workaround for apps with no Settings page. Not built and not proven on this phone; the guide works without it.
+### T-045 [x] Captain verified the Always guide on the real iPhone
+
+Goal: The project's record shows that T-043's fix was verified by the captain on a real iPhone, and what remains unverified.
+Result (2026-10-09): the captain ran "Verify on the phone" (WORKLOG, T-044 entry) on an iPhone 13, iOS 17.5.1, with the signed build from T-044 (main at the T-043 merge), and reported: "everything works".
+
+- Steps 1 to 4 (Capture health card with "Allow location all the time"; the "Turn on Always in Settings" guide replacing the Allow Always button; the guide showing straight away after leaving and after force-quit and reopen; following the guide through Settings, Privacy & Security, Location Services, findmyperson, Always, and returning with the screen updating by itself): reported working. Only that summary was reported, no per-step detail.
+- Step 5 (Don't Allow on the first iOS question; needs delete and reinstall): not run.
+
+Out of scope: any code, build or device action.
+Decisions resolved: none needed.
+Likely areas touched: `docs/` only.
+How to verify: this entry and the WORKLOG entry for T-045.
+
+- [ ] **Suggestion, not a task (untested): add a minimal `Settings.bundle` so Open Settings lands on the app's own page.** From the investigation's option E: Apple DTS's workaround for apps with no Settings page. Not built and not proven on this phone. Non-blocking: the guide works without it, as the phone verification (T-045) showed.
 
 ### T-042 [ ] Real-phone testing against the checklist in `m0/ios/README.md`
 
@@ -96,7 +111,7 @@ Goal: Record what the app actually does on a real iPhone, item by item. Done by 
 Acceptance criteria: each result names device, OS, build, timestamp and observed rows or errors, for these behaviours that nothing so far has verified:
 
 - Launch with Metro unavailable, and the three bundled fonts rendering.
-- The permission paths: denied, When In Use, Always, approximate-only, and returning from Settings; the visible health matches the real conditions.
+- The permission paths: denied, When In Use, Always, approximate-only, and returning from Settings; the visible health matches the real conditions. (Observed in T-045 on an iPhone 13, iOS 17.5.1: While Using, then Always via Settings, and returning from Settings with the screen updating by itself. Still unverified: denied, approximate-only, and the visible health against other real conditions.)
 - Capture in the background and with the phone locked after first unlock, native fixes landing, and JavaScript reading the same encrypted rows (native-first and JavaScript-first start-up, one key and one path).
 - Pause and resume, and capture A, stop, delete all data, resume, capture B in the same process: JavaScript sees only B and the old key refuses the new file.
 - Device and report ids and cover state coming from `SecRandomCopyBytes`, not a debugger-injected source.

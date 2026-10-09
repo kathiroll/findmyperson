@@ -117,3 +117,14 @@ For the captain, on the iPhone 13 that already has the app (While Using allowed,
 3. **Leave and come back.** Press the back arrow, then open "Allow location all the time" again. Then force-quit findmyperson (swipe it away in the app switcher), reopen it and open the same screen. _Success:_ both times the "Turn on Always in Settings" block is there straight away, with no "Allow Always" button, not even for a moment. _Wrong:_ the "Allow Always" button comes back.
 4. **Follow the steps.** Tap "Open Settings". The Settings app opens, probably on its main list. Tap Privacy & Security, then Location Services, scroll to findmyperson and tap it, choose Always (leave Precise Location on), then switch back to findmyperson. _Success:_ without touching anything the screen changes to "All set" (or "Almost there" with a card for something else on the phone), and the "Turn on Always in Settings" block is gone. On Home the card reads "Working normally"; in the "Troubleshooting log" (Capture health, then Troubleshooting log) the line "Location permission: always" appears. _Wrong:_ the guide stays after you come back with Always chosen. Force-quit and reopen, and say whether it then updates. If Settings opened on a findmyperson page instead, tap Location, then Always, as the note under the steps says.
 5. **Optional, needs a reset (delete the app and install it again, which clears its saved data).** Do onboarding and answer "Don't Allow" to the first iOS question. _Success:_ the screen "Location is turned off" shows the same six steps, ending "Choose While Using the App or Always", with an "Open Settings" button, and nothing about "Settings, then Apps". After you choose While Using the App or Always and come back, it moves on by itself. _Wrong:_ it mentions Apps, or has only a bare "Open settings" button.
+
+## 2026-10-09: T-045
+
+- Recorded the captain's verification of the T-043 Always guide. The captain ran "Verify on the phone" (T-044 entry) on an iPhone 13, iOS 17.5.1, with the signed build from T-044 (main at the T-043 merge) and reported: "everything works". That covers steps 1 to 4. No code changed.
+- Not verified: step 5 (Don't Allow on the first iOS question, which needs delete and reinstall) was not run. "Open Settings" still lands on the Settings main list, as the guide describes; the optional Settings.bundle stays an unbuilt, non-blocking suggestion.
+- Of T-042, only the While Using then Always via Settings path and "returning from Settings: the screen updates by itself" are marked observed; everything else stays unverified. Only the captain's one-line summary was reported, so no per-step detail is recorded.
+- Files: `docs/TASKS.md`, `docs/WORKLOG.md`.
+- Defaults taken:
+  - Where to record T-042's observed items -> a note inside the T-042 permission-paths bullet, T-042 stays `[ ]` -> edit the bullet.
+  - Counts -> total 46, done 45 -> none.
+- Notes / questions raised: none.
