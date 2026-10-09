@@ -45,6 +45,8 @@ async function mount(initialUrl: string | null = null, store: Partial<DataStore>
           enqueueReport: () => Promise.reject(new Error('this screen never submits')),
           runReportQueue: () => Promise.reject(new Error('this screen never submits')),
           getActiveReport: async () => null,
+          getAlwaysPromptUsed: async () => false,
+          markAlwaysPromptUsed: async () => undefined,
           ...store,
         }}
       />,

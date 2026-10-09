@@ -90,8 +90,41 @@ function Purpose({ flow, onDecline }: { flow: PermissionFlow; onDecline: () => v
   );
 }
 
+/**
+ * iOS lets an app ask for "Always" once, and it cannot ask whether it already did. From then on
+ * the person has to change it in Settings, and Open Settings lands on the Settings list (this app
+ * has no page of its own there), so the steps start at the top and name what they will see.
+ */
+function SettingsGuide({ flow, choice }: { flow: PermissionFlow; choice: string }) {
+  return (
+    <View style={{ gap: spacing[12] }} testID="settings-guide">
+      <Text variant="body" accessibilityRole="header">
+        Turn on Always in Settings
+      </Text>
+      <Body>iOS lets an app ask only once, and that question has been answered.</Body>
+      <Body>1. Tap Open Settings below.</Body>
+      <Body>2. Tap Privacy & Security. (On iOS 15 it is called Privacy.)</Body>
+      <Body>3. Tap Location Services.</Body>
+      <Body>4. Scroll to findmyperson and tap it.</Body>
+      <Body>{`5. Choose ${choice}. Leave Precise Location on.`}</Body>
+      <Body>6. Come back to findmyperson. This screen updates by itself.</Body>
+      <Text variant="bodySmall" color="muted">
+        If Settings opens on a findmyperson page instead, tap Location, then choose Always.
+      </Text>
+      <Button label="Open Settings" onPress={() => void flow.openSettings('app')} />
+      {flow.settingsUnavailable ? (
+        <InfoBanner
+          icon="alert"
+          message="Settings could not be opened. Open the Settings app yourself and follow the steps above."
+        />
+      ) : null}
+    </View>
+  );
+}
+
 function Upgrade({ flow, platform }: { flow: PermissionFlow; platform: CapturePlatform }) {
   const android = platform === 'android';
+  const guided = !android && flow.upgradePromptUsed;
   return (
     <Section title='Allow location "all the time"'>
       <Body>
@@ -99,39 +132,44 @@ function Upgrade({ flow, platform }: { flow: PermissionFlow; platform: CapturePl
         search needs to know where phones were over the last hours, including when nobody has the
         app open, so without "all the time" most of that record would be missing.
       </Body>
-      <Body>
-        {android
-          ? 'Tap the button to open this app\'s location settings, choose "Allow all the time", then come back.'
-          : 'iOS will ask once more. Choose "Change to Always Allow".'}
-      </Body>
-      {flow.upgradeNotGranted ? (
+      {guided ? (
+        <SettingsGuide flow={flow} choice="Always" />
+      ) : (
+        <Body>
+          {android
+            ? 'Tap the button to open this app\'s location settings, choose "Allow all the time", then come back.'
+            : 'iOS will ask once more. Choose "Change to Always Allow".'}
+        </Body>
+      )}
+      {flow.upgradeNotGranted && android ? (
         <InfoBanner
           icon="alert"
           message={
-            android
-              ? 'Location is still "only while using the app". Choose "Allow all the time" in settings.'
-              : 'iOS did not change the setting. You can still switch to Always in system settings.'
+            'Location is still "only while using the app". Choose "Allow all the time" in settings.'
           }
         />
       ) : null}
-      <Button
-        label={android ? 'Open settings' : 'Allow Always'}
-        disabled={flow.busy}
-        onPress={() => void flow.request('background')}
-      />
-      {flow.upgradeNotGranted && !android ? (
+      {guided ? null : (
         <Button
-          label="Open system settings"
-          variant="tint"
-          onPress={() => void flow.openSettings('app')}
+          label={android ? 'Open settings' : 'Allow Always'}
+          disabled={flow.busy}
+          onPress={() => void flow.request('background')}
         />
-      ) : null}
+      )}
       <Button label="Keep while-using only" variant="ghost" onPress={flow.declineUpgrade} />
     </Section>
   );
 }
 
-function Limited({ flow, onClose }: { flow: PermissionFlow; onClose: () => void }) {
+function Limited({
+  flow,
+  platform,
+  onClose,
+}: {
+  flow: PermissionFlow;
+  platform: CapturePlatform;
+  onClose: () => void;
+}) {
   return (
     <Section title="Limited capture">
       <InfoBanner
@@ -142,13 +180,25 @@ function Limited({ flow, onClose }: { flow: PermissionFlow; onClose: () => void 
         You can still report a missing person and see matches. Your phone will contribute much less
         to other people's searches. You can change this whenever you like.
       </Body>
-      <Button label="Allow all the time" onPress={flow.reconsiderUpgrade} />
+      {platform === 'ios' && flow.upgradePromptUsed ? (
+        <SettingsGuide flow={flow} choice="Always" />
+      ) : (
+        <Button label="Allow all the time" onPress={flow.reconsiderUpgrade} />
+      )}
       <Button label="Done" variant="ghost" onPress={onClose} />
     </Section>
   );
 }
 
-function Denied({ flow, onClose }: { flow: PermissionFlow; onClose: () => void }) {
+function Denied({
+  flow,
+  platform,
+  onClose,
+}: {
+  flow: PermissionFlow;
+  platform: CapturePlatform;
+  onClose: () => void;
+}) {
   return (
     <Section title="Location is turned off">
       <InfoBanner icon="alert" message="findmyperson cannot record where this phone has been." />
@@ -157,13 +207,19 @@ function Denied({ flow, onClose }: { flow: PermissionFlow; onClose: () => void }
         You can still report a missing person and follow your report. To turn location on, open
         settings and allow it for findmyperson.
       </Body>
-      <Button label="Open settings" onPress={() => void flow.openSettings('app')} />
-      {flow.settingsUnavailable ? (
-        <InfoBanner
-          icon="alert"
-          message="This phone has no settings page we can open. Find findmyperson under Settings, then Apps."
-        />
-      ) : null}
+      {platform === 'ios' ? (
+        <SettingsGuide flow={flow} choice="While Using the App or Always" />
+      ) : (
+        <>
+          <Button label="Open settings" onPress={() => void flow.openSettings('app')} />
+          {flow.settingsUnavailable ? (
+            <InfoBanner
+              icon="alert"
+              message="This phone has no settings page we can open. Find findmyperson under Settings, then Apps."
+            />
+          ) : null}
+        </>
+      )}
       <Button label="Continue without location" variant="ghost" onPress={onClose} />
     </Section>
   );
@@ -273,9 +329,9 @@ export function PermissionFlowScreen({ onClose, platform }: PermissionFlowScreen
   } else if (stage === 'upgrade') {
     body = <Upgrade flow={flow} platform={resolved} />;
   } else if (stage === 'limited') {
-    body = <Limited flow={flow} onClose={onClose} />;
+    body = <Limited flow={flow} platform={resolved} onClose={onClose} />;
   } else if (stage === 'denied') {
-    body = <Denied flow={flow} onClose={onClose} />;
+    body = <Denied flow={flow} platform={resolved} onClose={onClose} />;
   } else if (stage === 'restricted') {
     body = <Restricted onClose={onClose} />;
   } else if (stage === 'complete') {

@@ -7,7 +7,10 @@ import {
 } from '@findmyperson/encrypted-store';
 import type { LocationCapture } from '@findmyperson/native-location-capture';
 import {
+  KV_KEYS,
   createRetentionMaintenance,
+  kvGet,
+  kvSet,
   listOwnReports,
   listWatchedShards,
   runFetchCycle,
@@ -117,6 +120,14 @@ export interface DataStore {
    * still held for review. Queued, sending and failed submits are not active reports.
    */
   getActiveReport(): Promise<OwnReport | null>;
+  /**
+   * Whether the app has already used iOS's one-time "Change to Always Allow" request (`kv`,
+   * `KV_KEYS.iosAlwaysPromptUsed`). The permission screen reads it on mount; iOS gives no way
+   * to ask. Rejects if the store cannot be opened.
+   */
+  getAlwaysPromptUsed(): Promise<boolean>;
+  /** Records that the request above has been used. */
+  markAlwaysPromptUsed(): Promise<void>;
 }
 
 /** A fetch cycle's input, less what the store supplies: the time, and the watch list if absent. */
@@ -174,6 +185,8 @@ export function createDataStore(
     runReportQueue: (api) => runSubmitQueue(db, api, now),
     getActiveReport: async () =>
       (await listOwnReports(db)).find((row) => row.state === 'active') ?? null,
+    getAlwaysPromptUsed: async () => (await kvGet(db, KV_KEYS.iosAlwaysPromptUsed)) === '1',
+    markAlwaysPromptUsed: () => kvSet(db, KV_KEYS.iosAlwaysPromptUsed, '1'),
 
     deleteAll: () =>
       serial(async () => {

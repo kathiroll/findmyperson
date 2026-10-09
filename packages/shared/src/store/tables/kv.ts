@@ -32,6 +32,12 @@ export const KV_KEYS = {
   fetchLastCompleted: 'fetch.last_completed',
   /** Device identity (R4.1): the client-generated device id, a UUID v4, created on first use. */
   deviceId: 'identity.device_id',
+  /**
+   * Permission flow (iOS only): '1' once the app has called the one-time "Change to Always Allow"
+   * request, which iOS will not show again and gives the app no way to ask about. While it is
+   * set the screen shows the written Settings guide instead of an Allow Always button.
+   */
+  iosAlwaysPromptUsed: 'permission.ios_always_prompt_used',
 } as const;
 
 /** Every shardGenerationKey starts with this. */
