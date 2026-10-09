@@ -2,13 +2,13 @@
 
 The state of the work: what is done, what is left, and what is waiting on the captain. Updated every task, in the same pull request as the task. Markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked on the captain.
 
-|                        |                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------- |
-| Total                  | 45 (T-000 to T-044)                                                                         |
-| Done                   | 44                                                                                          |
-| In progress            | 0                                                                                           |
+|                        |                                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Total                  | 45 (T-000 to T-044)                                                                                                                        |
+| Done                   | 44                                                                                                                                         |
+| In progress            | 0                                                                                                                                          |
 | Remaining              | 1 queued (T-042); T-045 (the captain's verification) is not yet listed; no others are listed until the captain approves the next breakdown |
-| Blocked on the captain | 14 items below, each marked `[!]`                                                           |
+| Blocked on the captain | 14 items below, each marked `[!]`                                                                                                          |
 
 As of commit `88c8a6c` (2026-10-08), plus T-040 and T-041. T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
 

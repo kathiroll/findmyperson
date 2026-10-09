@@ -105,6 +105,7 @@ Launched application with dev.findmyperson.app bundle identifier.
 - Defaults taken:
   - Which team -> the Personal Team already in this Mac's Xcode (as T-041) -> set `FMP_IOS_TEAM_ID` to another team's ID.
   - Identifiers -> team ID, team and device names and device identifier kept out of this public repository -> none.
+  - Ran the formatter after CI flagged TASKS.md -> `prettier --write` on the docs -> none.
 - Notes / questions raised: none; no defect found.
 
 ## Verify on the phone
