@@ -6,6 +6,7 @@ import {
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, test, vi } from 'vitest';
 import { appStateLog } from '../../design-system/__tests__/stubs/react-native';
+import { DataStoreProvider, type DataStore } from '../../store';
 import { CaptureProvider } from '../CaptureContext';
 import { PermissionFlowScreen } from '../PermissionFlowScreen';
 import { PERMISSION_STAGES, permissionStage, remedies, type PermissionStage } from '../stages';
@@ -17,12 +18,29 @@ vi.mock(
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-async function mount(capture: FakeLocationCapture, platform: CapturePlatform, onClose = vi.fn()) {
+/** The one stored fact this screen uses: whether iOS's one-time Always request was used. */
+function fakeStore(used = false) {
+  const state = { used };
+  const dataStore = {
+    getAlwaysPromptUsed: async () => state.used,
+    markAlwaysPromptUsed: async () => void (state.used = true),
+  } as unknown as DataStore;
+  return { state, dataStore };
+}
+
+async function mount(
+  capture: FakeLocationCapture,
+  platform: CapturePlatform,
+  onClose = vi.fn(),
+  store = fakeStore(),
+) {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(
       <CaptureProvider capture={capture}>
-        <PermissionFlowScreen platform={platform} onClose={onClose} />
+        <DataStoreProvider dataStore={store.dataStore}>
+          <PermissionFlowScreen platform={platform} onClose={onClose} />
+        </DataStoreProvider>
       </CaptureProvider>,
     );
   });
@@ -190,14 +208,98 @@ describe('iOS flow', () => {
     expect(stageOf(renderer)).toBe('complete');
   });
 
-  test('iOS not changing to Always offers system settings', async () => {
+  const GUIDE_ORDER = ['Privacy & Security', 'Location Services', 'findmyperson', 'Always'];
+  const inOrder = (copy: string, parts: string[]) => {
+    let from = 0;
+    for (const part of parts) {
+      const at = copy.indexOf(part, from);
+      expect(at, `"${part}" after position ${from}`).toBeGreaterThanOrEqual(from);
+      from = at + part.length;
+    }
+  };
+
+  test('after iOS declines the one Always prompt, a written Settings guide replaces the dead button', async () => {
     const capture = fake('ios');
     capture.controls.answerPermission('background', 'foreground_only');
-    const { renderer } = await mount(capture, 'ios');
+    const store = fakeStore();
+    const { renderer } = await mount(capture, 'ios', vi.fn(), store);
     await press(renderer, 'Continue');
-    expect(hasButton(renderer, 'Open system settings')).toBe(false);
+    expect(hasButton(renderer, 'Allow Always')).toBe(true);
+    expect(renderer.root.findAll((n) => n.props.testID === 'settings-guide')).toHaveLength(0);
     await press(renderer, 'Allow Always');
-    await press(renderer, 'Open system settings');
+    expect(hasButton(renderer, 'Allow Always')).toBe(false);
+    const copy = text(renderer.root);
+    expect(copy).toContain('Turn on Always in Settings');
+    expect(copy).not.toMatch(/did not change the setting/);
+    inOrder(copy, GUIDE_ORDER);
+    await press(renderer, 'Open Settings');
+    expect(capture.controls.openedSettings()).toEqual(['app']);
+    expect(capture.controls.shownPermissionPrompts()).toEqual(['foreground', 'background']);
+    expect(store.state.used).toBe(true);
+  });
+
+  test('the guide is remembered across visits and restarts, with no press', async () => {
+    const capture = fake('ios', 'foreground_only');
+    const store = fakeStore();
+    capture.controls.answerPermission('background', 'foreground_only');
+    const first = await mount(capture, 'ios', vi.fn(), store);
+    await press(first.renderer, 'Allow Always');
+    await act(async () => first.renderer.unmount());
+
+    const again = await mount(capture, 'ios', vi.fn(), store);
+    expect(stageOf(again.renderer)).toBe('upgrade');
+    expect(hasButton(again.renderer, 'Allow Always')).toBe(false);
+    inOrder(text(again.renderer.root), GUIDE_ORDER);
+    expect(capture.controls.shownPermissionPrompts()).toEqual(['background']);
+  });
+
+  test('a stored flag alone (new process) shows the guide', async () => {
+    const { renderer } = await mount(
+      fake('ios', 'foreground_only'),
+      'ios',
+      vi.fn(),
+      fakeStore(true),
+    );
+    expect(hasButton(renderer, 'Allow Always')).toBe(false);
+    inOrder(text(renderer.root), GUIDE_ORDER);
+  });
+
+  test('returning from Settings with Always moves on by itself and the guide goes', async () => {
+    const capture = fake('ios', 'foreground_only');
+    const { renderer } = await mount(capture, 'ios', vi.fn(), fakeStore(true));
+    expect(
+      renderer.root.findAll((n) => n.props.testID === 'settings-guide').length,
+    ).toBeGreaterThan(0);
+    capture.controls.setPermission('always');
+    await act(async () => {
+      for (const listener of appStateLog.listeners) listener('active');
+    });
+    expect(stageOf(renderer)).toBe('complete');
+    expect(renderer.root.findAll((n) => n.props.testID === 'settings-guide')).toHaveLength(0);
+  });
+
+  test('limited on iOS shows the guide only once the prompt is used', async () => {
+    const unused = await mount(fake('ios', 'foreground_only'), 'ios');
+    await press(unused.renderer, 'Keep while-using only');
+    expect(stageOf(unused.renderer)).toBe('limited');
+    expect(hasButton(unused.renderer, 'Allow all the time')).toBe(true);
+
+    const used = await mount(fake('ios', 'foreground_only'), 'ios', vi.fn(), fakeStore(true));
+    await press(used.renderer, 'Keep while-using only');
+    expect(stageOf(used.renderer)).toBe('limited');
+    expect(hasButton(used.renderer, 'Allow all the time')).toBe(false);
+    inOrder(text(used.renderer.root), GUIDE_ORDER);
+  });
+
+  test('iOS denied shows the guide ending in While Using the App or Always, not the Android wording', async () => {
+    const capture = fake('ios', 'denied');
+    const { renderer } = await mount(capture, 'ios');
+    expect(stageOf(renderer)).toBe('denied');
+    const copy = text(renderer.root);
+    inOrder(copy, GUIDE_ORDER);
+    expect(copy).toContain('Choose While Using the App or Always.');
+    expect(copy).not.toMatch(/then Apps/);
+    await press(renderer, 'Open Settings');
     expect(capture.controls.openedSettings()).toEqual(['app']);
   });
 

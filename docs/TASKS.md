@@ -2,13 +2,13 @@
 
 The state of the work: what is done, what is left, and what is waiting on the captain. Updated every task, in the same pull request as the task. Markers: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` blocked on the captain.
 
-|                        |                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------ |
-| Total                  | 43 (T-000 to T-042)                                                                  |
-| Done                   | 42                                                                                   |
-| In progress            | 0                                                                                    |
-| Remaining              | 1 queued (T-042); no others are listed until the captain approves the next breakdown |
-| Blocked on the captain | 14 items below, each marked `[!]`                                                    |
+|                        |                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| Total                  | 45 (T-000 to T-044)                                                                         |
+| Done                   | 43                                                                                          |
+| In progress            | 0                                                                                           |
+| Remaining              | 2 queued (T-042, T-044); no others are listed until the captain approves the next breakdown |
+| Blocked on the captain | 14 items below, each marked `[!]`                                                           |
 
 As of commit `88c8a6c` (2026-10-08), plus T-040 and T-041. T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
 
@@ -63,6 +63,32 @@ Out of scope: any on-device testing beyond launching (T-042); push, TestFlight o
 Decisions resolved: none needed. Done with the Personal Team already in Xcode on this Mac (see the WORKLOG entry).
 Likely areas touched: none in the repository unless the build exposes a defect; a unique local bundle identifier if `dev.findmyperson.app` is unavailable to the team (`FMP_IOS_BUNDLE_ID`).
 How to verify: the app icon is on the phone and opens to onboarding.
+
+### T-043 [x] Settings guide in place of the dead Allow Always button (iOS)
+
+Goal: On iOS, once the one-time Always upgrade prompt has been used, or location was denied, the permission screen shows a written Settings guide instead of an Allow Always button that cannot work.
+Acceptance criteria:
+
+- The `upgrade` stage shows Allow Always only while the prompt is unused; the first `request('background')` on iOS records it in `kv` (`iosAlwaysPromptUsed`), and it is read on mount.
+- Used prompt, `limited` and iOS `denied` show the six-step guide with the real labels and an Open Settings button; the "iOS did not change the setting" banner is gone on iOS; Android is unchanged.
+- Returning from Settings with Always moves the stage to `complete` by itself.
+- Tests: an honest fake (iOS asks once), and the reproduction, remembered, return and denied cases; `pnpm check` passes.
+
+Out of scope: the native module, its spec and contracts; a Settings.bundle; `App-prefs` links; Android; building or installing on the phone (T-044).
+Decisions resolved: none needed (option B of the investigation, which the captain approved).
+Likely areas touched: `app/src/permissions/`, `app/src/store/DataStoreContext.tsx`, `packages/shared/src/store/tables/kv.ts`, `packages/native-location-capture/src/fake.ts`.
+How to verify: the "Verify on the phone" section of the WORKLOG entry, after T-044; until then the tests in `app/src/permissions/__tests__/permissions.test.tsx`.
+
+### T-044 [ ] Signed build with the T-043 fix installed on the captain's iPhone, for the captain to verify
+
+Goal: The captain's iPhone runs a signed build that contains the T-043 guide, so the captain can follow "Verify on the phone".
+Acceptance criteria: the build is installed and launches (as T-041); the captain reports each step of the T-043 WORKLOG list as seen or failed.
+Out of scope: fixing what fails (new tasks).
+Decisions resolved: none needed.
+Likely areas touched: none in the repository unless the build exposes a defect.
+How to verify: the captain's results.
+
+- [ ] **Suggestion, not a task (untested): add a minimal `Settings.bundle` so Open Settings lands on the app's own page.** From the investigation's option E: Apple DTS's workaround for apps with no Settings page. Not built and not proven on this phone; the guide works without it.
 
 ### T-042 [ ] Real-phone testing against the checklist in `m0/ios/README.md`
 

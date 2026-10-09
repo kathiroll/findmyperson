@@ -242,6 +242,8 @@ export function createFakeLocationCapture(
   const transitions: MechanismTransition[] = [];
   const openedSettings: SettingsTarget[] = [];
   const shownPrompts: PermissionStep[] = [];
+  // iOS shows the Always upgrade once; later requests do nothing, as in the real engine.
+  let iosUpgradePromptSpent = false;
 
   const sampleWritten = createEmitter<SampleWrittenEvent>();
   const statusChanged = createEmitter<CaptureStatus>();
@@ -537,8 +539,11 @@ export function createFakeLocationCapture(
     requestPermission: (step) =>
       serial(async () => {
         const askable =
-          step === 'foreground' ? permission === 'undetermined' : permission === 'foreground_only';
+          step === 'foreground'
+            ? permission === 'undetermined'
+            : permission === 'foreground_only' && !iosUpgradePromptSpent;
         if (askable) {
+          if (step === 'background' && platform === 'ios') iosUpgradePromptSpent = true;
           shownPrompts.push(step);
           permission = answers[step];
           notify();

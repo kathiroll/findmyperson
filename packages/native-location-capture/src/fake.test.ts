@@ -132,6 +132,24 @@ describe('permission', () => {
     expect((await capture.getStatus()).permission).toBe('always');
   });
 
+  test('iOS shows the Always upgrade once; a second request shows nothing', async () => {
+    const { capture, controls } = setup({ platform: 'ios', permission: 'foreground_only' });
+    controls.answerPermission('background', 'foreground_only');
+    expect(await capture.requestPermission('background')).toBe('foreground_only');
+    controls.answerPermission('background', 'always');
+    expect(await capture.requestPermission('background')).toBe('foreground_only');
+    expect(controls.shownPermissionPrompts()).toEqual(['background']);
+  });
+
+  test('Android may be asked for the background step again', async () => {
+    const { capture, controls } = setup({ platform: 'android', permission: 'foreground_only' });
+    controls.answerPermission('background', 'foreground_only');
+    await capture.requestPermission('background');
+    controls.answerPermission('background', 'always');
+    expect(await capture.requestPermission('background')).toBe('always');
+    expect(controls.shownPermissionPrompts()).toEqual(['background', 'background']);
+  });
+
   test('the user may decline the background step and stay at foreground only', async () => {
     const { capture, controls } = setup({ permission: 'foreground_only' });
     controls.answerPermission('background', 'foreground_only');

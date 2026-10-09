@@ -6,6 +6,7 @@ import type {
 } from '@findmyperson/native-location-capture';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+import { useDataStore } from '../store/DataStoreContext';
 import { useCapture } from './CaptureContext';
 import { permissionStage, remedies, type PermissionStage, type Remedy } from './stages';
 
@@ -18,6 +19,11 @@ export type PermissionFlow = {
   settingsUnavailable: SettingsTarget | null;
   /** True once a background request came back without granting "all the time". */
   upgradeNotGranted: boolean;
+  /**
+   * iOS only: the one-time "Change to Always Allow" request has been used, so asking again does
+   * nothing and the person has to use Settings. Always false on Android.
+   */
+  upgradePromptUsed: boolean;
   busy: boolean;
   request: (step: PermissionStep) => Promise<void>;
   openSettings: (target: SettingsTarget) => Promise<void>;
@@ -33,12 +39,25 @@ export type PermissionFlow = {
  */
 export function usePermissionFlow(platform: CapturePlatform): PermissionFlow {
   const capture = useCapture();
+  const dataStore = useDataStore();
   const [status, setStatus] = useState<CaptureStatus | null>(null);
   const [declined, setDeclined] = useState(false);
   const [settingsUnavailable, setSettingsUnavailable] = useState<SettingsTarget | null>(null);
   const [upgradeNotGranted, setUpgradeNotGranted] = useState(false);
+  // Null until the stored flag is read (iOS), so the dead Allow Always button never flashes.
+  const [promptUsed, setPromptUsed] = useState<boolean | null>(platform === 'ios' ? null : false);
   const [busy, setBusy] = useState(false);
   const mounted = useRef(true);
+
+  useEffect(() => {
+    if (platform !== 'ios') return;
+    // A store that cannot be read (phone not yet unlocked) counts as "not used": the button
+    // shows, and pressing it records the flag again.
+    dataStore.getAlwaysPromptUsed().then(
+      (used) => mounted.current && setPromptUsed((was) => was || used),
+      () => mounted.current && setPromptUsed((was) => was ?? false),
+    );
+  }, [platform, dataStore]);
 
   const refresh = useCallback(async () => {
     const next = await capture.getStatus();
@@ -66,6 +85,11 @@ export function usePermissionFlow(platform: CapturePlatform): PermissionFlow {
     async (step: PermissionStep) => {
       setBusy(true);
       try {
+        if (step === 'background' && platform === 'ios') {
+          // The one call iOS honours is spent the moment it is made, whatever the answer.
+          setPromptUsed(true);
+          void dataStore.markAlwaysPromptUsed().catch(() => undefined);
+        }
         const result = await capture.requestPermission(step);
         if (step === 'background') setUpgradeNotGranted(result !== 'always');
         await refresh();
@@ -73,7 +97,7 @@ export function usePermissionFlow(platform: CapturePlatform): PermissionFlow {
         if (mounted.current) setBusy(false);
       }
     },
-    [capture, refresh],
+    [capture, dataStore, platform, refresh],
   );
 
   const openSettings = useCallback(
@@ -86,10 +110,11 @@ export function usePermissionFlow(platform: CapturePlatform): PermissionFlow {
 
   return {
     status,
-    stage: status ? permissionStage(status, platform, declined) : null,
+    stage: status && promptUsed !== null ? permissionStage(status, platform, declined) : null,
     remedies: status ? remedies(status) : [],
     settingsUnavailable,
     upgradeNotGranted,
+    upgradePromptUsed: promptUsed === true,
     busy,
     request,
     openSettings,

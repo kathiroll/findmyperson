@@ -55,6 +55,10 @@ This is the list the repository itself keeps in "Stubs and unfinished" in [ARCHI
 - **Operator side.** Real operator authentication, a real alert channel, rate limits on reports, and re-review of a widening edit on a released report.
 - **Operations.** No deployment, no policy page or abuse mailbox (placeholder links), a weekly `VACUUM` that stays off on Android until it is checked on a phone, and no scheduled purge when nothing wakes the app.
 
+## Writing for the person
+
+Any screen that asks a person to do something states the exact steps, in order, with the real labels they will see on screen ("Tap Privacy & Security", not "open the privacy settings"). Stated by the captain on 2026-10-09; the iOS Settings guide in the permission flow (T-043) is the first screen written this way.
+
 ## Non-goals
 
 What the project is not building, with where each comes from. "Stated" means the repository says so; "from the code" means the code behaves this way and nothing says it is meant to change. Anything here can be changed by the captain; an agent may not change it.
