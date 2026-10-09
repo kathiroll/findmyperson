@@ -85,6 +85,28 @@ Launched application with dev.findmyperson.app bundle identifier.
 - Not verified on a phone: that Open Settings lands on the Settings list (the guide starts there), the iOS 15 name "Privacy", and that the screen updates by itself when the app is not relaunched by iOS after the change. Tests use the fake only.
 - Notes: T-044 (signed build for the captain) added; a Settings.bundle suggestion recorded in `docs/TASKS.md` (untested).
 
+## 2026-10-09: T-044
+
+- Built current main (with the T-043 guide) as a development-signed iOS app and installed it OVER the existing app on the captain's iPhone 13 (same bundle id `dev.findmyperson.app`, so saved data and permission state are kept; nothing uninstalled, deleted or changed on the phone), then launched it. No code changed. The team ID went in through the environment only.
+- Build: `LANG=en_US.UTF-8 FMP_IOS_TEAM_ID=<your team id> build/build-ios.sh device` -> `** BUILD SUCCEEDED **`; `codesign -dvv` shows `Identifier=dev.findmyperson.app`, `TeamIdentifier=<your team id>`.
+- Check before installing that the build contains T-043: `grep -a -c "Turn on Always in Settings" main.jsbundle` -> 1, and `iosAlwaysPromptUsed` -> 1, in the built `FindMyPerson.app/main.jsbundle`.
+- Install: the first attempt failed because the phone was locked (`kAMDMobileImageMounterDeviceLocked`); reported as blocked, retried every 30 seconds, and it went through once the captain unlocked the phone:
+
+```
+xcrun devicectl device install app --device <device identifier> \
+  app/ios/build/DerivedData/Build/Products/Release-iphoneos/FindMyPerson.app
+bundleID: dev.findmyperson.app
+xcrun devicectl device process launch --device <device identifier> dev.findmyperson.app
+Launched application with dev.findmyperson.app bundle identifier.
+```
+
+- What the app shows on screen was not observed: the captain's verification is T-045. The Personal Team build expires after 7 days.
+- Files: `docs/TASKS.md`, `docs/WORKLOG.md`.
+- Defaults taken:
+  - Which team -> the Personal Team already in this Mac's Xcode (as T-041) -> set `FMP_IOS_TEAM_ID` to another team's ID.
+  - Identifiers -> team ID, team and device names and device identifier kept out of this public repository -> none.
+- Notes / questions raised: none; no defect found.
+
 ## Verify on the phone
 
 For the captain, on the iPhone 13 that already has the app (While Using allowed, iOS's one "Change to Always Allow" question already answered with "Keep Only While Using"). This needs the build from T-044; until then the tests are the only proof. Do each step in order.

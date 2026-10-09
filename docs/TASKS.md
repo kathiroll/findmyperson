@@ -5,9 +5,9 @@ The state of the work: what is done, what is left, and what is waiting on the ca
 |                        |                                                                                             |
 | ---------------------- | ------------------------------------------------------------------------------------------- |
 | Total                  | 45 (T-000 to T-044)                                                                         |
-| Done                   | 43                                                                                          |
+| Done                   | 44                                                                                          |
 | In progress            | 0                                                                                           |
-| Remaining              | 2 queued (T-042, T-044); no others are listed until the captain approves the next breakdown |
+| Remaining              | 1 queued (T-042); T-045 (the captain's verification) is not yet listed; no others are listed until the captain approves the next breakdown |
 | Blocked on the captain | 14 items below, each marked `[!]`                                                           |
 
 As of commit `88c8a6c` (2026-10-08), plus T-040 and T-041. T-000 is this onboarding. T-001 to T-039 are the merged pull requests #1 to #39, one task each, numbered by pull request; they were written down after the fact in T-000, so their acceptance criteria are not reconstructed (the pull request is the record).
@@ -79,10 +79,10 @@ Decisions resolved: none needed (option B of the investigation, which the captai
 Likely areas touched: `app/src/permissions/`, `app/src/store/DataStoreContext.tsx`, `packages/shared/src/store/tables/kv.ts`, `packages/native-location-capture/src/fake.ts`.
 How to verify: the "Verify on the phone" section of the WORKLOG entry, after T-044; until then the tests in `app/src/permissions/__tests__/permissions.test.tsx`.
 
-### T-044 [ ] Signed build with the T-043 fix installed on the captain's iPhone, for the captain to verify
+### T-044 [x] Signed build with the T-043 fix installed on the captain's iPhone, for the captain to verify
 
 Goal: The captain's iPhone runs a signed build that contains the T-043 guide, so the captain can follow "Verify on the phone".
-Acceptance criteria: the build is installed and launches (as T-041); the captain reports each step of the T-043 WORKLOG list as seen or failed.
+Acceptance criteria: the build is installed over the existing app and launches (as T-041). The captain's per-step results are T-045.
 Out of scope: fixing what fails (new tasks).
 Decisions resolved: none needed.
 Likely areas touched: none in the repository unless the build exposes a defect.
